@@ -109,7 +109,7 @@ export default function ChatPage({ user, onLogout }: ChatPageProps) {
             </button>
           </div>
           <p className="text-center text-xs text-muted-foreground/50 mt-2">
-            Press Enter to send, Shift+Enter for new line
+            Powered by secure company AI
           </p>
         </div>
       </div>
