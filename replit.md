@@ -54,6 +54,16 @@ artifacts-monorepo/
 - Token auto-injected via `custom-fetch.ts` from localStorage (`auth_token` key)
 - Frontend shows login page when unauthenticated, chat page when authenticated
 
+## OpenAI Integration
+
+- Uses Replit AI Integrations (no user API key required, billed to Replit credits)
+- Env vars: `AI_INTEGRATIONS_OPENAI_BASE_URL`, `AI_INTEGRATIONS_OPENAI_API_KEY` (auto-provisioned)
+- Model: `gpt-4o-mini` via `@workspace/integrations-openai-ai-server`
+- AI service: `artifacts/api-server/src/services/aiService.ts`
+- Flow: tool commands → fetch tool data → send to OpenAI with context → return AI response
+- Non-tool messages go directly to OpenAI
+- Graceful fallback: if OpenAI fails on a tool command, raw tool data is returned
+
 ## Tool Command System
 
 - Parser detects `@ToolName query` patterns in chat messages
