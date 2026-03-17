@@ -26,4 +26,10 @@ export const SendMessageBody = zod.object({
 export const SendMessageResponse = zod.object({
   reply: zod.string(),
   timestamp: zod.string(),
+  toolCommand: zod
+    .object({
+      tool: zod.string(),
+      query: zod.string(),
+    })
+    .optional(),
 });
