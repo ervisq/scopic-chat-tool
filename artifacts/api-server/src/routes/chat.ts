@@ -5,13 +5,13 @@ import { routeToolCommand } from "../lib/tool-handlers";
 
 const router: IRouter = Router();
 
-router.post("/chat", (req, res) => {
+router.post("/chat", async (req, res) => {
   const parsed = SendMessageBody.parse(req.body);
   const toolCommand = parseToolCommand(parsed.message);
 
   let reply: string;
   if (toolCommand) {
-    const result = routeToolCommand(toolCommand.tool, toolCommand.query);
+    const result = await routeToolCommand(toolCommand.tool, toolCommand.query);
     reply = result.reply;
   } else {
     reply = `You said: "${parsed.message}". This is a simple echo response.`;
