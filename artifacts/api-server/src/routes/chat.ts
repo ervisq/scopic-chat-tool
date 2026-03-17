@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { SendMessageBody, SendMessageResponse } from "@workspace/api-zod";
 import { parseToolCommand } from "../lib/parse-tool-command";
+import { routeToolCommand } from "../lib/tool-handlers";
 
 const router: IRouter = Router();
 
@@ -10,7 +11,8 @@ router.post("/chat", (req, res) => {
 
   let reply: string;
   if (toolCommand) {
-    reply = `[Tool: ${toolCommand.tool}] Running query: "${toolCommand.query}"`;
+    const result = routeToolCommand(toolCommand.tool, toolCommand.query);
+    reply = result.reply;
   } else {
     reply = `You said: "${parsed.message}". This is a simple echo response.`;
   }
