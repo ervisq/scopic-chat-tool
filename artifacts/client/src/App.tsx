@@ -15,6 +15,14 @@ const queryClient = new QueryClient({
 function AuthGate() {
   const { isAuthenticated, user, login, logout, isLoading } = useAuth();
 
+  if (isLoading) {
+    return (
+      <div className="min-h-dvh flex items-center justify-center bg-background">
+        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
     return <LoginPage onLogin={login} isLoading={isLoading} />;
   }

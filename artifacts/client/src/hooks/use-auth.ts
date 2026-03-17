@@ -14,16 +14,42 @@ interface AuthState {
 const TOKEN_KEY = "auth_token";
 const USER_KEY = "auth_user";
 
+function loadStoredAuth(): { token: string | null; user: User | null } {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const userJson = localStorage.getItem(USER_KEY);
+  return {
+    token,
+    user: userJson ? JSON.parse(userJson) : null,
+  };
+}
+
 export function useAuth() {
   const [state, setState] = useState<AuthState>(() => {
-    const token = localStorage.getItem(TOKEN_KEY);
-    const userJson = localStorage.getItem(USER_KEY);
-    return {
-      token,
-      user: userJson ? JSON.parse(userJson) : null,
-      isLoading: false,
-    };
+    const stored = loadStoredAuth();
+    return { ...stored, isLoading: !!stored.token };
   });
+
+  useEffect(() => {
+    if (!state.token) return;
+
+    const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
+    fetch(`${baseUrl}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${state.token}` },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("Token invalid");
+        return res.json();
+      })
+      .then((user) => {
+        localStorage.setItem(USER_KEY, JSON.stringify(user));
+        setState({ token: state.token, user, isLoading: false });
+      })
+      .catch(() => {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
+        setState({ token: null, user: null, isLoading: false });
+      });
+  }, []);
 
   const login = useCallback(async (email: string, password: string) => {
     setState((s) => ({ ...s, isLoading: true }));
@@ -60,7 +86,7 @@ export function useAuth() {
   return {
     user: state.user,
     token: state.token,
-    isAuthenticated: !!state.token,
+    isAuthenticated: !!state.token && !state.isLoading,
     isLoading: state.isLoading,
     login,
     logout,
