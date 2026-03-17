@@ -53,6 +53,11 @@ router.delete("/credentials/:provider", async (req, res) => {
     const { userId } = getAuthUser(req);
     const provider = req.params.provider.toLowerCase();
 
+    if (!VALID_PROVIDERS.includes(provider)) {
+      res.status(400).json({ message: `Invalid provider. Supported: ${VALID_PROVIDERS.join(", ")}` });
+      return;
+    }
+
     await deleteUserCredentials(userId, provider);
 
     res.json({ success: true, provider, connected: false });
