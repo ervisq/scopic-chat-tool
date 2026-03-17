@@ -1,0 +1,11 @@
+packages:
+  "framer-motion": "For fluid, natural entrance animations for chat bubbles and layout transitions"
+  "date-fns": "For elegant and human-readable timestamp formatting"
+  "clsx": "For composing utility classes cleanly"
+  "tailwind-merge": "For intelligently merging tailwind classes without conflicts"
+
+images: []
+
+notes:
+  - "The Chat API requires { data: { message: string } } structure based on the orval generated React Query hooks."
+  - "Local state is used to manage the chat history per the session, losing history on page refresh which fits the stateless minimal requirement."

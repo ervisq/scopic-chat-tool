@@ -6,6 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export * from "./chatRequest";
-export * from "./chatResponse";
-export * from "./healthStatus";
+export interface ChatRequest {
+  message: string;
+}

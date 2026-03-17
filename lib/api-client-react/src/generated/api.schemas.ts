@@ -8,3 +8,12 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface ChatRequest {
+  message: string;
+}
+
+export interface ChatResponse {
+  reply: string;
+  timestamp: string;
+}

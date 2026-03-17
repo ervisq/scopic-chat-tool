@@ -14,3 +14,16 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * Send a message and receive a response
+ * @summary Send a chat message
+ */
+export const SendMessageBody = zod.object({
+  message: zod.string(),
+});
+
+export const SendMessageResponse = zod.object({
+  reply: zod.string(),
+  timestamp: zod.string(),
+});

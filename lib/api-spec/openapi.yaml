@@ -1,6 +1,5 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
   description: API specification
@@ -10,6 +9,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: chat
+    description: Chat operations
 paths:
   /healthz:
     get:
@@ -24,6 +25,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /chat:
+    post:
+      operationId: sendMessage
+      tags: [chat]
+      summary: Send a chat message
+      description: Send a message and receive a response
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+      responses:
+        "200":
+          description: Chat response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +53,20 @@ components:
           type: string
       required:
         - status
-
+    ChatRequest:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+    ChatResponse:
+      type: object
+      properties:
+        reply:
+          type: string
+        timestamp:
+          type: string
+      required:
+        - reply
+        - timestamp
