@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { MessageSquare, Lightbulb, PenLine } from "lucide-react";
+import { MessageSquare, TicketCheck, Users, Shield } from "lucide-react";
 
 interface EmptyStateProps {
   onSuggestionClick: (text: string) => void;
@@ -7,8 +7,9 @@ interface EmptyStateProps {
 
 const suggestions = [
   { icon: MessageSquare, text: "What can you help me with today?" },
-  { icon: Lightbulb, text: "Explain quantum computing in simple terms." },
-  { icon: PenLine, text: "Help me write a professional email." },
+  { icon: TicketCheck, text: "@JIRA show my open tickets" },
+  { icon: Users, text: "@Zoho list recent contacts" },
+  { icon: Shield, text: "@STS show compliance status" },
 ];
 
 export function EmptyState({ onSuggestionClick }: EmptyStateProps) {
@@ -28,10 +29,10 @@ export function EmptyState({ onSuggestionClick }: EmptyStateProps) {
       </h2>
 
       <p className="text-muted-foreground text-sm mb-8 max-w-md">
-        Send a message to get started. I'm here to help you brainstorm, write, or answer questions.
+        Send a message or use @ commands to query your tools.
       </p>
 
-      <div className="w-full grid gap-2.5 sm:grid-cols-3">
+      <div className="w-full grid gap-2.5 sm:grid-cols-2">
         {suggestions.map((suggestion, i) => {
           const Icon = suggestion.icon;
           return (

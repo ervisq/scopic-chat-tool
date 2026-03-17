@@ -6,7 +6,13 @@ export type Message = {
   text: string;
   sender: "user" | "bot";
   timestamp: Date;
+  toolName?: string;
 };
+
+function parseToolFromMessage(message: string): string | undefined {
+  const match = message.trim().match(/^@([a-zA-Z0-9_-]+)\s+/);
+  return match ? match[1] : undefined;
+}
 
 export function useChat() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -14,35 +20,39 @@ export function useChat() {
 
   const sendMessage = useCallback(
     (text: string) => {
-      // 1. Instantly append the user's message to local state
+      const toolName = parseToolFromMessage(text);
+
       const userMessage: Message = {
         id: crypto.randomUUID(),
         text,
         sender: "user",
         timestamp: new Date(),
+        toolName,
       };
-      
+
       setMessages((prev) => [...prev, userMessage]);
 
-      // 2. Call the generated API mutation
       sendMessageMutation.mutate(
         {
           data: { message: text },
         },
         {
           onSuccess: (response) => {
-            // 3. Append the bot's reply when successful
+            const botToolName =
+              (response as any).toolCommand?.tool || toolName;
             const botMessage: Message = {
               id: crypto.randomUUID(),
               text: response.reply,
               sender: "bot",
-              timestamp: response.timestamp ? new Date(response.timestamp) : new Date(),
+              timestamp: response.timestamp
+                ? new Date(response.timestamp)
+                : new Date(),
+              toolName: botToolName,
             };
             setMessages((prev) => [...prev, botMessage]);
           },
           onError: (error) => {
             console.error("Failed to send message:", error);
-            // Append a fallback error message so the user isn't left hanging
             const errorMessage: Message = {
               id: crypto.randomUUID(),
               text: "Sorry, I encountered an error trying to process that message.",
@@ -51,10 +61,10 @@ export function useChat() {
             };
             setMessages((prev) => [...prev, errorMessage]);
           },
-        }
+        },
       );
     },
-    [sendMessageMutation]
+    [sendMessageMutation],
   );
 
   return {
