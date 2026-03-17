@@ -64,6 +64,16 @@ artifacts-monorepo/
 - Non-tool messages go directly to OpenAI
 - Graceful fallback: if OpenAI fails on a tool command, raw tool data is returned
 
+## JIRA Integration
+
+- User dismissed the Replit Jira connector (OAuth). To use real Jira API, need manual secrets:
+  - `JIRA_BASE_URL` — Jira instance URL (e.g. https://company.atlassian.net)
+  - `JIRA_EMAIL` — Jira account email
+  - `JIRA_API_TOKEN` — Jira API token
+- Service (`jiraService.ts`) supports live API with mock fallback
+- `setJiraClientFactory()` is available to inject a configured client
+- Currently running on mock data until secrets are provided
+
 ## Tool Command System
 
 - Parser detects `@ToolName query` patterns in chat messages
