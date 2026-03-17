@@ -16,6 +16,32 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
+ * Authenticate with email and password
+ * @summary Login
+ */
+export const LoginBody = zod.object({
+  email: zod.string(),
+  password: zod.string(),
+});
+
+export const LoginResponse = zod.object({
+  token: zod.string(),
+  user: zod.object({
+    email: zod.string(),
+    name: zod.string(),
+  }),
+});
+
+/**
+ * Returns the currently authenticated user
+ * @summary Get current user
+ */
+export const GetMeResponse = zod.object({
+  email: zod.string(),
+  name: zod.string(),
+});
+
+/**
  * Send a message and receive a response
  * @summary Send a chat message
  */

@@ -9,6 +9,25 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface UserInfo {
+  email: string;
+  name: string;
+}
+
+export interface LoginResponse {
+  token: string;
+  user: UserInfo;
+}
+
+export interface ErrorResponse {
+  message: string;
+}
+
 export interface ChatRequest {
   message: string;
 }

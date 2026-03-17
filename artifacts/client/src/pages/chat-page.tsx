@@ -1,11 +1,16 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ArrowUp } from "lucide-react";
+import { ArrowUp, LogOut } from "lucide-react";
 import { useChat } from "@/hooks/use-chat";
 import { ChatMessageBubble } from "@/components/chat/chat-message-bubble";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { EmptyState } from "@/components/chat/empty-state";
 
-export default function ChatPage() {
+interface ChatPageProps {
+  user: { email: string; name: string } | null;
+  onLogout: () => void;
+}
+
+export default function ChatPage({ user, onLogout }: ChatPageProps) {
   const { messages, sendMessage, isTyping } = useChat();
   const [inputValue, setInputValue] = useState("");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -51,8 +56,18 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-dvh bg-background">
-      <header className="h-14 shrink-0 flex items-center px-4 md:px-6 border-b border-border/50 bg-background z-10">
+      <header className="h-14 shrink-0 flex items-center justify-between px-4 md:px-6 border-b border-border/50 bg-background z-10">
         <h1 className="text-base font-semibold text-foreground">Chat</h1>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-muted-foreground">{user?.email}</span>
+          <button
+            onClick={onLogout}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Sign out"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
       </header>
 
       <div ref={scrollAreaRef} className="flex-1 overflow-y-auto">

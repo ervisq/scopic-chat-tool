@@ -8,5 +8,9 @@
 
 export * from "./chatRequest";
 export * from "./chatResponse";
+export * from "./errorResponse";
 export * from "./healthStatus";
+export * from "./loginRequest";
+export * from "./loginResponse";
 export * from "./toolCommand";
+export * from "./userInfo";

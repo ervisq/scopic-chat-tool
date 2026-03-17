@@ -11,6 +11,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Package manager**: pnpm
 - **TypeScript version**: 5.9
 - **API framework**: Express 5
+- **Authentication**: JWT (jsonwebtoken)
 - **Database**: PostgreSQL + Drizzle ORM
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
@@ -23,69 +24,73 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 artifacts-monorepo/
 ├── artifacts/              # Deployable applications
 │   ├── api-server/         # Express API server
+│   │   ├── src/routes/     # API routes (health, auth, chat)
+│   │   ├── src/middlewares/ # Auth middleware (JWT verification)
+│   │   ├── src/services/   # Tool service layer (JIRA, Zoho, STS)
+│   │   └── src/lib/        # Utilities (tool command parser)
 │   └── client/             # React + Vite chat app (preview at /)
+│       ├── src/pages/      # Login page, Chat page
+│       ├── src/hooks/      # useAuth, useChat hooks
+│       └── src/components/ # Chat UI components
 ├── lib/                    # Shared libraries
 │   ├── api-spec/           # OpenAPI spec + Orval codegen config
-│   ├── api-client-react/   # Generated React Query hooks
+│   ├── api-client-react/   # Generated React Query hooks (auto-injects JWT)
 │   ├── api-zod/            # Generated Zod schemas from OpenAPI
 │   └── db/                 # Drizzle ORM schema + DB connection
-├── scripts/                # Utility scripts (single workspace package)
-│   └── src/                # Individual .ts scripts, run via `pnpm --filter @workspace/scripts run <script>`
-├── pnpm-workspace.yaml     # pnpm workspace (artifacts/*, lib/*, lib/integrations/*, scripts)
-├── tsconfig.base.json      # Shared TS options (composite, bundler resolution, es2022)
-├── tsconfig.json           # Root TS project references
-└── package.json            # Root package with hoisted devDeps
+├── scripts/                # Utility scripts
+├── pnpm-workspace.yaml
+├── tsconfig.base.json
+├── tsconfig.json
+└── package.json
 ```
 
-## TypeScript & Composite Projects
+## Authentication
 
-Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references. This means:
+- JWT-based auth with `jsonwebtoken`
+- Mock user: `admin@scopic.com` / `123456`
+- Login: `POST /api/auth/login` → returns `{ token, user }`
+- Get current user: `GET /api/auth/me` (protected)
+- Chat route (`POST /api/chat`) is protected by `requireAuth` middleware
+- Token auto-injected via `custom-fetch.ts` from localStorage (`auth_token` key)
+- Frontend shows login page when unauthenticated, chat page when authenticated
 
-- **Always typecheck from the root** — run `pnpm run typecheck` (which runs `tsc --build --emitDeclarationOnly`). This builds the full dependency graph so that cross-package imports resolve correctly. Running `tsc` inside a single package will fail if its dependencies haven't been built yet.
-- **`emitDeclarationOnly`** — we only emit `.d.ts` files during typecheck; actual JS bundling is handled by esbuild/tsx/vite...etc, not `tsc`.
-- **Project references** — when package A depends on package B, A's `tsconfig.json` must list B in its `references` array. `tsc --build` uses this to determine build order and skip up-to-date packages.
+## Tool Command System
 
-## Root Scripts
+- Parser detects `@ToolName query` patterns in chat messages
+- Router dispatches to service handlers (case-insensitive matching)
+- Services: `jiraService.ts`, `zohoService.ts`, `stsService.ts`
+- Each service has typed interfaces, async query function, and format function
+- Unknown tools return a helpful error listing available tools
 
-- `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
-- `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
+## API Endpoints
+
+- `GET /api/healthz` — health check (public)
+- `POST /api/auth/login` — authenticate (public)
+- `GET /api/auth/me` — get current user (protected)
+- `POST /api/chat` — send chat message (protected)
 
 ## Packages
 
 ### `artifacts/api-server` (`@workspace/api-server`)
 
-Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
-
-- Entry: `src/index.ts` — reads `PORT`, starts Express
-- App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /healthz`; `src/routes/chat.ts` exposes `POST /chat`
-- Depends on: `@workspace/db`, `@workspace/api-zod`
+Express 5 API server with JWT auth, tool command parsing, and service routing.
 
 ### `artifacts/client` (`@workspace/client`)
 
-React + Vite chat application with Tailwind CSS. Provides a chat interface UI with message history and input field. Uses generated React Query hooks from `@workspace/api-client-react`.
-
-- Preview path: `/`
-- Features: Chat message bubbles, typing indicator, empty state with suggested prompts, timestamp display
-
-### `lib/db` (`@workspace/db`)
-
-Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client instance and schema models.
+React + Vite chat app with login page, auth state management, and ChatGPT-style chat interface.
 
 ### `lib/api-spec` (`@workspace/api-spec`)
 
-Owns the OpenAPI 3.1 spec (`openapi.yaml`) and the Orval config (`orval.config.ts`). Running codegen produces output into two sibling packages.
-
-Run codegen: `pnpm --filter @workspace/api-spec run codegen`
-
-### `lib/api-zod` (`@workspace/api-zod`)
-
-Generated Zod schemas from the OpenAPI spec. Used by `api-server` for response validation.
+OpenAPI 3.1 spec and Orval codegen config. Run codegen: `pnpm --filter @workspace/api-spec run codegen`
 
 ### `lib/api-client-react` (`@workspace/api-client-react`)
 
-Generated React Query hooks and fetch client from the OpenAPI spec.
+Generated React Query hooks. Custom fetch auto-injects JWT Bearer token from localStorage.
 
-### `scripts` (`@workspace/scripts`)
+### `lib/api-zod` (`@workspace/api-zod`)
 
-Utility scripts package.
+Generated Zod schemas for request/response validation.
+
+### `lib/db` (`@workspace/db`)
+
+Drizzle ORM with PostgreSQL (not yet used for data persistence).
