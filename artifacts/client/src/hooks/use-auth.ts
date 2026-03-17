@@ -77,6 +77,32 @@ export function useAuth() {
     }
   }, []);
 
+  const register = useCallback(async (email: string, password: string, name: string) => {
+    setState((s) => ({ ...s, isLoading: true }));
+    try {
+      const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const res = await fetch(`${baseUrl}/api/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, name }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Registration failed");
+      }
+
+      const data = await res.json();
+      localStorage.setItem(TOKEN_KEY, data.token);
+      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      setState({ token: data.token, user: data.user, isLoading: false });
+      return { success: true as const };
+    } catch (error: any) {
+      setState((s) => ({ ...s, isLoading: false }));
+      return { success: false as const, error: error.message };
+    }
+  }, []);
+
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
@@ -89,6 +115,7 @@ export function useAuth() {
     isAuthenticated: !!state.token && !state.isLoading,
     isLoading: state.isLoading,
     login,
+    register,
     logout,
   };
 }

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ArrowUp, LogOut, LayoutDashboard } from "lucide-react";
+import { ArrowUp, LogOut, LayoutDashboard, Settings } from "lucide-react";
 import { useChat } from "@/hooks/use-chat";
 import { ChatMessageBubble } from "@/components/chat/chat-message-bubble";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
@@ -13,9 +13,10 @@ interface ChatPageProps {
   user: { email: string; name: string } | null;
   onLogout: () => void;
   onOpenAdmin: () => void;
+  onOpenConnections: () => void;
 }
 
-export default function ChatPage({ user, onLogout, onOpenAdmin }: ChatPageProps) {
+export default function ChatPage({ user, onLogout, onOpenAdmin, onOpenConnections }: ChatPageProps) {
   const { messages, sendMessage, isTyping } = useChat();
   const [inputValue, setInputValue] = useState("");
   const [autocompleteIndex, setAutocompleteIndex] = useState(0);
@@ -111,6 +112,13 @@ export default function ChatPage({ user, onLogout, onOpenAdmin }: ChatPageProps)
         <h1 className="text-base font-semibold text-foreground">Chat</h1>
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted-foreground">{user?.email}</span>
+          <button
+            onClick={onOpenConnections}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Connected services"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
           <button
             onClick={onOpenAdmin}
             className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"

@@ -1,3 +1,6 @@
+import axios from "axios";
+import { getUserCredentials } from "../lib/credential-store";
+
 export interface JiraTicket {
   id: string;
   title: string;
@@ -12,12 +15,6 @@ export interface JiraServiceResult {
   source: "live" | "mock";
 }
 
-let getJiraClient: (() => Promise<any>) | null = null;
-
-export function setJiraClientFactory(factory: () => Promise<any>): void {
-  getJiraClient = factory;
-}
-
 function mapPriority(priority: any): string {
   return priority?.name || "None";
 }
@@ -30,24 +27,43 @@ function mapAssignee(assignee: any): string {
   return assignee?.displayName || "Unassigned";
 }
 
-async function queryJiraLive(query: string): Promise<JiraServiceResult> {
-  if (!getJiraClient) {
-    throw new Error("Jira client not configured");
+function isValidJiraUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:") return false;
+    const hostname = parsed.hostname.toLowerCase();
+    if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "0.0.0.0") return false;
+    if (hostname.startsWith("10.") || hostname.startsWith("192.168.") || hostname.startsWith("172.")) return false;
+    if (hostname === "169.254.169.254") return false;
+    return true;
+  } catch {
+    return false;
   }
+}
 
-  const client = await getJiraClient();
-
+async function queryJiraLive(query: string, instanceUrl: string, email: string, apiToken: string): Promise<JiraServiceResult> {
+  if (!isValidJiraUrl(instanceUrl)) {
+    throw new Error("Invalid Jira instance URL");
+  }
+  const baseUrl = instanceUrl.replace(/\/$/, "");
   const jql = buildJql(query);
 
-  const response = await client.get("/rest/api/3/search", {
+  const response = await axios.get(`${baseUrl}/rest/api/3/search`, {
     params: {
       jql,
       maxResults: 20,
       fields: "summary,status,assignee,priority,issuetype",
     },
+    auth: {
+      username: email,
+      password: apiToken,
+    },
+    headers: {
+      Accept: "application/json",
+    },
   });
 
-  const issues = response.data?.issues || response.issues || [];
+  const issues = response.data?.issues || [];
 
   const tickets: JiraTicket[] = issues.map((issue: any) => ({
     id: issue.key,
@@ -92,10 +108,16 @@ function getMockTickets(): JiraTicket[] {
   ];
 }
 
-export async function queryJira(query: string): Promise<JiraServiceResult> {
-  if (getJiraClient) {
+export async function queryJira(query: string, userId?: number): Promise<JiraServiceResult> {
+  if (userId) {
     try {
-      return await queryJiraLive(query);
+      const cred = await getUserCredentials(userId, "jira");
+      if (cred) {
+        const { email, apiToken } = cred.credentials;
+        if (email && apiToken && cred.instanceUrl) {
+          return await queryJiraLive(query, cred.instanceUrl, email, apiToken);
+        }
+      }
     } catch (error: any) {
       console.error("Jira API error, falling back to mock:", error?.message);
     }

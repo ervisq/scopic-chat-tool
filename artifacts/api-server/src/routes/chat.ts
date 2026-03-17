@@ -12,12 +12,13 @@ router.post("/chat", async (req, res) => {
     const parsed = SendMessageBody.parse(req.body);
     const toolCommand = parseToolCommand(parsed.message);
     const userEmail = (req as any).user?.email || "unknown";
+    const userId = (req as any).user?.userId;
 
     trackUsage(userEmail, toolCommand?.tool || null, parsed.message);
 
     let reply: string;
     if (toolCommand) {
-      const toolResult = await routeToolCommand(toolCommand.tool, toolCommand.query);
+      const toolResult = await routeToolCommand(toolCommand.tool, toolCommand.query, userId);
       try {
         reply = await getAIResponse(parsed.message, {
           tool: toolCommand.tool,

@@ -6,20 +6,20 @@ export interface ToolResult {
   reply: string;
 }
 
-type ToolHandler = (query: string) => Promise<ToolResult>;
+type ToolHandler = (query: string, userId: number) => Promise<ToolResult>;
 
-async function jiraHandler(query: string): Promise<ToolResult> {
-  const result = await queryJira(query);
+async function jiraHandler(query: string, userId: number): Promise<ToolResult> {
+  const result = await queryJira(query, userId);
   return { reply: formatJiraResult(result, query) };
 }
 
-async function zohoHandler(query: string): Promise<ToolResult> {
-  const result = await queryZoho(query);
+async function zohoHandler(query: string, userId: number): Promise<ToolResult> {
+  const result = await queryZoho(query, userId);
   return { reply: formatZohoResult(result, query) };
 }
 
-async function stsHandler(query: string): Promise<ToolResult> {
-  const result = await querySts(query);
+async function stsHandler(query: string, userId: number): Promise<ToolResult> {
+  const result = await querySts(query, userId);
   return { reply: formatStsResult(result, query) };
 }
 
@@ -29,13 +29,13 @@ const handlers: Record<string, ToolHandler> = {
   STS: stsHandler,
 };
 
-export async function routeToolCommand(tool: string, query: string): Promise<ToolResult> {
+export async function routeToolCommand(tool: string, query: string, userId: number): Promise<ToolResult> {
   const key = Object.keys(handlers).find(
     (k) => k.toLowerCase() === tool.toLowerCase(),
   );
 
   if (key) {
-    return handlers[key](query);
+    return handlers[key](query, userId);
   }
 
   return {

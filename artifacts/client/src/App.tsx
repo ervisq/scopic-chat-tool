@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/use-auth";
 import ChatPage from "@/pages/chat-page";
 import LoginPage from "@/pages/login-page";
 import AdminPage from "@/pages/admin-page";
+import ConnectionsPage from "@/pages/connections-page";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -15,8 +16,8 @@ const queryClient = new QueryClient({
 });
 
 function AuthGate() {
-  const { isAuthenticated, user, login, logout, isLoading } = useAuth();
-  const [page, setPage] = useState<"chat" | "admin">("chat");
+  const { isAuthenticated, user, token, login, register, logout, isLoading } = useAuth();
+  const [page, setPage] = useState<"chat" | "admin" | "connections">("chat");
 
   if (isLoading) {
     return (
@@ -27,11 +28,15 @@ function AuthGate() {
   }
 
   if (!isAuthenticated) {
-    return <LoginPage onLogin={login} isLoading={isLoading} />;
+    return <LoginPage onLogin={login} onRegister={register} isLoading={isLoading} />;
   }
 
   if (page === "admin") {
     return <AdminPage onBack={() => setPage("chat")} />;
+  }
+
+  if (page === "connections") {
+    return <ConnectionsPage token={token} onBack={() => setPage("chat")} />;
   }
 
   return (
@@ -39,6 +44,7 @@ function AuthGate() {
       user={user}
       onLogout={logout}
       onOpenAdmin={() => setPage("admin")}
+      onOpenConnections={() => setPage("connections")}
     />
   );
 }
