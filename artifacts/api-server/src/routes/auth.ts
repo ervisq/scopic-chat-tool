@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { LoginBody, LoginResponse, GetMeResponse } from "@workspace/api-zod";
-import { signToken, requireAuth } from "../middlewares/auth";
+import { signToken, requireAuth, getAuthUser } from "../middlewares/auth";
 import { db } from "@workspace/db";
 import { users } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
@@ -14,6 +14,11 @@ router.post("/auth/register", async (req, res) => {
 
     if (!email || !password || !name) {
       res.status(400).json({ message: "Email, password, and name are required" });
+      return;
+    }
+
+    if (typeof password !== "string" || password.length < 6) {
+      res.status(400).json({ message: "Password must be at least 6 characters" });
       return;
     }
 
@@ -32,8 +37,9 @@ router.post("/auth/register", async (req, res) => {
       token,
       user: { email: user.email, name: user.name },
     });
-  } catch (error: any) {
-    console.error("Registration error:", error?.message);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("Registration error:", msg);
     res.status(500).json({ message: "Registration failed. Please try again." });
   }
 });
@@ -58,14 +64,15 @@ router.post("/auth/login", async (req, res) => {
 
     const data = LoginResponse.parse({ token, user: { email: user.email, name: user.name } });
     res.json(data);
-  } catch (error: any) {
-    console.error("Login error:", error?.message);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("Login error:", msg);
     res.status(500).json({ message: "Login failed. Please try again." });
   }
 });
 
 router.get("/auth/me", requireAuth, (req, res) => {
-  const user = (req as any).user;
+  const user = getAuthUser(req);
   const data = GetMeResponse.parse({ email: user.email, name: user.name });
   res.json(data);
 });

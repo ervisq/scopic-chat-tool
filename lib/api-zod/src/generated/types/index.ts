@@ -8,9 +8,15 @@
 
 export * from "./chatRequest";
 export * from "./chatResponse";
+export * from "./connectionInfo";
+export * from "./connectionsResponse";
+export * from "./credentialActionResponse";
 export * from "./errorResponse";
 export * from "./healthStatus";
 export * from "./loginRequest";
 export * from "./loginResponse";
+export * from "./registerRequest";
+export * from "./saveCredentialsRequest";
+export * from "./saveCredentialsRequestCredentials";
 export * from "./toolCommand";
 export * from "./userInfo";

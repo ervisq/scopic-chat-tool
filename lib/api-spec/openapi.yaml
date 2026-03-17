@@ -13,6 +13,8 @@ tags:
     description: Authentication operations
   - name: chat
     description: Chat operations
+  - name: credentials
+    description: Credential management operations
 paths:
   /healthz:
     get:
@@ -27,6 +29,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register
+      description: Create a new user account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /auth/login:
     post:
       operationId: login
@@ -90,6 +123,76 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ChatResponse"
+  /credentials:
+    get:
+      operationId: listCredentials
+      tags: [credentials]
+      summary: List connected services
+      description: Returns all connected service providers for the current user
+      responses:
+        "200":
+          description: List of connections
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectionsResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /credentials/{provider}:
+    post:
+      operationId: saveCredentials
+      tags: [credentials]
+      summary: Save service credentials
+      description: Save or update credentials for a service provider
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [jira, zoho, sts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveCredentialsRequest"
+      responses:
+        "200":
+          description: Credentials saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CredentialActionResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteCredentials
+      tags: [credentials]
+      summary: Remove service credentials
+      description: Remove credentials for a service provider
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [jira, zoho, sts]
+      responses:
+        "200":
+          description: Credentials removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CredentialActionResponse"
 components:
   schemas:
     HealthStatus:
@@ -99,6 +202,19 @@ components:
           type: string
       required:
         - status
+    RegisterRequest:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+        name:
+          type: string
+      required:
+        - email
+        - password
+        - name
     LoginRequest:
       type: object
       properties:
@@ -165,3 +281,53 @@ components:
       required:
         - reply
         - timestamp
+    ConnectionInfo:
+      type: object
+      properties:
+        provider:
+          type: string
+        instanceUrl:
+          type: string
+          nullable: true
+        connected:
+          type: boolean
+        connectedAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - provider
+        - connected
+    ConnectionsResponse:
+      type: object
+      properties:
+        connections:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConnectionInfo"
+      required:
+        - connections
+    SaveCredentialsRequest:
+      type: object
+      properties:
+        credentials:
+          type: object
+        instanceUrl:
+          type: string
+      required:
+        - credentials
+    CredentialActionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        provider:
+          type: string
+        connected:
+          type: boolean
+      required:
+        - success
+        - provider
+        - connected

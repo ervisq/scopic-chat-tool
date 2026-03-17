@@ -1,12 +1,24 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-in-production";
+const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === "development" ? "dev-secret-change-in-production" : "");
+
+if (!JWT_SECRET) {
+  throw new Error("JWT_SECRET environment variable is required in production");
+}
 
 export interface AuthPayload {
   userId: number;
   email: string;
   name: string;
+}
+
+export interface AuthenticatedRequest extends Request {
+  user: AuthPayload;
+}
+
+export function getAuthUser(req: Request): AuthPayload {
+  return (req as AuthenticatedRequest).user;
 }
 
 export function signToken(payload: AuthPayload): string {
@@ -27,7 +39,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   try {
     const token = header.slice(7);
     const payload = verifyToken(token);
-    (req as any).user = payload;
+    (req as AuthenticatedRequest).user = payload;
     next();
   } catch {
     res.status(401).json({ message: "Invalid or expired token" });

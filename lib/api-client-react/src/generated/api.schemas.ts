@@ -9,6 +9,12 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  name: string;
+}
+
 export interface LoginRequest {
   email: string;
   password: string;
@@ -41,4 +47,29 @@ export interface ChatResponse {
   reply: string;
   timestamp: string;
   toolCommand?: ToolCommand;
+}
+
+export interface ConnectionInfo {
+  provider: string;
+  instanceUrl?: string | null;
+  connected: boolean;
+  connectedAt?: string;
+  updatedAt?: string;
+}
+
+export interface ConnectionsResponse {
+  connections: ConnectionInfo[];
+}
+
+export type SaveCredentialsRequestCredentials = { [key: string]: unknown };
+
+export interface SaveCredentialsRequest {
+  credentials: SaveCredentialsRequestCredentials;
+  instanceUrl?: string;
+}
+
+export interface CredentialActionResponse {
+  success: boolean;
+  provider: string;
+  connected: boolean;
 }

@@ -3,10 +3,12 @@ import crypto from "crypto";
 const ALGORITHM = "aes-256-gcm";
 const KEY_LENGTH = 32;
 const IV_LENGTH = 16;
-const AUTH_TAG_LENGTH = 16;
 
 function getEncryptionKey(): Buffer {
-  const secret = process.env.CREDENTIALS_ENCRYPTION_KEY || process.env.JWT_SECRET || "dev-secret-change-in-production";
+  const secret = process.env.CREDENTIALS_ENCRYPTION_KEY || (process.env.NODE_ENV === "development" ? (process.env.JWT_SECRET || "dev-secret-change-in-production") : "");
+  if (!secret) {
+    throw new Error("CREDENTIALS_ENCRYPTION_KEY environment variable is required in production");
+  }
   return crypto.scryptSync(secret, "salt", KEY_LENGTH);
 }
 

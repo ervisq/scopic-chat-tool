@@ -10,38 +10,31 @@ export interface StsServiceStatus {
 export interface StsServiceResult {
   services: StsServiceStatus[];
   overallHealth: "Healthy" | "Degraded" | "Critical";
-  source: "live" | "mock";
-}
-
-function getMockServices(): StsServiceStatus[] {
-  return [
-    { name: "Auth Gateway", status: "Healthy", uptime: "99.98%", lastChecked: new Date().toISOString() },
-    { name: "Payment API", status: "Degraded", uptime: "97.5%", lastChecked: new Date().toISOString() },
-    { name: "Notification Service", status: "Healthy", uptime: "99.99%", lastChecked: new Date().toISOString() },
-    { name: "Search Index", status: "Healthy", uptime: "99.95%", lastChecked: new Date().toISOString() },
-  ];
+  source: "live" | "not_connected" | "error";
 }
 
 export async function querySts(query: string, userId?: number): Promise<StsServiceResult> {
-  if (userId) {
-    const cred = await getUserCredentials(userId, "sts");
-    if (cred) {
-      console.log("STS credentials found for user — live API integration coming soon");
-    }
+  if (!userId) {
+    return { services: [], overallHealth: "Healthy", source: "not_connected" };
   }
 
-  const services = getMockServices();
-  const hasDegraded = services.some((s) => s.status === "Degraded");
-  const hasDown = services.some((s) => s.status === "Down");
-  const overallHealth = hasDown ? "Critical" : hasDegraded ? "Degraded" : "Healthy";
+  const cred = await getUserCredentials(userId, "sts");
+  if (!cred) {
+    return { services: [], overallHealth: "Healthy", source: "not_connected" };
+  }
 
-  return { services, overallHealth, source: "mock" };
+  return { services: [], overallHealth: "Healthy", source: "not_connected" };
 }
 
 export function formatStsResult(result: StsServiceResult, query: string): string {
-  const sourceLabel = result.source === "live" ? "Live STS" : "STS";
+  if (result.source === "not_connected") {
+    return "Your STS account is not connected. Please go to Connected Services (Settings icon) to link your STS credentials.";
+  }
+  if (result.source === "error") {
+    return "There was an error connecting to STS. Please check your credentials in Connected Services and try again.";
+  }
   const lines = result.services.map(
     (s) => `• ${s.name} — ${s.status} (Uptime: ${s.uptime})`,
   );
-  return `${sourceLabel} Status Report (Overall: ${result.overallHealth}):\n${lines.join("\n")}\n\nQuery: "${query}"`;
+  return `STS Status Report (Overall: ${result.overallHealth}):\n${lines.join("\n")}\n\nQuery: "${query}"`;
 }

@@ -19,10 +19,14 @@ import type {
 import type {
   ChatRequest,
   ChatResponse,
+  ConnectionsResponse,
+  CredentialActionResponse,
   ErrorResponse,
   HealthStatus,
   LoginRequest,
   LoginResponse,
+  RegisterRequest,
+  SaveCredentialsRequest,
   UserInfo,
 } from "./api.schemas";
 
@@ -110,6 +114,93 @@ export function useHealthCheck<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Create a new user account
+ * @summary Register
+ */
+export const getRegisterUrl = () => {
+  return `/api/auth/register`;
+};
+
+export const register = async (
+  registerRequest: RegisterRequest,
+  options?: RequestInit,
+): Promise<LoginResponse> => {
+  return customFetch<LoginResponse>(getRegisterUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(registerRequest),
+  });
+};
+
+export const getRegisterMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof register>>,
+    TError,
+    { data: BodyType<RegisterRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof register>>,
+  TError,
+  { data: BodyType<RegisterRequest> },
+  TContext
+> => {
+  const mutationKey = ["register"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof register>>,
+    { data: BodyType<RegisterRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return register(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RegisterMutationResult = NonNullable<
+  Awaited<ReturnType<typeof register>>
+>;
+export type RegisterMutationBody = BodyType<RegisterRequest>;
+export type RegisterMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Register
+ */
+export const useRegister = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof register>>,
+    TError,
+    { data: BodyType<RegisterRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof register>>,
+  TError,
+  { data: BodyType<RegisterRequest> },
+  TContext
+> => {
+  return useMutation(getRegisterMutationOptions(options));
+};
 
 /**
  * Authenticate with email and password
@@ -347,4 +438,268 @@ export const useSendMessage = <
   TContext
 > => {
   return useMutation(getSendMessageMutationOptions(options));
+};
+
+/**
+ * Returns all connected service providers for the current user
+ * @summary List connected services
+ */
+export const getListCredentialsUrl = () => {
+  return `/api/credentials`;
+};
+
+export const listCredentials = async (
+  options?: RequestInit,
+): Promise<ConnectionsResponse> => {
+  return customFetch<ConnectionsResponse>(getListCredentialsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListCredentialsQueryKey = () => {
+  return [`/api/credentials`] as const;
+};
+
+export const getListCredentialsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listCredentials>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listCredentials>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListCredentialsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listCredentials>>> = ({
+    signal,
+  }) => listCredentials({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listCredentials>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListCredentialsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listCredentials>>
+>;
+export type ListCredentialsQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary List connected services
+ */
+
+export function useListCredentials<
+  TData = Awaited<ReturnType<typeof listCredentials>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listCredentials>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListCredentialsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Save or update credentials for a service provider
+ * @summary Save service credentials
+ */
+export const getSaveCredentialsUrl = (provider: "jira" | "zoho" | "sts") => {
+  return `/api/credentials/${provider}`;
+};
+
+export const saveCredentials = async (
+  provider: "jira" | "zoho" | "sts",
+  saveCredentialsRequest: SaveCredentialsRequest,
+  options?: RequestInit,
+): Promise<CredentialActionResponse> => {
+  return customFetch<CredentialActionResponse>(
+    getSaveCredentialsUrl(provider),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(saveCredentialsRequest),
+    },
+  );
+};
+
+export const getSaveCredentialsMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof saveCredentials>>,
+    TError,
+    {
+      provider: "jira" | "zoho" | "sts";
+      data: BodyType<SaveCredentialsRequest>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof saveCredentials>>,
+  TError,
+  { provider: "jira" | "zoho" | "sts"; data: BodyType<SaveCredentialsRequest> },
+  TContext
+> => {
+  const mutationKey = ["saveCredentials"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof saveCredentials>>,
+    {
+      provider: "jira" | "zoho" | "sts";
+      data: BodyType<SaveCredentialsRequest>;
+    }
+  > = (props) => {
+    const { provider, data } = props ?? {};
+
+    return saveCredentials(provider, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SaveCredentialsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof saveCredentials>>
+>;
+export type SaveCredentialsMutationBody = BodyType<SaveCredentialsRequest>;
+export type SaveCredentialsMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Save service credentials
+ */
+export const useSaveCredentials = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof saveCredentials>>,
+    TError,
+    {
+      provider: "jira" | "zoho" | "sts";
+      data: BodyType<SaveCredentialsRequest>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof saveCredentials>>,
+  TError,
+  { provider: "jira" | "zoho" | "sts"; data: BodyType<SaveCredentialsRequest> },
+  TContext
+> => {
+  return useMutation(getSaveCredentialsMutationOptions(options));
+};
+
+/**
+ * Remove credentials for a service provider
+ * @summary Remove service credentials
+ */
+export const getDeleteCredentialsUrl = (provider: "jira" | "zoho" | "sts") => {
+  return `/api/credentials/${provider}`;
+};
+
+export const deleteCredentials = async (
+  provider: "jira" | "zoho" | "sts",
+  options?: RequestInit,
+): Promise<CredentialActionResponse> => {
+  return customFetch<CredentialActionResponse>(
+    getDeleteCredentialsUrl(provider),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+};
+
+export const getDeleteCredentialsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCredentials>>,
+    TError,
+    { provider: "jira" | "zoho" | "sts" },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteCredentials>>,
+  TError,
+  { provider: "jira" | "zoho" | "sts" },
+  TContext
+> => {
+  const mutationKey = ["deleteCredentials"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteCredentials>>,
+    { provider: "jira" | "zoho" | "sts" }
+  > = (props) => {
+    const { provider } = props ?? {};
+
+    return deleteCredentials(provider, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteCredentialsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteCredentials>>
+>;
+
+export type DeleteCredentialsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove service credentials
+ */
+export const useDeleteCredentials = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCredentials>>,
+    TError,
+    { provider: "jira" | "zoho" | "sts" },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteCredentials>>,
+  TError,
+  { provider: "jira" | "zoho" | "sts" },
+  TContext
+> => {
+  return useMutation(getDeleteCredentialsMutationOptions(options));
 };

@@ -4,6 +4,7 @@ import {
   saveUserCredentials,
   deleteUserCredentials,
 } from "../lib/credential-store";
+import { getAuthUser } from "../middlewares/auth";
 
 const VALID_PROVIDERS = ["jira", "zoho", "sts"];
 
@@ -11,18 +12,19 @@ const router: IRouter = Router();
 
 router.get("/credentials", async (req, res) => {
   try {
-    const userId = (req as any).user.userId;
+    const { userId } = getAuthUser(req);
     const connections = await listUserConnections(userId);
     res.json({ connections });
-  } catch (error: any) {
-    console.error("Credentials fetch error:", error?.message);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("Credentials fetch error:", msg);
     res.status(500).json({ message: "Failed to fetch credentials" });
   }
 });
 
 router.post("/credentials/:provider", async (req, res) => {
   try {
-    const userId = (req as any).user.userId;
+    const { userId } = getAuthUser(req);
     const provider = req.params.provider.toLowerCase();
 
     if (!VALID_PROVIDERS.includes(provider)) {
@@ -39,22 +41,24 @@ router.post("/credentials/:provider", async (req, res) => {
     await saveUserCredentials(userId, provider, credentials, instanceUrl);
 
     res.json({ success: true, provider, connected: true });
-  } catch (error: any) {
-    console.error("Credentials save error:", error?.message);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("Credentials save error:", msg);
     res.status(500).json({ message: "Failed to save credentials" });
   }
 });
 
 router.delete("/credentials/:provider", async (req, res) => {
   try {
-    const userId = (req as any).user.userId;
+    const { userId } = getAuthUser(req);
     const provider = req.params.provider.toLowerCase();
 
     await deleteUserCredentials(userId, provider);
 
     res.json({ success: true, provider, connected: false });
-  } catch (error: any) {
-    console.error("Credentials delete error:", error?.message);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("Credentials delete error:", msg);
     res.status(500).json({ message: "Failed to remove credentials" });
   }
 });

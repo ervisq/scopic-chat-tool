@@ -12,7 +12,7 @@ export interface JiraTicket {
 export interface JiraServiceResult {
   tickets: JiraTicket[];
   total: number;
-  source: "live" | "mock";
+  source: "live" | "not_connected" | "error";
 }
 
 function mapPriority(priority: any): string {
@@ -109,28 +109,38 @@ function getMockTickets(): JiraTicket[] {
 }
 
 export async function queryJira(query: string, userId?: number): Promise<JiraServiceResult> {
-  if (userId) {
-    try {
-      const cred = await getUserCredentials(userId, "jira");
-      if (cred) {
-        const { email, apiToken } = cred.credentials;
-        if (email && apiToken && cred.instanceUrl) {
-          return await queryJiraLive(query, cred.instanceUrl, email, apiToken);
-        }
-      }
-    } catch (error: any) {
-      console.error("Jira API error, falling back to mock:", error?.message);
-    }
+  if (!userId) {
+    return { tickets: [], total: 0, source: "not_connected" };
   }
 
-  const tickets = getMockTickets();
-  return { tickets, total: tickets.length, source: "mock" };
+  const cred = await getUserCredentials(userId, "jira");
+  if (!cred) {
+    return { tickets: [], total: 0, source: "not_connected" };
+  }
+
+  const { email, apiToken } = cred.credentials;
+  if (!email || !apiToken || !cred.instanceUrl) {
+    return { tickets: [], total: 0, source: "not_connected" };
+  }
+
+  try {
+    return await queryJiraLive(query, cred.instanceUrl, email, apiToken);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("Jira API error:", msg);
+    return { tickets: [], total: 0, source: "error" };
+  }
 }
 
 export function formatJiraResult(result: JiraServiceResult, query: string): string {
-  const sourceLabel = result.source === "live" ? "Live JIRA" : "Mock JIRA";
+  if (result.source === "not_connected") {
+    return "Your Jira account is not connected. Please go to Connected Services (Settings icon) to link your Jira credentials.";
+  }
+  if (result.source === "error") {
+    return "There was an error connecting to Jira. Please check your credentials in Connected Services and try again.";
+  }
   const lines = result.tickets.map(
     (t) => `• ${t.id}: ${t.title} (${t.status}) — ${t.assignee} [${t.priority}]`,
   );
-  return `${sourceLabel} tickets (${result.total} found):\n${lines.join("\n")}\n\nQuery: "${query}"`;
+  return `JIRA tickets (${result.total} found):\n${lines.join("\n")}\n\nQuery: "${query}"`;
 }

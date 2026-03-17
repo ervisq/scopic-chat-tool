@@ -4,6 +4,7 @@ import { parseToolCommand } from "../lib/parse-tool-command";
 import { routeToolCommand } from "../lib/tool-handlers";
 import { getAIResponse } from "../services/aiService";
 import { trackUsage, getUsageLog, getUsageStats } from "../lib/usage-tracker";
+import { getAuthUser } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -11,14 +12,13 @@ router.post("/chat", async (req, res) => {
   try {
     const parsed = SendMessageBody.parse(req.body);
     const toolCommand = parseToolCommand(parsed.message);
-    const userEmail = (req as any).user?.email || "unknown";
-    const userId = (req as any).user?.userId;
+    const authUser = getAuthUser(req);
 
-    trackUsage(userEmail, toolCommand?.tool || null, parsed.message);
+    trackUsage(authUser.email, toolCommand?.tool || null, parsed.message);
 
     let reply: string;
     if (toolCommand) {
-      const toolResult = await routeToolCommand(toolCommand.tool, toolCommand.query, userId);
+      const toolResult = await routeToolCommand(toolCommand.tool, toolCommand.query, authUser.userId);
       try {
         reply = await getAIResponse(parsed.message, {
           tool: toolCommand.tool,
@@ -39,8 +39,9 @@ router.post("/chat", async (req, res) => {
     });
 
     res.json(data);
-  } catch (error: any) {
-    console.error("Chat error:", error?.message || error);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("Chat error:", msg);
     res.status(500).json({ message: "Failed to process your message. Please try again." });
   }
 });

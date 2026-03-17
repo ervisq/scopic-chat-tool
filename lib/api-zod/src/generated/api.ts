@@ -16,6 +16,16 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
+ * Create a new user account
+ * @summary Register
+ */
+export const RegisterBody = zod.object({
+  email: zod.string(),
+  password: zod.string(),
+  name: zod.string(),
+});
+
+/**
  * Authenticate with email and password
  * @summary Login
  */
@@ -58,4 +68,53 @@ export const SendMessageResponse = zod.object({
       query: zod.string(),
     })
     .optional(),
+});
+
+/**
+ * Returns all connected service providers for the current user
+ * @summary List connected services
+ */
+export const ListCredentialsResponse = zod.object({
+  connections: zod.array(
+    zod.object({
+      provider: zod.string(),
+      instanceUrl: zod.string().nullish(),
+      connected: zod.boolean(),
+      connectedAt: zod.date().optional(),
+      updatedAt: zod.date().optional(),
+    }),
+  ),
+});
+
+/**
+ * Save or update credentials for a service provider
+ * @summary Save service credentials
+ */
+export const SaveCredentialsParams = zod.object({
+  provider: zod.enum(["jira", "zoho", "sts"]),
+});
+
+export const SaveCredentialsBody = zod.object({
+  credentials: zod.object({}).passthrough(),
+  instanceUrl: zod.string().optional(),
+});
+
+export const SaveCredentialsResponse = zod.object({
+  success: zod.boolean(),
+  provider: zod.string(),
+  connected: zod.boolean(),
+});
+
+/**
+ * Remove credentials for a service provider
+ * @summary Remove service credentials
+ */
+export const DeleteCredentialsParams = zod.object({
+  provider: zod.enum(["jira", "zoho", "sts"]),
+});
+
+export const DeleteCredentialsResponse = zod.object({
+  success: zod.boolean(),
+  provider: zod.string(),
+  connected: zod.boolean(),
 });
