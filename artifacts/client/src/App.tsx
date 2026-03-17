@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import ChatPage from "@/pages/chat-page";
 import LoginPage from "@/pages/login-page";
+import AdminPage from "@/pages/admin-page";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -14,6 +16,7 @@ const queryClient = new QueryClient({
 
 function AuthGate() {
   const { isAuthenticated, user, login, logout, isLoading } = useAuth();
+  const [page, setPage] = useState<"chat" | "admin">("chat");
 
   if (isLoading) {
     return (
@@ -27,7 +30,17 @@ function AuthGate() {
     return <LoginPage onLogin={login} isLoading={isLoading} />;
   }
 
-  return <ChatPage user={user} onLogout={logout} />;
+  if (page === "admin") {
+    return <AdminPage onBack={() => setPage("chat")} />;
+  }
+
+  return (
+    <ChatPage
+      user={user}
+      onLogout={logout}
+      onOpenAdmin={() => setPage("admin")}
+    />
+  );
 }
 
 function App() {
