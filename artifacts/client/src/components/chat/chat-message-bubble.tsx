@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { format } from "date-fns";
-import { User, Sparkles } from "lucide-react";
+import { User, Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/hooks/use-chat";
 
@@ -13,49 +13,44 @@ export function ChatMessageBubble({ message }: ChatMessageBubbleProps) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 15, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.4, type: "spring", bounce: 0.4 }}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
       className={cn(
-        "flex w-full gap-3 mb-6",
-        isUser ? "justify-end" : "justify-start"
+        "w-full py-5 px-4 md:px-0",
+        isUser ? "bg-transparent" : "bg-muted/30"
       )}
     >
-      {!isUser && (
-        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-primary/20 to-primary/5 text-primary flex items-center justify-center shrink-0 border border-primary/10 shadow-sm mt-auto">
-          <Sparkles className="w-4 h-4" />
-        </div>
-      )}
-
-      <div
-        className={cn(
-          "max-w-[80%] md:max-w-[70%] flex flex-col gap-1",
-          isUser ? "items-end" : "items-start"
-        )}
-      >
+      <div className="max-w-3xl mx-auto flex gap-4">
         <div
           className={cn(
-            "px-5 py-3.5 shadow-sm relative group",
-            isUser 
-              ? "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground rounded-2xl rounded-br-sm shadow-primary/20" 
-              : "bg-card border border-border/50 text-card-foreground rounded-2xl rounded-bl-sm shadow-black/5"
+            "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5",
+            isUser
+              ? "bg-primary text-primary-foreground"
+              : "bg-foreground/10 text-foreground/70"
           )}
         >
-          <p className="text-[15px] leading-relaxed break-words whitespace-pre-wrap">
+          {isUser ? (
+            <User className="w-4 h-4" />
+          ) : (
+            <Bot className="w-4 h-4" />
+          )}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-sm font-semibold text-foreground">
+              {isUser ? "You" : "Assistant"}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {format(message.timestamp, "h:mm a")}
+            </span>
+          </div>
+          <p className="text-[15px] leading-relaxed text-foreground/90 break-words whitespace-pre-wrap">
             {message.text}
           </p>
         </div>
-        
-        <span className="text-[11px] font-medium text-muted-foreground/70 px-1 uppercase tracking-wider">
-          {format(message.timestamp, "h:mm a")}
-        </span>
       </div>
-
-      {isUser && (
-        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-foreground/5 to-foreground/10 text-foreground/70 flex items-center justify-center shrink-0 border border-border/50 shadow-sm mt-auto">
-          <User className="w-4 h-4" />
-        </div>
-      )}
     </motion.div>
   );
 }

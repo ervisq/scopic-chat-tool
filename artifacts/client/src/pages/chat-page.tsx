@@ -1,102 +1,103 @@
-import { useState, useRef, useEffect } from "react";
-import { Send, Sparkles } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { ArrowUp } from "lucide-react";
 import { useChat } from "@/hooks/use-chat";
 import { ChatMessageBubble } from "@/components/chat/chat-message-bubble";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { EmptyState } from "@/components/chat/empty-state";
-import { motion } from "framer-motion";
 
 export default function ChatPage() {
   const { messages, sendMessage, isTyping } = useChat();
   const [inputValue, setInputValue] = useState("");
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-scroll to bottom when messages or typing status changes
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = scrollAreaRef.current;
+    if (el) {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    }
   }, [messages, isTyping]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputValue.trim() || isTyping) return;
-    
-    sendMessage(inputValue.trim());
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height =
+        Math.min(textareaRef.current.scrollHeight, 200) + "px";
+    }
+  }, [inputValue]);
+
+  const handleSend = useCallback(() => {
+    const trimmed = inputValue.trim();
+    if (!trimmed || isTyping) return;
+    sendMessage(trimmed);
     setInputValue("");
+    textareaRef.current?.focus();
+  }, [inputValue, isTyping, sendMessage]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.nativeEvent.isComposing) return;
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
   };
 
+  const handleSuggestionClick = useCallback(
+    (text: string) => {
+      sendMessage(text);
+    },
+    [sendMessage]
+  );
+
   return (
-    <div className="flex flex-col h-dvh bg-background overflow-hidden selection:bg-primary/20 selection:text-primary">
-      {/* Header */}
-      <header className="h-16 shrink-0 flex items-center justify-between px-4 md:px-6 bg-background/80 backdrop-blur-xl border-b border-border/40 z-10 sticky top-0">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/20">
-            <Sparkles className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <div>
-            <h1 className="font-display font-bold tracking-tight text-foreground leading-none">
-              AI Assistant
-            </h1>
-            <p className="text-[11px] font-medium text-primary uppercase tracking-wider mt-0.5">
-              Ready to help
-            </p>
-          </div>
-        </div>
+    <div className="flex flex-col h-dvh bg-background">
+      <header className="h-14 shrink-0 flex items-center px-4 md:px-6 border-b border-border/50 bg-background z-10">
+        <h1 className="text-base font-semibold text-foreground">Chat</h1>
       </header>
 
-      {/* Main Chat Area */}
-      <main className="flex-1 overflow-y-auto w-full relative scroll-smooth">
-        <div className="max-w-4xl mx-auto w-full min-h-full flex flex-col p-4 md:p-6 pb-8 pt-8">
-          {messages.length === 0 ? (
-            <div className="flex-1 flex flex-col justify-center">
-              <EmptyState />
-            </div>
-          ) : (
-            <div className="flex flex-col flex-1 pb-4">
-              {messages.map((msg) => (
-                <ChatMessageBubble key={msg.id} message={msg} />
-              ))}
-              {isTyping && <TypingIndicator />}
-              <div ref={bottomRef} className="h-1" />
-            </div>
-          )}
-        </div>
-      </main>
+      <div ref={scrollAreaRef} className="flex-1 overflow-y-auto">
+        {messages.length === 0 ? (
+          <div className="flex items-center justify-center min-h-full">
+            <EmptyState onSuggestionClick={handleSuggestionClick} />
+          </div>
+        ) : (
+          <div className="flex flex-col">
+            {messages.map((msg) => (
+              <ChatMessageBubble key={msg.id} message={msg} />
+            ))}
+            {isTyping && <TypingIndicator />}
+          </div>
+        )}
+      </div>
 
-      {/* Input Area */}
-      <footer className="shrink-0 bg-gradient-to-t from-background via-background to-transparent pb-6 pt-4 px-4 md:px-6 z-10">
-        <div className="max-w-4xl mx-auto">
-          <form 
-            onSubmit={handleSubmit}
-            className="relative flex items-end gap-2 bg-card rounded-2xl md:rounded-[24px] border border-border/60 shadow-lg shadow-black/5 p-2 focus-within:ring-4 focus-within:ring-primary/10 focus-within:border-primary/40 transition-all duration-300"
-          >
-            <input
-              id="chat-input"
-              type="text"
+      <div className="shrink-0 border-t border-border/50 bg-background px-4 md:px-6 py-3">
+        <div className="max-w-3xl mx-auto">
+          <div className="flex items-end gap-2 bg-card border border-border/60 rounded-2xl p-2 focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/10 transition-all">
+            <textarea
+              ref={textareaRef}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Message the assistant..."
-              className="w-full bg-transparent border-none focus:outline-none text-foreground placeholder:text-muted-foreground text-[15px] md:text-base px-4 py-3 md:py-4 h-full"
-              autoComplete="off"
+              onKeyDown={handleKeyDown}
+              placeholder="Message..."
+              aria-label="Message"
+              rows={1}
+              className="w-full bg-transparent border-none focus:outline-none text-foreground placeholder:text-muted-foreground text-[15px] px-3 py-2 resize-none max-h-[200px] leading-normal"
             />
-            
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              type="submit"
+            <button
+              type="button"
+              onClick={handleSend}
               disabled={!inputValue.trim() || isTyping}
-              className="h-10 w-10 md:h-12 md:w-12 shrink-0 rounded-xl md:rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors hover:bg-primary/90"
+              className="h-9 w-9 shrink-0 rounded-xl bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
               aria-label="Send message"
             >
-              <Send className="w-4 h-4 md:w-5 md:h-5 ml-0.5" />
-            </motion.button>
-          </form>
-          <div className="text-center mt-3">
-            <p className="text-xs text-muted-foreground/60 font-medium">
-              AI can make mistakes. Verify important information.
-            </p>
+              <ArrowUp className="w-4 h-4" />
+            </button>
           </div>
+          <p className="text-center text-xs text-muted-foreground/50 mt-2">
+            Press Enter to send, Shift+Enter for new line
+          </p>
         </div>
-      </footer>
+      </div>
     </div>
   );
 }
