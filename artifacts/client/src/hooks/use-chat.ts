@@ -38,8 +38,7 @@ export function useChat() {
         },
         {
           onSuccess: (response) => {
-            const botToolName =
-              (response as any).toolCommand?.tool || toolName;
+            const botToolName = response.toolCommand?.tool || toolName;
             const botMessage: Message = {
               id: crypto.randomUUID(),
               text: response.reply,
