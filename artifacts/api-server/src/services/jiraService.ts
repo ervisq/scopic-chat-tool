@@ -48,20 +48,24 @@ async function queryJiraLive(query: string, instanceUrl: string, email: string, 
   const baseUrl = instanceUrl.replace(/\/$/, "");
   const jql = buildJql(query);
 
-  const response = await axios.get(`${baseUrl}/rest/api/3/search`, {
-    params: {
+  const response = await axios.post(
+    `${baseUrl}/rest/api/3/search/jql`,
+    {
       jql,
       maxResults: 20,
-      fields: "summary,status,assignee,priority,issuetype",
+      fields: ["summary", "status", "assignee", "priority", "issuetype"],
     },
-    auth: {
-      username: email,
-      password: apiToken,
+    {
+      auth: {
+        username: email,
+        password: apiToken,
+      },
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
     },
-    headers: {
-      Accept: "application/json",
-    },
-  });
+  );
 
   const issues = response.data?.issues || [];
 
