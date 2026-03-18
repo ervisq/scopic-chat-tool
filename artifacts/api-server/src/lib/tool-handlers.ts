@@ -1,5 +1,5 @@
 import { queryJira, formatJiraResult } from "../services/jiraService";
-import { queryZoho, formatZohoResult } from "../services/zohoService";
+import { queryZoho } from "../services/zohoService";
 import { querySts, formatStsResult } from "../services/stsService";
 
 export interface ToolResult {
@@ -15,7 +15,7 @@ async function jiraHandler(query: string, userId: number): Promise<ToolResult> {
 
 async function zohoHandler(query: string, userId: number): Promise<ToolResult> {
   const result = await queryZoho(query, userId);
-  return { reply: formatZohoResult(result, query) };
+  return { reply: result.reply };
 }
 
 async function stsHandler(query: string, userId: number): Promise<ToolResult> {

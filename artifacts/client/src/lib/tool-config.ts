@@ -19,7 +19,7 @@ export const TOOLS: ToolConfig[] = [
   {
     name: "Zoho",
     label: "Zoho",
-    description: "Query CRM contacts & deals",
+    description: "People (HR) & CRM (Sales)",
     bgColor: "bg-amber-500/15",
     textColor: "text-amber-600 dark:text-amber-400",
     borderColor: "border-amber-500/30",

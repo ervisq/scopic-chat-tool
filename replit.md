@@ -80,12 +80,26 @@ artifacts-monorepo/
 - Service uses axios with basic auth to query Jira REST API v3
 - Falls back to mock data if no credentials configured or API fails
 
+## Zoho Integration (People + CRM)
+
+- Per-user OAuth credentials: Client ID, Client Secret, Refresh Token, Accounts Domain
+- Module selection: users choose People, CRM, or both via checkboxes in Connected Services
+- Zoho token manager (`zohoTokenManager.ts`): exchanges refresh tokens for access tokens, caches in memory with TTL
+- Domain validation: only known Zoho accounts domains are allowed (SSRF protection)
+- `@Zoho` command auto-routes queries to the correct module based on keywords:
+  - People keywords: employee, leave, attendance, HR, department, etc.
+  - CRM keywords: lead, deal, contact, account, sales, customer, etc.
+- Zoho People service (`zohoPeopleService.ts`): employees, leave requests, attendance
+- Zoho CRM service (`zohoCrmService.ts`): leads, contacts, deals, accounts
+- If module not enabled, user gets a clear message to enable it in Settings
+
 ## Tool Command System
 
 - Parser detects `@ToolName query` patterns in chat messages
 - Router dispatches to service handlers with userId (case-insensitive matching)
-- Services: `jiraService.ts`, `zohoService.ts`, `stsService.ts`
-- Each service checks for per-user credentials in DB, falls back to mock data
+- Services: `jiraService.ts`, `zohoService.ts` (router), `zohoPeopleService.ts`, `zohoCrmService.ts`, `stsService.ts`
+- Each service checks for per-user credentials in DB
+- Zoho uses smart routing: parses query → detects module → checks user modules → delegates
 - Unknown tools return a helpful error listing available tools
 
 ## Database Schema

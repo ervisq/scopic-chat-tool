@@ -13,13 +13,27 @@ interface Connection {
   connectedAt?: string;
 }
 
+interface ProviderField {
+  key: string;
+  label: string;
+  type: string;
+  placeholder: string;
+}
+
+interface ProviderModule {
+  key: string;
+  label: string;
+  description: string;
+}
+
 interface ProviderConfig {
   name: string;
   key: string;
   color: string;
   description: string;
-  fields: { key: string; label: string; type: string; placeholder: string }[];
+  fields: ProviderField[];
   hasInstanceUrl: boolean;
+  modules?: ProviderModule[];
 }
 
 const PROVIDERS: ProviderConfig[] = [
@@ -38,12 +52,17 @@ const PROVIDERS: ProviderConfig[] = [
     name: "Zoho",
     key: "zoho",
     color: "bg-amber-500",
-    description: "Connect your Zoho Recruit account to manage candidates and recruitment pipelines.",
+    description: "Connect your Zoho account. Select which modules you have access to — People (HR) for employee data, CRM for sales data, or both.",
     hasInstanceUrl: false,
     fields: [
-      { key: "clientId", label: "Client ID", type: "text", placeholder: "Zoho client ID" },
-      { key: "clientSecret", label: "Client Secret", type: "password", placeholder: "Zoho client secret" },
-      { key: "refreshToken", label: "Refresh Token", type: "password", placeholder: "Zoho refresh token" },
+      { key: "clientId", label: "Client ID", type: "text", placeholder: "Zoho OAuth client ID" },
+      { key: "clientSecret", label: "Client Secret", type: "password", placeholder: "Zoho OAuth client secret" },
+      { key: "refreshToken", label: "Refresh Token", type: "password", placeholder: "Zoho OAuth refresh token" },
+      { key: "domain", label: "Accounts Domain", type: "text", placeholder: "https://accounts.zoho.com" },
+    ],
+    modules: [
+      { key: "people", label: "People", description: "HR data: employees, leave, attendance" },
+      { key: "crm", label: "CRM", description: "Sales data: leads, contacts, deals, accounts" },
     ],
   },
   {
@@ -64,6 +83,7 @@ export default function ConnectionsPage({ token, onBack }: ConnectionsPageProps)
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
   const [formData, setFormData] = useState<Record<string, Record<string, string>>>({});
   const [instanceUrls, setInstanceUrls] = useState<Record<string, string>>({});
+  const [selectedModules, setSelectedModules] = useState<Record<string, string[]>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -96,21 +116,44 @@ export default function ConnectionsPage({ token, onBack }: ConnectionsPageProps)
     return connections.find((c) => c.provider === provider);
   }
 
+  function toggleModule(providerKey: string, moduleKey: string) {
+    setSelectedModules((prev) => {
+      const current = prev[providerKey] || [];
+      if (current.includes(moduleKey)) {
+        return { ...prev, [providerKey]: current.filter((m) => m !== moduleKey) };
+      }
+      return { ...prev, [providerKey]: [...current, moduleKey] };
+    });
+  }
+
   async function handleSave(provider: ProviderConfig) {
     const creds = formData[provider.key] || {};
-    const allFilled = provider.fields.every((f) => creds[f.key]?.trim());
+    const requiredFields = provider.fields.filter((f) => f.key !== "domain");
+    const allFilled = requiredFields.every((f) => creds[f.key]?.trim());
     if (!allFilled) {
-      setMessage({ type: "error", text: "Please fill in all fields" });
+      setMessage({ type: "error", text: "Please fill in all required fields" });
       return;
     }
     if (provider.hasInstanceUrl && !instanceUrls[provider.key]?.trim()) {
       setMessage({ type: "error", text: "Instance URL is required" });
       return;
     }
+    if (provider.modules && provider.modules.length > 0) {
+      const modules = selectedModules[provider.key] || [];
+      if (modules.length === 0) {
+        setMessage({ type: "error", text: "Please select at least one module" });
+        return;
+      }
+    }
 
     setSaving(provider.key);
     setMessage(null);
     try {
+      const credPayload = { ...creds };
+      if (provider.modules) {
+        credPayload.modules = (selectedModules[provider.key] || []).join(",");
+      }
+
       const res = await fetch(`${baseUrl}/api/credentials/${provider.key}`, {
         method: "POST",
         headers: {
@@ -118,7 +161,7 @@ export default function ConnectionsPage({ token, onBack }: ConnectionsPageProps)
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          credentials: creds,
+          credentials: credPayload,
           instanceUrl: provider.hasInstanceUrl ? instanceUrls[provider.key] : undefined,
         }),
       });
@@ -128,6 +171,7 @@ export default function ConnectionsPage({ token, onBack }: ConnectionsPageProps)
         setExpandedProvider(null);
         setFormData((prev) => ({ ...prev, [provider.key]: {} }));
         setInstanceUrls((prev) => ({ ...prev, [provider.key]: "" }));
+        setSelectedModules((prev) => ({ ...prev, [provider.key]: [] }));
         await fetchConnections();
       } else {
         const err = await res.json();
@@ -279,6 +323,9 @@ export default function ConnectionsPage({ token, onBack }: ConnectionsPageProps)
                         <div key={field.key}>
                           <label className="block text-xs font-medium text-foreground mb-1">
                             {field.label}
+                            {field.key === "domain" && (
+                              <span className="ml-1 text-muted-foreground font-normal">(optional)</span>
+                            )}
                           </label>
                           <input
                             type={field.type}
@@ -297,6 +344,40 @@ export default function ConnectionsPage({ token, onBack }: ConnectionsPageProps)
                           />
                         </div>
                       ))}
+
+                      {provider.modules && provider.modules.length > 0 && (
+                        <div>
+                          <label className="block text-xs font-medium text-foreground mb-2">
+                            Modules <span className="text-muted-foreground font-normal">(select at least one)</span>
+                          </label>
+                          <div className="space-y-2">
+                            {provider.modules.map((mod) => {
+                              const checked = (selectedModules[provider.key] || []).includes(mod.key);
+                              return (
+                                <label
+                                  key={mod.key}
+                                  className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                                    checked
+                                      ? "border-primary/40 bg-primary/5"
+                                      : "border-border hover:border-border/80"
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => toggleModule(provider.key, mod.key)}
+                                    className="mt-0.5 rounded border-border text-primary focus:ring-primary/20"
+                                  />
+                                  <div>
+                                    <span className="text-sm font-medium text-foreground">{mod.label}</span>
+                                    <p className="text-xs text-muted-foreground mt-0.5">{mod.description}</p>
+                                  </div>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
 
                       <div className="flex justify-end gap-2 pt-1">
                         <button
