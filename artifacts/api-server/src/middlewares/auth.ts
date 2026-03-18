@@ -39,6 +39,10 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   try {
     const token = header.slice(7);
     const payload = verifyToken(token);
+    if (!payload.userId || typeof payload.userId !== "number") {
+      res.status(401).json({ message: "Session expired. Please log in again." });
+      return;
+    }
     (req as AuthenticatedRequest).user = payload;
     next();
   } catch {
