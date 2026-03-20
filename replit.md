@@ -60,7 +60,7 @@ artifacts-monorepo/
 - Credentials encrypted with AES-256-GCM before storage in `user_credentials` table
 - Encryption key from `CREDENTIALS_ENCRYPTION_KEY` env var (falls back to JWT_SECRET)
 - API: `GET /api/credentials`, `POST /api/credentials/:provider`, `DELETE /api/credentials/:provider`
-- Supported providers: jira, zoho, sts
+- Supported providers: jira, zoho, sts, teamwork
 - Tool handlers receive userId and query user's credentials from DB
 
 ## OpenAI Integration
@@ -95,12 +95,23 @@ artifacts-monorepo/
 - Zoho CRM service (`zohoCrmService.ts`): leads, contacts, deals, accounts, tasks, events/meetings, calls, products, quotes, invoices, campaigns, vendors
 - Record limit: 200 per query for both People and CRM
 
+## Teamwork Integration
+
+- Per-user credentials: API token + site URL (e.g. `https://yoursite.teamwork.com`)
+- Auth: Basic auth with API token as username, `"x"` as password
+- Teamwork API v3 endpoints: tasks, projects, milestones, time entries, people
+- Keyword-based routing in `teamworkService.ts` maps queries to appropriate endpoint
+- SSRF protection: validates instanceUrl (HTTPS only, blocks private/loopback IPs)
+- Error messages sanitized (no raw API error details exposed to users)
+- Dashboard card shows top 5 tasks with active task count
+- Tool color: purple-500, icon: TW
+
 ## Tool Command System
 
 - Parser detects `@ToolName query` patterns in chat messages
 - Router dispatches to service handlers with userId (case-insensitive matching)
-- Available commands: `@JIRA`, `@ZohoPeople`, `@ZohoCRM`, `@STS`
-- Services: `jiraService.ts`, `zohoService.ts` (direct handlers), `zohoPeopleService.ts`, `zohoCrmService.ts`, `stsService.ts`
+- Available commands: `@JIRA`, `@ZohoPeople`, `@ZohoCRM`, `@STS`, `@Teamwork`
+- Services: `jiraService.ts`, `zohoService.ts` (direct handlers), `zohoPeopleService.ts`, `zohoCrmService.ts`, `stsService.ts`, `teamworkService.ts`
 - Each service checks for per-user credentials in DB
 - Unknown tools return a helpful error listing available tools
 
@@ -113,7 +124,7 @@ artifacts-monorepo/
 ## Dashboard
 
 - Default landing page after login (replaces direct-to-chat)
-- Shows service summary cards for Jira, Zoho People, Zoho CRM, STS
+- Shows service summary cards for Jira, Zoho People, Zoho CRM, STS, Teamwork
 - Connected services show data previews (e.g., top 5 Jira tasks with priority/status)
 - Disconnected services show "Connect" CTA buttons
 - "Open App" buttons launch external tool URLs in new tabs

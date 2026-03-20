@@ -60,6 +60,16 @@ const PROVIDERS: ProviderConfig[] = [
       { key: "apiKey", label: "API Key", type: "password", placeholder: "Your STS API key" },
     ],
   },
+  {
+    name: "Teamwork",
+    key: "teamwork",
+    color: "bg-purple-500",
+    description: "Connect your Teamwork account to query projects, tasks, milestones, time entries, and people. Use @Teamwork in chat after connecting.",
+    hasInstanceUrl: true,
+    fields: [
+      { key: "apiToken", label: "API Token", type: "password", placeholder: "Your Teamwork API token" },
+    ],
+  },
 ];
 
 export default function ConnectionsPage({ token }: ConnectionsPageProps) {

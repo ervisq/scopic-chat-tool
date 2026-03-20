@@ -2,6 +2,7 @@ import { queryJira, formatJiraResult } from "../services/jiraService";
 import { queryZohoPeopleDirect, formatZohoPeopleDirectResult } from "../services/zohoService";
 import { queryZohoCrmDirect, formatZohoCrmDirectResult } from "../services/zohoService";
 import { querySts, formatStsResult } from "../services/stsService";
+import { queryTeamwork, formatTeamworkResult } from "../services/teamworkService";
 
 export interface ToolResult {
   reply: string;
@@ -29,11 +30,17 @@ async function stsHandler(query: string, userId: number): Promise<ToolResult> {
   return { reply: formatStsResult(result, query) };
 }
 
+async function teamworkHandler(query: string, userId: number): Promise<ToolResult> {
+  const result = await queryTeamwork(query, userId);
+  return { reply: formatTeamworkResult(result, query) };
+}
+
 const handlers: Record<string, ToolHandler> = {
   JIRA: jiraHandler,
   ZohoPeople: zohoPeopleHandler,
   ZohoCRM: zohoCrmHandler,
   STS: stsHandler,
+  Teamwork: teamworkHandler,
 };
 
 export async function routeToolCommand(tool: string, query: string, userId: number): Promise<ToolResult> {

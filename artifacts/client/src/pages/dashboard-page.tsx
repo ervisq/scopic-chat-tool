@@ -33,6 +33,9 @@ interface ServiceData {
     openTickets?: number;
     tickets?: JiraTicketSummary[];
     status?: string;
+    totalTasks?: number;
+    activeTasks?: number;
+    tasks?: { id: number; title: string; status: string; priority: string }[];
   };
   error?: string;
 }
@@ -69,6 +72,13 @@ const SERVICE_STYLES: Record<
     borderColor: "border-emerald-500/20",
     icon: "ST",
   },
+  teamwork: {
+    color: "bg-purple-500",
+    bgColor: "bg-purple-500/10",
+    textColor: "text-purple-600 dark:text-purple-400",
+    borderColor: "border-purple-500/20",
+    icon: "TW",
+  },
 };
 
 const EXTERNAL_URLS: Record<string, (instanceUrl?: string | null) => string> = {
@@ -76,6 +86,7 @@ const EXTERNAL_URLS: Record<string, (instanceUrl?: string | null) => string> = {
   zoho_people: () => "https://people.zoho.com",
   zoho_crm: () => "https://crm.zoho.com",
   sts: (instanceUrl) => instanceUrl || "#",
+  teamwork: (instanceUrl) => instanceUrl || "https://www.teamwork.com",
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -202,6 +213,42 @@ function ServiceCard({
               </div>
             )}
 
+            {service.key === "teamwork" && service.summary?.tasks && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Your Tasks
+                  </p>
+                  {service.summary.activeTasks !== undefined && (
+                    <span className={`text-xs font-semibold ${style.textColor}`}>
+                      {service.summary.activeTasks} active
+                    </span>
+                  )}
+                </div>
+                {service.summary.tasks.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    No tasks found
+                  </p>
+                ) : (
+                  service.summary.tasks.map((t) => (
+                    <div
+                      key={t.id}
+                      className="flex items-center gap-2 py-1.5 px-2 rounded-lg bg-muted/30"
+                    >
+                      <PriorityDot priority={t.priority} />
+                      <span className="text-xs font-mono text-muted-foreground shrink-0">
+                        #{t.id}
+                      </span>
+                      <span className="text-xs text-foreground truncate flex-1">
+                        {t.title}
+                      </span>
+                      <StatusBadge status={t.status} />
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
             {(service.key === "zoho_people" ||
               service.key === "zoho_crm" ||
               service.key === "sts") &&
@@ -277,6 +324,7 @@ export default function DashboardPage({
     { key: "zoho_people", name: "Zoho People", connected: false },
     { key: "zoho_crm", name: "Zoho CRM", connected: false },
     { key: "sts", name: "STS", connected: false },
+    { key: "teamwork", name: "Teamwork", connected: false },
   ];
 
   async function fetchDashboard() {

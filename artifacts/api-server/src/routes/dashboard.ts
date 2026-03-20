@@ -5,6 +5,7 @@ import { queryJira } from "../services/jiraService";
 import { queryZohoPeople } from "../services/zohoPeopleService";
 import { queryZohoCrm } from "../services/zohoCrmService";
 import { querySts } from "../services/stsService";
+import { queryTeamwork } from "../services/teamworkService";
 
 const router: IRouter = Router();
 
@@ -203,9 +204,59 @@ router.get("/dashboard", async (req, res) => {
       services.push({ key: "sts", name: "STS", connected: false });
     }
 
+    const teamworkConn = connMap.get("teamwork");
+    if (teamworkConn) {
+      promises.push(
+        (async () => {
+          try {
+            const result = await queryTeamwork("my tasks", userId);
+            if (result.source === "error") {
+              services.push({
+                key: "teamwork",
+                name: "Teamwork",
+                connected: true,
+                instanceUrl: teamworkConn.instanceUrl,
+                error: "Could not load Teamwork data — check your credentials",
+              });
+            } else {
+              const tasks = result.data as { id: number; name: string; status: string; priority: string }[];
+              const activeTasks = tasks.filter((t) => t.status.toLowerCase() !== "completed");
+              services.push({
+                key: "teamwork",
+                name: "Teamwork",
+                connected: true,
+                instanceUrl: teamworkConn.instanceUrl,
+                summary: {
+                  totalTasks: result.total,
+                  activeTasks: activeTasks.length,
+                  status: `${activeTasks.length} active task${activeTasks.length !== 1 ? "s" : ""}`,
+                  tasks: tasks.slice(0, 5).map((t) => ({
+                    id: t.id,
+                    title: t.name,
+                    status: t.status,
+                    priority: t.priority,
+                  })),
+                },
+              });
+            }
+          } catch {
+            services.push({
+              key: "teamwork",
+              name: "Teamwork",
+              connected: true,
+              instanceUrl: teamworkConn.instanceUrl,
+              error: "Could not load Teamwork data",
+            });
+          }
+        })(),
+      );
+    } else {
+      services.push({ key: "teamwork", name: "Teamwork", connected: false });
+    }
+
     await Promise.all(promises);
 
-    const order = ["jira", "zoho_people", "zoho_crm", "sts"];
+    const order = ["jira", "zoho_people", "zoho_crm", "sts", "teamwork"];
     services.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
 
     res.json({ services });

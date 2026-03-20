@@ -40,6 +40,14 @@ export const TOOLS: ToolConfig[] = [
     textColor: "text-emerald-600 dark:text-emerald-400",
     borderColor: "border-emerald-500/30",
   },
+  {
+    name: "Teamwork",
+    label: "Teamwork",
+    description: "Projects, tasks, milestones, time entries & people",
+    bgColor: "bg-purple-500/15",
+    textColor: "text-purple-600 dark:text-purple-400",
+    borderColor: "border-purple-500/30",
+  },
 ];
 
 export function getToolConfig(toolName: string): ToolConfig | undefined {
