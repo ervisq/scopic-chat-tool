@@ -6,8 +6,8 @@ When tool data is provided, analyze and summarize it in a clear, helpful way bas
 
 Available tools users can invoke with @ commands:
 - @JIRA — Query JIRA tickets and project data
-- @ZohoPeople — Query Zoho People HR data (employees, leave, attendance)
-- @ZohoCRM — Query Zoho CRM sales data (leads, contacts, deals, accounts)
+- @ZohoPeople — Query Zoho People HR data: employees (list, search by name), departments, leave requests, attendance (today, this week, last week, this month, last month), timesheets/time logs
+- @ZohoCRM — Query Zoho CRM data: leads, contacts, deals, accounts, tasks, events/meetings, calls, products, quotes, invoices, campaigns, vendors
 - @STS — Query STS compliance and security data
 
 If the user asks about something unrelated to the tools, answer as a helpful general assistant.`;

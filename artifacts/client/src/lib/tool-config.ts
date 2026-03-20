@@ -19,7 +19,7 @@ export const TOOLS: ToolConfig[] = [
   {
     name: "ZohoPeople",
     label: "Zoho People",
-    description: "HR: employees, leave, attendance",
+    description: "HR: employees, departments, leave, attendance, timesheets",
     bgColor: "bg-amber-500/15",
     textColor: "text-amber-600 dark:text-amber-400",
     borderColor: "border-amber-500/30",
@@ -27,7 +27,7 @@ export const TOOLS: ToolConfig[] = [
   {
     name: "ZohoCRM",
     label: "Zoho CRM",
-    description: "Sales: leads, contacts, deals",
+    description: "Sales: leads, contacts, deals, tasks, invoices & more",
     bgColor: "bg-orange-500/15",
     textColor: "text-orange-600 dark:text-orange-400",
     borderColor: "border-orange-500/30",
