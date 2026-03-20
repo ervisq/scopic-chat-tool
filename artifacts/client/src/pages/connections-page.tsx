@@ -77,7 +77,9 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
   const [loading, setLoading] = useState(true);
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
   const [formData, setFormData] = useState<Record<string, Record<string, string>>>({});
-  const [instanceUrls, setInstanceUrls] = useState<Record<string, string>>({});
+  const [instanceUrls, setInstanceUrls] = useState<Record<string, string>>({
+    sts: "https://time.scopicsoftware.com",
+  });
   const [saving, setSaving] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [oauthLoading, setOauthLoading] = useState<string | null>(null);
@@ -180,7 +182,10 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
         setMessage({ type: "success", text: `${provider.name} connected successfully` });
         setExpandedProvider(null);
         setFormData((prev) => ({ ...prev, [provider.key]: {} }));
-        setInstanceUrls((prev) => ({ ...prev, [provider.key]: "" }));
+        setInstanceUrls((prev) => ({
+          ...prev,
+          [provider.key]: provider.key === "sts" ? "https://time.scopicsoftware.com" : "",
+        }));
         await fetchConnections();
       } else {
         const err = await res.json();
