@@ -172,6 +172,19 @@ function parseRecords(data: unknown): Record<string, string>[] {
     if (obj.response && typeof obj.response === "object") {
       const resp = obj.response as Record<string, unknown>;
       if (resp.result) {
+        console.log("[ZohoPeople:parse] result type:", typeof resp.result, "isArray:", Array.isArray(resp.result));
+        if (!Array.isArray(resp.result) && typeof resp.result === "object") {
+          console.log("[ZohoPeople:parse] result keys:", Object.keys(resp.result as object).slice(0, 10).join(", "));
+          const firstKey = Object.keys(resp.result as object)[0];
+          const firstVal = (resp.result as Record<string, unknown>)[firstKey];
+          console.log("[ZohoPeople:parse] firstKey:", firstKey, "firstVal type:", typeof firstVal, "isArray:", Array.isArray(firstVal));
+          if (Array.isArray(firstVal) && firstVal[0]) {
+            console.log("[ZohoPeople:parse] firstVal[0] keys:", Object.keys(firstVal[0] as object).slice(0, 10).join(", "));
+          } else if (typeof firstVal === "object" && firstVal) {
+            console.log("[ZohoPeople:parse] firstVal keys:", Object.keys(firstVal as object).slice(0, 10).join(", "));
+          }
+        }
+
         const resultArr = Array.isArray(resp.result) ? resp.result : [resp.result];
         for (const item of resultArr) {
           if (typeof item !== "object" || !item) continue;
@@ -183,6 +196,7 @@ function parseRecords(data: unknown): Record<string, string>[] {
             }
           }
         }
+        console.log("[ZohoPeople:parse] total records parsed:", results.length);
         return results;
       }
     }
