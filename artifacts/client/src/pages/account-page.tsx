@@ -658,11 +658,11 @@ function SecurityTab({ token }: { token: string | null }) {
       });
       if (!res.ok) {
         setFrequency(previousFreq);
-        setError("Failed to update verification frequency");
+        setMessage({ type: "error", text: "Failed to update verification frequency" });
       }
     } catch {
       setFrequency(previousFreq);
-      setError("Failed to update verification frequency");
+      setMessage({ type: "error", text: "Failed to update verification frequency" });
     }
   }
 
