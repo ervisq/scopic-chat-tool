@@ -318,39 +318,94 @@ async function searchEmployeeViaApi(accessToken: string, searchTerm: string): Pr
 
 async function fetchEmployeesAlternate(accessToken: string): Promise<ZohoEmployee[]> {
   const allEmployees: ZohoEmployee[] = [];
+  const seenIds = new Set<string>();
 
-  const formNames = ["P_Employee", "employee"];
-  for (const formName of formNames) {
+  const endpoints = [
+    { url: `${PEOPLE_BASE}/people/api/forms/P_Employee/getRecords`, label: "P_Employee" },
+    { url: `${PEOPLE_BASE}/people/api/department/getDepartment`, label: "departments" },
+  ];
+
+  for (const ep of endpoints) {
     try {
-      let sIndex = 1;
-      const batchSize = 200;
-
-      while (true) {
-        const response = await axios.get(`${PEOPLE_BASE}/people/api/forms/${formName}/getRecords`, {
-          params: { sIndex, limit: batchSize },
-          headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
-        });
-
-        const recs = parseRecords(response.data);
-        if (recs.length === 0) break;
-
-        console.log("[ZohoPeople] Alternate fetch via form '${formName}' got", recs.length, "records at sIndex", sIndex);
-        for (const rec of recs) allEmployees.push(mapEmployee(rec));
-
-        if (recs.length < batchSize) break;
-        sIndex += batchSize;
-        if (sIndex > 2000) break;
-      }
-
-      if (allEmployees.length > 0) {
-        console.log("[ZohoPeople] Alternate fetch via form '${formName}' total:", allEmployees.length);
-        return allEmployees;
-      }
+      const response = await axios.get(ep.url, {
+        params: { sIndex: 1, limit: 200 },
+        headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+      });
+      console.log(`[ZohoPeople] Alt endpoint '${ep.label}' response:`, JSON.stringify(response.data).slice(0, 500));
     } catch (err) {
-      console.log("[ZohoPeople] Form", formName, "failed:", (err as Error).message);
+      console.log(`[ZohoPeople] Alt endpoint '${ep.label}' failed:`, (err as Error).message);
     }
   }
 
+  const searchFields = ["Department", "Reporting_To", "Work_location", "Division"];
+  for (const field of searchFields) {
+    try {
+      const response = await axios.get(`${PEOPLE_BASE}/people/api/forms/employee/getRecords`, {
+        params: { searchColumn: field, searchValue: "*", sIndex: 1, limit: 200 },
+        headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+      });
+      const recs = parseRecords(response.data);
+      if (recs.length > 0) {
+        console.log(`[ZohoPeople] Search by ${field}=* got ${recs.length} records`);
+        for (const rec of recs) {
+          const emp = mapEmployee(rec);
+          const id = emp.email || emp.name;
+          if (!seenIds.has(id)) {
+            seenIds.add(id);
+            allEmployees.push(emp);
+          }
+        }
+      }
+    } catch (err) {
+      console.log(`[ZohoPeople] Search by ${field}=* failed:`, (err as Error).message);
+    }
+  }
+
+  try {
+    const bulkUrl = `${PEOPLE_BASE}/people/api/forms/employee/records`;
+    const response = await axios.get(bulkUrl, {
+      params: { sIndex: 1, limit: 200 },
+      headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+    });
+    console.log("[ZohoPeople] Bulk /records response:", JSON.stringify(response.data).slice(0, 500));
+    const recs = parseRecords(response.data);
+    if (recs.length > 0) {
+      for (const rec of recs) {
+        const emp = mapEmployee(rec);
+        const id = emp.email || emp.name;
+        if (!seenIds.has(id)) {
+          seenIds.add(id);
+          allEmployees.push(emp);
+        }
+      }
+    }
+  } catch (err) {
+    console.log("[ZohoPeople] Bulk /records failed:", (err as Error).message);
+  }
+
+  try {
+    const viewUrl = `${PEOPLE_BASE}/people/api/forms/employee/getDataByView`;
+    const response = await axios.get(viewUrl, {
+      params: { viewId: "All_Employees", sIndex: 1, limit: 200 },
+      headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+    });
+    console.log("[ZohoPeople] getDataByView response:", JSON.stringify(response.data).slice(0, 500));
+    const recs = parseRecords(response.data);
+    if (recs.length > 0) {
+      for (const rec of recs) {
+        const emp = mapEmployee(rec);
+        const id = emp.email || emp.name;
+        if (!seenIds.has(id)) {
+          seenIds.add(id);
+          allEmployees.push(emp);
+        }
+      }
+    }
+  } catch (err) {
+    console.log("[ZohoPeople] getDataByView failed:", (err as Error).message);
+  }
+
+  console.log("[ZohoPeople] Alternate total employees found:", allEmployees.length);
   return allEmployees;
 }
 
