@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { ArrowLeft, RefreshCw, BarChart3, Users, Wrench, Home, MessageSquare, Settings } from "lucide-react";
+import { RefreshCw, BarChart3, Users, Wrench, Shield } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -13,12 +13,7 @@ import {
   Cell,
 } from "recharts";
 
-interface AdminPageProps {
-  onBack: () => void;
-  onOpenDashboard?: () => void;
-  onOpenChat?: () => void;
-  onOpenConnections?: () => void;
-}
+interface AdminPageProps {}
 
 interface UsageEntry {
   user: string;
@@ -44,7 +39,7 @@ const TOOL_COLORS: Record<string, string> = {
 
 const DEFAULT_COLOR = "#6b7280";
 
-export default function AdminPage({ onBack, onOpenDashboard, onOpenChat, onOpenConnections }: AdminPageProps) {
+export default function AdminPage({}: AdminPageProps) {
   const [data, setData] = useState<UsageData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -92,57 +87,19 @@ export default function AdminPage({ onBack, onOpenDashboard, onOpenChat, onOpenC
   return (
     <div className="flex flex-col h-dvh bg-background">
       <header className="h-14 shrink-0 flex items-center justify-between px-4 md:px-6 border-b border-border/50 bg-background z-10">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onBack}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            aria-label="Back"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
+        <div className="flex items-center gap-2">
+          <Shield className="w-5 h-5 text-primary" />
           <h1 className="text-base font-semibold text-foreground">Admin Dashboard</h1>
         </div>
-        <div className="flex items-center gap-1">
-          {onOpenDashboard && (
-            <button
-              onClick={onOpenDashboard}
-              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-              title="Dashboard"
-            >
-              <Home className="w-4 h-4" />
-              <span className="hidden sm:inline">Dashboard</span>
-            </button>
-          )}
-          {onOpenChat && (
-            <button
-              onClick={onOpenChat}
-              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-              title="Chat"
-            >
-              <MessageSquare className="w-4 h-4" />
-              <span className="hidden sm:inline">Chat</span>
-            </button>
-          )}
-          {onOpenConnections && (
-            <button
-              onClick={onOpenConnections}
-              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-              title="Services"
-            >
-              <Settings className="w-4 h-4" />
-              <span className="hidden sm:inline">Services</span>
-            </button>
-          )}
-          <div className="w-px h-5 bg-border/50 mx-1" />
-          <button
-            onClick={fetchData}
-            disabled={loading}
-            className="flex items-center gap-1.5 text-sm px-2 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50"
-            aria-label="Refresh data"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-          </button>
-        </div>
+        <button
+          onClick={fetchData}
+          disabled={loading}
+          className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50"
+          aria-label="Refresh data"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          <span className="hidden sm:inline">Refresh</span>
+        </button>
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 md:p-6">

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
+import Sidebar, { type Page } from "@/components/sidebar";
 import DashboardPage from "@/pages/dashboard-page";
 import ChatPage from "@/pages/chat-page";
 import LoginPage from "@/pages/login-page";
@@ -15,8 +16,6 @@ const queryClient = new QueryClient({
     },
   },
 });
-
-type Page = "dashboard" | "chat" | "admin" | "connections";
 
 function AuthGate() {
   const { isAuthenticated, user, token, login, register, logout, isLoading } = useAuth();
@@ -34,50 +33,37 @@ function AuthGate() {
     return <LoginPage onLogin={login} onRegister={register} isLoading={isLoading} />;
   }
 
+  let content: React.ReactNode;
+
   if (page === "admin") {
-    return (
-      <AdminPage
-        onBack={() => setPage("dashboard")}
-        onOpenDashboard={() => setPage("dashboard")}
-        onOpenChat={() => setPage("chat")}
-        onOpenConnections={() => setPage("connections")}
-      />
-    );
-  }
-
-  if (page === "connections") {
-    return (
-      <ConnectionsPage
-        token={token}
-        onBack={() => setPage("dashboard")}
-        onOpenDashboard={() => setPage("dashboard")}
-        onOpenChat={() => setPage("chat")}
-        onOpenAdmin={() => setPage("admin")}
-      />
-    );
-  }
-
-  if (page === "chat") {
-    return (
-      <ChatPage
+    content = <AdminPage />;
+  } else if (page === "connections") {
+    content = <ConnectionsPage token={token} />;
+  } else if (page === "chat") {
+    content = <ChatPage />;
+  } else {
+    content = (
+      <DashboardPage
         user={user}
-        onLogout={logout}
-        onOpenAdmin={() => setPage("admin")}
+        token={token}
+        onOpenChat={() => setPage("chat")}
         onOpenConnections={() => setPage("connections")}
-        onOpenDashboard={() => setPage("dashboard")}
       />
     );
   }
 
   return (
-    <DashboardPage
-      user={user}
-      token={token}
-      onLogout={logout}
-      onOpenChat={() => setPage("chat")}
-      onOpenAdmin={() => setPage("admin")}
-      onOpenConnections={() => setPage("connections")}
-    />
+    <div className="flex h-dvh bg-background">
+      <Sidebar
+        activePage={page}
+        onNavigate={setPage}
+        user={user}
+        onLogout={logout}
+      />
+      <main className="flex-1 min-w-0">
+        {content}
+      </main>
+    </div>
   );
 }
 

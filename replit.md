@@ -118,8 +118,16 @@ artifacts-monorepo/
 - Disconnected services show "Connect" CTA buttons
 - "Open App" buttons launch external tool URLs in new tabs
 - "Open AI Chat" button navigates to chat page
-- Header navigation: Chat, Services, Admin, Logout
 - Backend route: `GET /api/dashboard` aggregates all service statuses for the authenticated user
+
+## Navigation
+
+- Persistent left sidebar (`components/sidebar.tsx`) handles all global navigation
+- Nav items: Dashboard, Chat, Services (Connections), Admin
+- Sidebar is collapsible (200px expanded / 60px icon-only)
+- User info and Sign out at sidebar bottom
+- Pages have minimal headers (title + icon only); no per-page nav buttons
+- DashboardPage retains contextual action buttons (Open AI Chat, Connect service) that trigger page changes via props
 
 ## API Endpoints
 

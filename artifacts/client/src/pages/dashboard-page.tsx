@@ -1,23 +1,18 @@
 import { useState, useEffect } from "react";
 import {
   MessageSquare,
-  Settings,
-  LogOut,
   ExternalLink,
   Loader2,
   Link2,
   AlertCircle,
   CheckCircle2,
   LayoutDashboard,
-  Shield,
 } from "lucide-react";
 
 interface DashboardPageProps {
   user: { email: string; name: string } | null;
   token: string | null;
-  onLogout: () => void;
   onOpenChat: () => void;
-  onOpenAdmin: () => void;
   onOpenConnections: () => void;
 }
 
@@ -265,9 +260,7 @@ function ServiceCard({
 export default function DashboardPage({
   user,
   token,
-  onLogout,
   onOpenChat,
-  onOpenAdmin,
   onOpenConnections,
 }: DashboardPageProps) {
   const [services, setServices] = useState<ServiceData[]>([]);
@@ -308,47 +301,10 @@ export default function DashboardPage({
 
   return (
     <div className="flex flex-col h-dvh bg-background">
-      <header className="h-14 shrink-0 flex items-center justify-between px-4 md:px-6 border-b border-border/50 bg-background z-10">
+      <header className="h-14 shrink-0 flex items-center px-4 md:px-6 border-b border-border/50 bg-background z-10">
         <div className="flex items-center gap-2">
           <LayoutDashboard className="w-5 h-5 text-primary" />
           <h1 className="text-base font-semibold text-foreground">Dashboard</h1>
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={onOpenChat}
-            className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-            title="Chat"
-          >
-            <MessageSquare className="w-4 h-4" />
-            <span className="hidden sm:inline">Chat</span>
-          </button>
-          <button
-            onClick={onOpenConnections}
-            className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-            title="Connections"
-          >
-            <Settings className="w-4 h-4" />
-            <span className="hidden sm:inline">Services</span>
-          </button>
-          <button
-            onClick={onOpenAdmin}
-            className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-            title="Admin"
-          >
-            <Shield className="w-4 h-4" />
-            <span className="hidden sm:inline">Admin</span>
-          </button>
-          <div className="w-px h-5 bg-border/50 mx-1" />
-          <span className="text-xs text-muted-foreground hidden sm:inline mr-1">
-            {user?.name || user?.email}
-          </span>
-          <button
-            onClick={onLogout}
-            className="flex items-center gap-1.5 text-sm px-2 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-            title="Sign out"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
         </div>
       </header>
 

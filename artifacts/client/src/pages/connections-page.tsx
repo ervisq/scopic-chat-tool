@@ -1,12 +1,8 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Check, X, Loader2, ExternalLink, Home, MessageSquare, Shield } from "lucide-react";
+import { Check, X, Loader2, ExternalLink, Settings } from "lucide-react";
 
 interface ConnectionsPageProps {
   token: string | null;
-  onBack: () => void;
-  onOpenDashboard?: () => void;
-  onOpenChat?: () => void;
-  onOpenAdmin?: () => void;
 }
 
 interface Connection {
@@ -66,7 +62,7 @@ const PROVIDERS: ProviderConfig[] = [
   },
 ];
 
-export default function ConnectionsPage({ token, onBack, onOpenDashboard, onOpenChat, onOpenAdmin }: ConnectionsPageProps) {
+export default function ConnectionsPage({ token }: ConnectionsPageProps) {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
@@ -207,46 +203,10 @@ export default function ConnectionsPage({ token, onBack, onOpenDashboard, onOpen
 
   return (
     <div className="flex flex-col h-dvh bg-background">
-      <header className="h-14 shrink-0 flex items-center justify-between px-4 md:px-6 border-b border-border/50 bg-background">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onBack}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
+      <header className="h-14 shrink-0 flex items-center px-4 md:px-6 border-b border-border/50 bg-background">
+        <div className="flex items-center gap-2">
+          <Settings className="w-5 h-5 text-primary" />
           <h1 className="text-base font-semibold text-foreground">Connected Services</h1>
-        </div>
-        <div className="flex items-center gap-1">
-          {onOpenDashboard && (
-            <button
-              onClick={onOpenDashboard}
-              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-              title="Dashboard"
-            >
-              <Home className="w-4 h-4" />
-              <span className="hidden sm:inline">Dashboard</span>
-            </button>
-          )}
-          {onOpenChat && (
-            <button
-              onClick={onOpenChat}
-              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-              title="Chat"
-            >
-              <MessageSquare className="w-4 h-4" />
-              <span className="hidden sm:inline">Chat</span>
-            </button>
-          )}
-          {onOpenAdmin && (
-            <button
-              onClick={onOpenAdmin}
-              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-              title="Admin"
-            >
-              <Shield className="w-4 h-4" />
-            </button>
-          )}
         </div>
       </header>
 
