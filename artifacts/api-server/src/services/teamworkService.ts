@@ -203,6 +203,17 @@ function detectCategory(query: string): QueryCategory {
   return "tasks";
 }
 
+async function fetchCurrentUserId(siteUrl: string, apiToken: string): Promise<number | null> {
+  try {
+    const client = createClient(siteUrl, apiToken);
+    const response = await client.get("/me.json");
+    const person = response.data?.person || response.data?.account || response.data;
+    return (person?.id as number) || null;
+  } catch {
+    return null;
+  }
+}
+
 function extractAssigneeFilter(query: string): string | null {
   const lower = query.toLowerCase();
   const assignedToMatch = lower.match(/assigned\s+to\s+["']?([^"',]+)["']?/);
@@ -250,7 +261,7 @@ function extractDueDateFilter(query: string): { startDate?: string; endDate?: st
   return {};
 }
 
-function buildTaskParams(query: string): Record<string, string | number | boolean> {
+function buildTaskParams(query: string, currentUserId?: number | null): Record<string, string | number | boolean> {
   const lower = query.toLowerCase();
   const params: Record<string, string | number | boolean> = {
     pageSize: 25,
@@ -258,7 +269,11 @@ function buildTaskParams(query: string): Record<string, string | number | boolea
   };
 
   if (lower.includes("my") || lower.includes("assigned to me")) {
-    params["assignedToMe"] = true;
+    if (currentUserId) {
+      params["responsiblePartyIds"] = currentUserId;
+    } else {
+      params["assignedToMe"] = true;
+    }
   }
 
   const assignee = extractAssigneeFilter(query);
@@ -310,9 +325,9 @@ function extractTags(tagList: unknown): string[] {
   return tagList.map((tag: Record<string, unknown>) => (tag.name as string) || "").filter(Boolean);
 }
 
-async function fetchTasks(siteUrl: string, apiToken: string, query: string): Promise<TeamworkServiceResult> {
+async function fetchTasks(siteUrl: string, apiToken: string, query: string, currentUserId?: number | null): Promise<TeamworkServiceResult> {
   const client = createClient(siteUrl, apiToken);
-  const params = buildTaskParams(query);
+  const params = buildTaskParams(query, currentUserId);
 
   const response = await client.get("/projects/api/v3/tasks.json", { params });
   const tasks = response.data?.tasks || [];
@@ -621,6 +636,9 @@ export async function queryTeamwork(query: string, userId?: number): Promise<Tea
   }
 
   const category = detectCategory(query);
+  const lower = query.toLowerCase();
+  const needsMyUserId = category === "tasks" && (lower.includes("my") || lower.includes("assigned to me"));
+  const currentUserId = needsMyUserId ? await fetchCurrentUserId(siteUrl, apiToken) : null;
 
   try {
     switch (category) {
@@ -644,7 +662,7 @@ export async function queryTeamwork(query: string, userId?: number): Promise<Tea
         return await fetchActivity(siteUrl, apiToken);
       case "tasks":
       default:
-        return await fetchTasks(siteUrl, apiToken, query);
+        return await fetchTasks(siteUrl, apiToken, query, currentUserId);
     }
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
