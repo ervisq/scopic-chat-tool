@@ -1,12 +1,30 @@
 import { Router, type IRouter } from "express";
 import { LoginBody, LoginResponse, GetMeResponse } from "@workspace/api-zod";
-import { signToken, requireAuth, getAuthUser } from "../middlewares/auth";
+import { signToken, sign2faPendingToken, requireAuth, getAuthUser } from "../middlewares/auth";
 import { db } from "@workspace/db";
 import { users } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import { decrypt } from "../lib/crypto";
+import * as OTPAuth from "otpauth";
 
 const router: IRouter = Router();
+
+function getTotpFrequencyMs(frequency: string): number {
+  switch (frequency) {
+    case "weekly": return 7 * 24 * 60 * 60 * 1000;
+    case "biweekly": return 14 * 24 * 60 * 60 * 1000;
+    case "monthly": return 30 * 24 * 60 * 60 * 1000;
+    default: return 7 * 24 * 60 * 60 * 1000;
+  }
+}
+
+function needs2fa(user: any): boolean {
+  if (!user.totpEnabled || !user.totpSecret) return false;
+  if (!user.totpLastVerified) return true;
+  const elapsed = Date.now() - new Date(user.totpLastVerified).getTime();
+  return elapsed >= getTotpFrequencyMs(user.totpFrequency || "weekly");
+}
 
 router.post("/auth/register", async (req, res) => {
   try {
@@ -35,7 +53,15 @@ router.post("/auth/register", async (req, res) => {
 
     res.status(201).json({
       token,
-      user: { email: user.email, name: user.name },
+      user: {
+        email: user.email,
+        name: user.name,
+        phone: user.phone || "",
+        profilePictureUrl: user.profilePictureUrl || "",
+        theme: user.theme || "light",
+        defaultPage: user.defaultPage || "dashboard",
+        totpEnabled: false,
+      },
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
@@ -60,10 +86,30 @@ router.post("/auth/login", async (req, res) => {
       return;
     }
 
+    if (needs2fa(user)) {
+      const tempToken = sign2faPendingToken({ userId: user.id, email: user.email, name: user.name });
+      res.json({
+        requires2fa: true,
+        tempToken,
+        user: { email: user.email, name: user.name },
+      });
+      return;
+    }
+
     const token = signToken({ userId: user.id, email: user.email, name: user.name });
 
-    const data = LoginResponse.parse({ token, user: { email: user.email, name: user.name } });
-    res.json(data);
+    res.json({
+      token,
+      user: {
+        email: user.email,
+        name: user.name,
+        phone: user.phone || "",
+        profilePictureUrl: user.profilePictureUrl || "",
+        theme: user.theme || "light",
+        defaultPage: user.defaultPage || "dashboard",
+        totpEnabled: user.totpEnabled || false,
+      },
+    });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error("Login error:", msg);
@@ -71,10 +117,94 @@ router.post("/auth/login", async (req, res) => {
   }
 });
 
-router.get("/auth/me", requireAuth, (req, res) => {
-  const user = getAuthUser(req);
-  const data = GetMeResponse.parse({ email: user.email, name: user.name });
-  res.json(data);
+router.post("/auth/verify-2fa", async (req, res) => {
+  try {
+    const { tempToken, code } = req.body;
+
+    if (!tempToken || !code) {
+      res.status(400).json({ message: "Token and code are required" });
+      return;
+    }
+
+    let payload;
+    try {
+      const { verifyToken } = await import("../middlewares/auth");
+      payload = verifyToken(tempToken);
+      if (payload.tokenType !== "2fa_pending") {
+        res.status(400).json({ message: "Invalid verification token" });
+        return;
+      }
+    } catch {
+      res.status(401).json({ message: "Session expired. Please log in again." });
+      return;
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.id, payload.userId)).limit(1);
+    if (!user || !user.totpSecret) {
+      res.status(400).json({ message: "2FA not configured" });
+      return;
+    }
+
+    const decryptedSecret = decrypt(user.totpSecret);
+    const totp = new OTPAuth.TOTP({
+      issuer: "WorkHub",
+      label: user.email,
+      algorithm: "SHA1",
+      digits: 6,
+      period: 30,
+      secret: OTPAuth.Secret.fromBase32(decryptedSecret),
+    });
+
+    const delta = totp.validate({ token: code, window: 1 });
+    if (delta === null) {
+      res.status(400).json({ message: "Invalid code. Please try again." });
+      return;
+    }
+
+    await db.update(users).set({ totpLastVerified: new Date() }).where(eq(users.id, user.id));
+
+    const token = signToken({ userId: user.id, email: user.email, name: user.name });
+
+    res.json({
+      token,
+      user: {
+        email: user.email,
+        name: user.name,
+        phone: user.phone || "",
+        profilePictureUrl: user.profilePictureUrl || "",
+        theme: user.theme || "light",
+        defaultPage: user.defaultPage || "dashboard",
+        totpEnabled: user.totpEnabled || false,
+      },
+    });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("2FA verify error:", msg);
+    res.status(500).json({ message: "Verification failed. Please try again." });
+  }
+});
+
+router.get("/auth/me", requireAuth, async (req, res) => {
+  const { userId } = getAuthUser(req);
+  try {
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (!user) {
+      res.status(404).json({ message: "User not found" });
+      return;
+    }
+    res.json({
+      email: user.email,
+      name: user.name,
+      phone: user.phone || "",
+      profilePictureUrl: user.profilePictureUrl || "",
+      theme: user.theme || "light",
+      defaultPage: user.defaultPage || "dashboard",
+      totpEnabled: user.totpEnabled || false,
+    });
+  } catch (err) {
+    console.error("Get me error:", err);
+    res.status(500).json({ message: "Failed to fetch user data" });
+  }
 });
 
 export default router;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import AppLayout from "@/components/app-layout";
@@ -8,6 +8,7 @@ import ChatPage from "@/pages/chat-page";
 import LoginPage from "@/pages/login-page";
 import AdminPage from "@/pages/admin-page";
 import ConnectionsPage from "@/pages/connections-page";
+import AccountPage from "@/pages/account-page";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -19,8 +20,23 @@ const queryClient = new QueryClient({
 });
 
 function AuthGate() {
-  const { isAuthenticated, user, token, login, register, logout, isLoading } = useAuth();
+  const {
+    isAuthenticated, user, token,
+    login, register, logout, verify2fa, cancel2fa,
+    isLoading, requires2fa, updateUser,
+  } = useAuth();
   const [page, setPage] = useState<Page>("dashboard");
+  const [initialPageSet, setInitialPageSet] = useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated && user?.defaultPage && !initialPageSet) {
+      const validPages: Page[] = ["dashboard", "chat", "admin", "connections", "account"];
+      if (validPages.includes(user.defaultPage as Page)) {
+        setPage(user.defaultPage as Page);
+      }
+      setInitialPageSet(true);
+    }
+  }, [isAuthenticated, user?.defaultPage, initialPageSet]);
 
   if (isLoading) {
     return (
@@ -31,7 +47,16 @@ function AuthGate() {
   }
 
   if (!isAuthenticated) {
-    return <LoginPage onLogin={login} onRegister={register} isLoading={isLoading} />;
+    return (
+      <LoginPage
+        onLogin={login}
+        onRegister={register}
+        onVerify2fa={verify2fa}
+        onCancel2fa={cancel2fa}
+        isLoading={isLoading}
+        requires2fa={requires2fa}
+      />
+    );
   }
 
   let content: React.ReactNode;
@@ -42,6 +67,8 @@ function AuthGate() {
     content = <ConnectionsPage token={token} />;
   } else if (page === "chat") {
     content = <ChatPage />;
+  } else if (page === "account") {
+    content = <AccountPage token={token} onUpdateUser={updateUser} />;
   } else {
     content = (
       <DashboardPage

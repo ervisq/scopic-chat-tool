@@ -106,7 +106,7 @@ artifacts-monorepo/
 
 ## Database Schema
 
-- `users` table: id, email, password_hash, name, created_at
+- `users` table: id, email, password_hash, name, phone, profile_picture_url, theme, default_page, totp_secret, totp_enabled, totp_frequency, totp_last_verified, created_at
 - `user_credentials` table: id, user_id, provider, credentials_encrypted, instance_url, created_at, updated_at
 - Foreign key: user_credentials.user_id → users.id (cascade delete)
 
@@ -123,7 +123,7 @@ artifacts-monorepo/
 ## Navigation
 
 - Persistent left sidebar (`components/sidebar.tsx`) handles all global navigation
-- Nav items: Dashboard, Chat, Services (Connections), Admin
+- Nav items: Dashboard, Chat, Services (Connections), Admin, My Account
 - Sidebar is collapsible (200px expanded / 60px icon-only)
 - User info and Sign out at sidebar bottom
 - Pages have minimal headers (title + icon only); no per-page nav buttons
@@ -133,14 +133,44 @@ artifacts-monorepo/
 
 - `GET /api/healthz` — health check (public)
 - `POST /api/auth/register` — create account (public)
-- `POST /api/auth/login` — authenticate (public)
-- `GET /api/auth/me` — get current user (protected)
+- `POST /api/auth/login` — authenticate (public, returns `requires2fa` + `tempToken` if 2FA needed)
+- `POST /api/auth/verify-2fa` — verify TOTP code during 2FA login (public, requires `tempToken`)
+- `GET /api/auth/me` — get current user with preferences + 2FA status (protected)
 - `POST /api/chat` — send chat message (protected)
 - `GET /api/usage` — usage statistics (protected)
 - `GET /api/credentials` — list connected services (protected)
 - `POST /api/credentials/:provider` — save credentials (protected)
 - `DELETE /api/credentials/:provider` — remove credentials (protected)
 - `GET /api/dashboard` — aggregated service summaries (protected)
+- `GET /api/account/profile` — get user profile (protected)
+- `PUT /api/account/profile` — update profile (name, phone) (protected)
+- `PUT /api/account/password` — change password (protected)
+- `POST /api/account/profile-picture` — upload profile picture as base64 (protected)
+- `GET /api/account/preferences` — get theme + default page (protected)
+- `PUT /api/account/preferences` — update theme + default page (protected)
+- `POST /api/account/2fa/setup` — generate TOTP secret + QR code (protected)
+- `POST /api/account/2fa/verify` — verify TOTP code and enable 2FA (protected)
+- `POST /api/account/2fa/disable` — disable 2FA (protected)
+- `PUT /api/account/2fa/frequency` — set 2FA verification frequency (protected)
+
+## My Account Page
+
+- Three subtabs: General Information, Preferences, Security
+- General: profile picture upload (base64, max 1.5MB), display name, email (read-only), phone, password change
+- Preferences: theme toggle (light/dark with CSS variable swap), default landing page selector
+- Security: TOTP 2FA setup with QR code, enable/disable, verification frequency (weekly/biweekly/monthly)
+- Dark mode: CSS variables on `.dark` class on `<html>`, toggled via `document.documentElement.classList`
+- Profile picture stored as base64 data URL in `profile_picture_url` column
+
+## Two-Factor Authentication (2FA)
+
+- TOTP-based using `otpauth` + `qrcode` packages
+- Issuer: "WorkHub", SHA1, 6 digits, 30-second period
+- TOTP secrets encrypted with AES-256-GCM (same crypto as credentials)
+- Login flow: if 2FA enabled and due, returns `requires2fa: true` + short-lived `tempToken` (10min, `tokenType: 2fa_pending`)
+- `tempToken` is rejected by `requireAuth` middleware — cannot access protected routes
+- After TOTP verification, a full session token (`tokenType: session`, 30d) is issued
+- Frequency options: every login, weekly (7d), biweekly (14d), monthly (30d)
 
 ## Packages
 

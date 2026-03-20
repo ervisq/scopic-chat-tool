@@ -3,12 +3,19 @@ import { useState, useCallback, useEffect } from "react";
 interface User {
   email: string;
   name: string;
+  phone?: string;
+  profilePictureUrl?: string;
+  theme?: string;
+  defaultPage?: string;
+  totpEnabled?: boolean;
 }
 
 interface AuthState {
   user: User | null;
   token: string | null;
   isLoading: boolean;
+  requires2fa: boolean;
+  tempToken: string | null;
 }
 
 const TOKEN_KEY = "auth_token";
@@ -23,10 +30,22 @@ function loadStoredAuth(): { token: string | null; user: User | null } {
   };
 }
 
+function applyTheme(theme: string) {
+  const root = document.documentElement;
+  if (theme === "dark") {
+    root.classList.add("dark");
+  } else {
+    root.classList.remove("dark");
+  }
+}
+
 export function useAuth() {
   const [state, setState] = useState<AuthState>(() => {
     const stored = loadStoredAuth();
-    return { ...stored, isLoading: !!stored.token };
+    if (stored.user?.theme) {
+      applyTheme(stored.user.theme);
+    }
+    return { ...stored, isLoading: !!stored.token, requires2fa: false, tempToken: null };
   });
 
   useEffect(() => {
@@ -42,12 +61,13 @@ export function useAuth() {
       })
       .then((user) => {
         localStorage.setItem(USER_KEY, JSON.stringify(user));
-        setState({ token: state.token, user, isLoading: false });
+        if (user.theme) applyTheme(user.theme);
+        setState((s) => ({ ...s, user, isLoading: false }));
       })
       .catch(() => {
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(USER_KEY);
-        setState({ token: null, user: null, isLoading: false });
+        setState({ token: null, user: null, isLoading: false, requires2fa: false, tempToken: null });
       });
   }, []);
 
@@ -67,15 +87,54 @@ export function useAuth() {
       }
 
       const data = await res.json();
+
+      if (data.requires2fa) {
+        setState((s) => ({
+          ...s,
+          isLoading: false,
+          requires2fa: true,
+          tempToken: data.tempToken,
+        }));
+        return { success: true as const, requires2fa: true as const };
+      }
+
       localStorage.setItem(TOKEN_KEY, data.token);
       localStorage.setItem(USER_KEY, JSON.stringify(data.user));
-      setState({ token: data.token, user: data.user, isLoading: false });
+      if (data.user?.theme) applyTheme(data.user.theme);
+      setState({ token: data.token, user: data.user, isLoading: false, requires2fa: false, tempToken: null });
       return { success: true as const };
     } catch (error: any) {
       setState((s) => ({ ...s, isLoading: false }));
       return { success: false as const, error: error.message };
     }
   }, []);
+
+  const verify2fa = useCallback(async (code: string) => {
+    setState((s) => ({ ...s, isLoading: true }));
+    try {
+      const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const res = await fetch(`${baseUrl}/api/auth/verify-2fa`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tempToken: state.tempToken, code }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Verification failed");
+      }
+
+      const data = await res.json();
+      localStorage.setItem(TOKEN_KEY, data.token);
+      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      if (data.user?.theme) applyTheme(data.user.theme);
+      setState({ token: data.token, user: data.user, isLoading: false, requires2fa: false, tempToken: null });
+      return { success: true as const };
+    } catch (error: any) {
+      setState((s) => ({ ...s, isLoading: false }));
+      return { success: false as const, error: error.message };
+    }
+  }, [state.tempToken]);
 
   const register = useCallback(async (email: string, password: string, name: string) => {
     setState((s) => ({ ...s, isLoading: true }));
@@ -95,7 +154,8 @@ export function useAuth() {
       const data = await res.json();
       localStorage.setItem(TOKEN_KEY, data.token);
       localStorage.setItem(USER_KEY, JSON.stringify(data.user));
-      setState({ token: data.token, user: data.user, isLoading: false });
+      if (data.user?.theme) applyTheme(data.user.theme);
+      setState({ token: data.token, user: data.user, isLoading: false, requires2fa: false, tempToken: null });
       return { success: true as const };
     } catch (error: any) {
       setState((s) => ({ ...s, isLoading: false }));
@@ -106,7 +166,23 @@ export function useAuth() {
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
-    setState({ token: null, user: null, isLoading: false });
+    applyTheme("light");
+    setState({ token: null, user: null, isLoading: false, requires2fa: false, tempToken: null });
+  }, []);
+
+  const updateUser = useCallback((updatedUser: Partial<User>) => {
+    setState((s) => {
+      const newUser = s.user ? { ...s.user, ...updatedUser } : null;
+      if (newUser) {
+        localStorage.setItem(USER_KEY, JSON.stringify(newUser));
+        if (updatedUser.theme) applyTheme(updatedUser.theme);
+      }
+      return { ...s, user: newUser };
+    });
+  }, []);
+
+  const cancel2fa = useCallback(() => {
+    setState((s) => ({ ...s, requires2fa: false, tempToken: null }));
   }, []);
 
   return {
@@ -114,8 +190,12 @@ export function useAuth() {
     token: state.token,
     isAuthenticated: !!state.token && !state.isLoading,
     isLoading: state.isLoading,
+    requires2fa: state.requires2fa,
     login,
+    verify2fa,
+    cancel2fa,
     register,
     logout,
+    updateUser,
   };
 }

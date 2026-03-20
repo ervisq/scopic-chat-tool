@@ -11,6 +11,7 @@ export interface AuthPayload {
   userId: number;
   email: string;
   name: string;
+  tokenType?: "session" | "2fa_pending";
 }
 
 export interface AuthenticatedRequest extends Request {
@@ -22,7 +23,11 @@ export function getAuthUser(req: Request): AuthPayload {
 }
 
 export function signToken(payload: AuthPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "30d" });
+  return jwt.sign({ ...payload, tokenType: "session" }, JWT_SECRET, { expiresIn: "30d" });
+}
+
+export function sign2faPendingToken(payload: Omit<AuthPayload, "tokenType">): string {
+  return jwt.sign({ ...payload, tokenType: "2fa_pending" }, JWT_SECRET, { expiresIn: "10m" });
 }
 
 export function verifyToken(token: string): AuthPayload {
@@ -41,6 +46,10 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     const payload = verifyToken(token);
     if (!payload.userId || typeof payload.userId !== "number") {
       res.status(401).json({ message: "Session expired. Please log in again." });
+      return;
+    }
+    if (payload.tokenType === "2fa_pending") {
+      res.status(403).json({ message: "Two-factor authentication required. Please verify your identity." });
       return;
     }
     (req as AuthenticatedRequest).user = payload;

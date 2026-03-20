@@ -1,18 +1,22 @@
 import { useState } from "react";
-import { LogIn, UserPlus } from "lucide-react";
+import { LogIn, UserPlus, ShieldCheck, ArrowLeft } from "lucide-react";
 
 interface LoginPageProps {
-  onLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  onLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string; requires2fa?: boolean }>;
   onRegister: (email: string, password: string, name: string) => Promise<{ success: boolean; error?: string }>;
+  onVerify2fa: (code: string) => Promise<{ success: boolean; error?: string }>;
+  onCancel2fa: () => void;
   isLoading: boolean;
+  requires2fa: boolean;
 }
 
-export default function LoginPage({ onLogin, onRegister, isLoading }: LoginPageProps) {
+export default function LoginPage({ onLogin, onRegister, onVerify2fa, onCancel2fa, isLoading, requires2fa }: LoginPageProps) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
+  const [totpCode, setTotpCode] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,6 +38,89 @@ export default function LoginPage({ onLogin, onRegister, isLoading }: LoginPageP
       }
     }
   };
+
+  const handle2faSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    if (!totpCode || totpCode.length !== 6) {
+      setError("Please enter a valid 6-digit code");
+      return;
+    }
+
+    const result = await onVerify2fa(totpCode);
+    if (!result.success) {
+      setError(result.error || "Verification failed");
+    }
+  };
+
+  if (requires2fa) {
+    return (
+      <div className="min-h-dvh flex items-center justify-center bg-background px-4">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <ShieldCheck className="w-6 h-6 text-primary" />
+            </div>
+            <h1 className="text-2xl font-bold text-foreground">
+              Two-Factor Authentication
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Enter the 6-digit code from your authenticator app
+            </p>
+          </div>
+
+          <form onSubmit={handle2faSubmit} className="space-y-4">
+            {error && (
+              <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+                {error}
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="totp-code" className="block text-sm font-medium text-foreground mb-1.5">
+                Verification Code
+              </label>
+              <input
+                id="totp-code"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={6}
+                value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ""))}
+                placeholder="000000"
+                autoFocus
+                required
+                className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all text-[15px] text-center tracking-[0.5em] font-mono"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading || totpCode.length !== 6}
+              className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-[15px]"
+            >
+              {isLoading ? "Verifying..." : "Verify"}
+            </button>
+          </form>
+
+          <button
+            type="button"
+            onClick={() => {
+              setTotpCode("");
+              setError("");
+              onCancel2fa();
+            }}
+            className="flex items-center gap-1.5 mx-auto mt-6 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to login
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const isRegister = mode === "register";
 

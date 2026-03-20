@@ -5,6 +5,7 @@ import chatRouter from "./chat";
 import credentialsRouter from "./credentials";
 import zohoOAuthRouter from "./zoho-oauth";
 import dashboardRouter from "./dashboard";
+import accountRouter from "./account";
 import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -15,5 +16,6 @@ router.use(zohoOAuthRouter);
 router.use(requireAuth, chatRouter);
 router.use(requireAuth, credentialsRouter);
 router.use(requireAuth, dashboardRouter);
+router.use(requireAuth, accountRouter);
 
 export default router;
