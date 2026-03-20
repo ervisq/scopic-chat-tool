@@ -64,7 +64,7 @@ const PROVIDERS: ProviderConfig[] = [
     name: "Teamwork",
     key: "teamwork",
     color: "bg-purple-500",
-    description: "Connect your Teamwork account to query projects, tasks, milestones, time entries, and people. Use @Teamwork in chat after connecting.",
+    description: "Connect your Teamwork account to query projects, tasks, task lists, milestones, time entries, teams, and people. Use @Teamwork in chat after connecting.",
     hasInstanceUrl: true,
     fields: [
       { key: "apiToken", label: "API Token", type: "password", placeholder: "Your Teamwork API token" },
