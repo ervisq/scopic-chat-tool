@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { LoginBody, LoginResponse, GetMeResponse } from "@workspace/api-zod";
-import { signToken, sign2faPendingToken, requireAuth, getAuthUser } from "../middlewares/auth";
+import { signToken, sign2faPendingToken, verifyToken, requireAuth, getAuthUser } from "../middlewares/auth";
 import { db } from "@workspace/db";
 import { users } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
@@ -129,7 +129,6 @@ router.post("/auth/verify-2fa", async (req, res) => {
 
     let payload;
     try {
-      const { verifyToken } = await import("../middlewares/auth");
       payload = verifyToken(tempToken);
       if (payload.tokenType !== "2fa_pending") {
         res.status(400).json({ message: "Invalid verification token" });

@@ -394,7 +394,10 @@ function PreferencesTab({ token, onUpdateUser }: { token: string | null; onUpdat
     }
   }
 
-  async function savePreferences(updates: { theme?: string; defaultPage?: string }) {
+  async function savePreferences(
+    updates: { theme?: string; defaultPage?: string },
+    rollback: () => void,
+  ) {
     setSaving(true);
     setMessage(null);
     try {
@@ -412,9 +415,11 @@ function PreferencesTab({ token, onUpdateUser }: { token: string | null; onUpdat
         onUpdateUser({ theme: data.theme, defaultPage: data.defaultPage });
       } else {
         const err = await res.json();
+        rollback();
         setMessage({ type: "error", text: err.message || "Failed to save" });
       }
     } catch {
+      rollback();
       setMessage({ type: "error", text: "Network error" });
     } finally {
       setSaving(false);
@@ -422,13 +427,15 @@ function PreferencesTab({ token, onUpdateUser }: { token: string | null; onUpdat
   }
 
   function handleThemeChange(newTheme: string) {
+    const prev = theme;
     setTheme(newTheme);
-    savePreferences({ theme: newTheme });
+    savePreferences({ theme: newTheme }, () => setTheme(prev));
   }
 
   function handleDefaultPageChange(page: string) {
+    const prev = defaultPage;
     setDefaultPage(page);
-    savePreferences({ defaultPage: page });
+    savePreferences({ defaultPage: page }, () => setDefaultPage(prev));
   }
 
   if (loading) {
@@ -638,9 +645,10 @@ function SecurityTab({ token }: { token: string | null }) {
   }
 
   async function handleFrequencyChange(newFreq: string) {
+    const previousFreq = frequency;
     setFrequency(newFreq);
     try {
-      await fetch(`${baseUrl}/api/account/2fa/frequency`, {
+      const res = await fetch(`${baseUrl}/api/account/2fa/frequency`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -648,7 +656,14 @@ function SecurityTab({ token }: { token: string | null }) {
         },
         body: JSON.stringify({ frequency: newFreq }),
       });
-    } catch {}
+      if (!res.ok) {
+        setFrequency(previousFreq);
+        setError("Failed to update verification frequency");
+      }
+    } catch {
+      setFrequency(previousFreq);
+      setError("Failed to update verification frequency");
+    }
   }
 
   if (loading) {
