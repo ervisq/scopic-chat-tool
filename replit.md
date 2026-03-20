@@ -54,6 +54,20 @@ artifacts-monorepo/
 - Token auto-injected via `custom-fetch.ts` from localStorage (`auth_token` key)
 - Frontend has login/register toggle, shows chat when authenticated
 
+## STS Integration (Scopic Time System)
+
+- Internal time tracking system at `time.scopicsoftware.com`
+- REST API at `https://time.scopicsoftware.com/stsapi` with endpoints: `/time`, `/project`, `/person`
+- Auth: token-based (`token[token_id]` query param), token obtained from STS URL after browser login
+- Per-user credentials: each user pastes their STS token from the URL bar
+- Backward compatible: accepts both `tokenId` (new) and `apiKey` (legacy) credential field names
+- SSRF protection: STS API base URL is hardcoded server-side, ignores user-provided instanceUrl
+- Service (`stsService.ts`): fetches weekly time entries, calculates daily/project breakdowns, total hours
+- Dashboard card: shows total hours logged this week + per-day and per-project summary
+- Chat `@STS`: returns detailed time data (daily breakdown, project breakdown, individual entries)
+- Supports week offset: "last week", "next week" queries
+- Tool color: emerald-500, icon: ST
+
 ## Per-User Credentials
 
 - Each employee connects their own Jira/Zoho/STS accounts via Connected Services page

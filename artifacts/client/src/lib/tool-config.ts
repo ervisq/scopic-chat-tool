@@ -35,7 +35,7 @@ export const TOOLS: ToolConfig[] = [
   {
     name: "STS",
     label: "STS",
-    description: "Query compliance & security",
+    description: "Working hours: this week, by project, daily breakdown",
     bgColor: "bg-emerald-500/15",
     textColor: "text-emerald-600 dark:text-emerald-400",
     borderColor: "border-emerald-500/30",

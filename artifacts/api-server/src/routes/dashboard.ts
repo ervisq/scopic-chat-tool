@@ -174,21 +174,38 @@ router.get("/dashboard", async (req, res) => {
       promises.push(
         (async () => {
           try {
-            const result = await querySts("status", userId);
-            const serviceCount = result.services.length;
-            const healthyCount = result.services.filter((s) => s.status === "Healthy").length;
-            services.push({
-              key: "sts",
-              name: "STS",
-              connected: true,
-              instanceUrl: stsConn.instanceUrl,
-              summary: {
-                status: `${healthyCount}/${serviceCount} services healthy`,
-                overallHealth: result.overallHealth,
-                serviceCount,
-                healthyCount,
-              },
-            });
+            const result = await querySts("my hours this week", userId);
+            if (result.source === "error") {
+              services.push({
+                key: "sts",
+                name: "STS",
+                connected: true,
+                instanceUrl: stsConn.instanceUrl,
+                error: result.errorMessage || "Could not load STS data — check your token",
+              });
+            } else {
+              const daysSummary = result.byDay
+                .filter((d) => d.hours > 0)
+                .map((d) => `${d.dayName.slice(0, 3)}: ${d.hours.toFixed(1)}h`)
+                .join(", ");
+              services.push({
+                key: "sts",
+                name: "STS",
+                connected: true,
+                instanceUrl: stsConn.instanceUrl,
+                summary: {
+                  status: `${result.totalHours}h logged this week`,
+                  totalHours: result.totalHours,
+                  weekStart: result.weekStart,
+                  weekEnd: result.weekEnd,
+                  daysSummary: daysSummary || "No hours logged yet",
+                  byProject: result.byProject.slice(0, 3).map((p) => ({
+                    name: p.projectName,
+                    hours: p.hours,
+                  })),
+                },
+              });
+            }
           } catch {
             services.push({
               key: "sts",

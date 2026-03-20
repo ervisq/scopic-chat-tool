@@ -23,6 +23,11 @@ interface JiraTicketSummary {
   priority: string;
 }
 
+interface StsProjectSummary {
+  name: string;
+  hours: number;
+}
+
 interface ServiceData {
   key: string;
   name: string;
@@ -36,6 +41,11 @@ interface ServiceData {
     totalTasks?: number;
     activeTasks?: number;
     tasks?: { id: number; title: string; status: string; priority: string }[];
+    totalHours?: number;
+    weekStart?: string;
+    weekEnd?: string;
+    daysSummary?: string;
+    byProject?: StsProjectSummary[];
   };
   error?: string;
 }
@@ -85,7 +95,7 @@ const EXTERNAL_URLS: Record<string, (instanceUrl?: string | null) => string> = {
   jira: (instanceUrl) => instanceUrl || "https://www.atlassian.com/software/jira",
   zoho_people: () => "https://people.zoho.com",
   zoho_crm: () => "https://crm.zoho.com",
-  sts: (instanceUrl) => instanceUrl || "#",
+  sts: (instanceUrl) => instanceUrl || "https://time.scopicsoftware.com",
   teamwork: (instanceUrl) => instanceUrl || "https://www.teamwork.com",
 };
 
@@ -249,9 +259,50 @@ function ServiceCard({
               </div>
             )}
 
+            {service.key === "sts" && service.summary?.totalHours !== undefined && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Hours This Week
+                  </p>
+                  <span className={`text-sm font-bold ${style.textColor}`}>
+                    {service.summary.totalHours}h
+                  </span>
+                </div>
+                {service.summary.daysSummary && (
+                  <div className={`rounded-lg ${style.bgColor} px-3 py-2`}>
+                    <p className="text-[11px] text-muted-foreground">
+                      {service.summary.daysSummary}
+                    </p>
+                  </div>
+                )}
+                {service.summary.byProject && service.summary.byProject.length > 0 && (
+                  <div className="space-y-1">
+                    {service.summary.byProject.map((p) => (
+                      <div
+                        key={p.name}
+                        className="flex items-center justify-between py-1 px-2 rounded-lg bg-muted/30"
+                      >
+                        <span className="text-xs text-foreground truncate flex-1">
+                          {p.name}
+                        </span>
+                        <span className="text-xs font-medium text-muted-foreground ml-2 shrink-0">
+                          {p.hours.toFixed(1)}h
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[11px] text-muted-foreground">
+                  Use{" "}
+                  <span className="font-mono font-semibold">@STS</span>{" "}
+                  in chat for detailed breakdown
+                </p>
+              </div>
+            )}
+
             {(service.key === "zoho_people" ||
-              service.key === "zoho_crm" ||
-              service.key === "sts") &&
+              service.key === "zoho_crm") &&
               service.summary?.status && (
                 <div
                   className={`rounded-lg ${style.bgColor} px-3 py-2`}
@@ -265,14 +316,20 @@ function ServiceCard({
                       @
                       {service.key === "zoho_people"
                         ? "ZohoPeople"
-                        : service.key === "zoho_crm"
-                          ? "ZohoCRM"
-                          : "STS"}
+                        : "ZohoCRM"}
                     </span>{" "}
                     in chat to query data
                   </p>
                 </div>
               )}
+
+            {service.key === "sts" && service.summary?.totalHours === undefined && service.summary?.status && (
+              <div className={`rounded-lg ${style.bgColor} px-3 py-2`}>
+                <p className={`text-xs font-medium ${style.textColor}`}>
+                  {service.summary.status}
+                </p>
+              </div>
+            )}
 
             <a
               href={externalUrl}
