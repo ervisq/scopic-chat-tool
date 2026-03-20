@@ -218,6 +218,9 @@ async function fetchEmployees(accessToken: string): Promise<ZohoEmployee[]> {
         headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
       });
       data = response.data;
+      if (sIndex === 1) {
+        console.log("[ZohoPeople] FULL RAW RESPONSE:", JSON.stringify(data).slice(0, 2000));
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("[ZohoPeople] API request failed:", msg);
@@ -263,7 +266,13 @@ async function fetchEmployees(accessToken: string): Promise<ZohoEmployee[]> {
   }
 
   if (allEmployees.length <= 1) {
-    console.log("[ZohoPeople] Only", allEmployees.length, "employee found — your Zoho People role may restrict access to other employees. An admin account is needed to see all employee data.");
+    console.log("[ZohoPeople] Only", allEmployees.length, "record via getRecords. Trying alternate approach...");
+    const altEmployees = await fetchEmployeesAlternate(accessToken);
+    if (altEmployees.length > allEmployees.length) {
+      console.log("[ZohoPeople] Alternate approach returned", altEmployees.length, "employees!");
+      return altEmployees;
+    }
+    console.log("[ZohoPeople] Alternate also returned", altEmployees.length, "— may be a role restriction.");
   }
 
   return allEmployees;
@@ -279,27 +288,70 @@ function getLimitedAccessWarning(total: number): string {
 async function searchEmployeeViaApi(accessToken: string, searchTerm: string): Promise<ZohoEmployee[]> {
   const results: ZohoEmployee[] = [];
   const nameSearch = searchTerm.trim();
-  try {
-    const resp = await axios.get(`${PEOPLE_BASE}/people/api/forms/employee/getRecords`, {
-      params: {
-        searchColumn: "EMPLOYEEMAILALIAS",
-        searchValue: nameSearch,
-        sIndex: 1,
-        limit: 50,
-      },
-      headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
-    });
 
-    const recs = parseRecords(resp.data);
-    if (recs.length > 0) {
-      console.log("[ZohoPeople] searchRecords found", recs.length, "matches via API search");
-      for (const rec of recs) results.push(mapEmployee(rec));
+  const searchColumns = ["EMPLOYEEMAILALIAS", "EMPLOYEEID"];
+  for (const col of searchColumns) {
+    try {
+      const resp = await axios.get(`${PEOPLE_BASE}/people/api/forms/employee/getRecords`, {
+        params: {
+          searchColumn: col,
+          searchValue: nameSearch,
+          sIndex: 1,
+          limit: 50,
+        },
+        headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+      });
+
+      const recs = parseRecords(resp.data);
+      if (recs.length > 0) {
+        console.log("[ZohoPeople] search via", col, "found", recs.length, "matches");
+        for (const rec of recs) results.push(mapEmployee(rec));
+        return results;
+      }
+    } catch (err) {
+      console.log("[ZohoPeople] search via", col, "failed:", (err as Error).message);
     }
-  } catch (err) {
-    console.log("[ZohoPeople] API search failed, falling back to local filter:", (err as Error).message);
   }
 
   return results;
+}
+
+async function fetchEmployeesAlternate(accessToken: string): Promise<ZohoEmployee[]> {
+  const allEmployees: ZohoEmployee[] = [];
+
+  const formNames = ["P_Employee", "employee"];
+  for (const formName of formNames) {
+    try {
+      let sIndex = 1;
+      const batchSize = 200;
+
+      while (true) {
+        const response = await axios.get(`${PEOPLE_BASE}/people/api/forms/${formName}/getRecords`, {
+          params: { sIndex, limit: batchSize },
+          headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+        });
+
+        const recs = parseRecords(response.data);
+        if (recs.length === 0) break;
+
+        console.log("[ZohoPeople] Alternate fetch via form '${formName}' got", recs.length, "records at sIndex", sIndex);
+        for (const rec of recs) allEmployees.push(mapEmployee(rec));
+
+        if (recs.length < batchSize) break;
+        sIndex += batchSize;
+        if (sIndex > 2000) break;
+      }
+
+      if (allEmployees.length > 0) {
+        console.log("[ZohoPeople] Alternate fetch via form '${formName}' total:", allEmployees.length);
+        return allEmployees;
+      }
+    } catch (err) {
+      console.log("[ZohoPeople] Form", formName, "failed:", (err as Error).message);
+    }
+  }
+
+  return allEmployees;
 }
 
 async function searchEmployee(accessToken: string, searchTerm: string): Promise<ZohoEmployee[]> {
