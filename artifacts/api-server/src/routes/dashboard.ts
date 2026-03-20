@@ -42,24 +42,34 @@ router.get("/dashboard", async (req, res) => {
       promises.push(
         (async () => {
           try {
-            const result = await queryJira("assignee = currentUser() ORDER BY updated DESC", userId);
-            const openTickets = result.tickets.filter((t) => t.status !== "Done");
-            services.push({
-              key: "jira",
-              name: "JIRA",
-              connected: true,
-              instanceUrl: jiraConn.instanceUrl,
-              summary: {
-                totalTickets: result.total,
-                openTickets: openTickets.length,
-                tickets: result.tickets.slice(0, 5).map((t) => ({
-                  id: t.id,
-                  title: t.title,
-                  status: t.status,
-                  priority: t.priority,
-                })),
-              },
-            });
+            const result = await queryJira("my tasks", userId);
+            if (result.source === "error") {
+              services.push({
+                key: "jira",
+                name: "JIRA",
+                connected: true,
+                instanceUrl: jiraConn.instanceUrl,
+                error: "Could not load Jira data — check your credentials",
+              });
+            } else {
+              const openTickets = result.tickets.filter((t) => t.status !== "Done");
+              services.push({
+                key: "jira",
+                name: "JIRA",
+                connected: true,
+                instanceUrl: jiraConn.instanceUrl,
+                summary: {
+                  totalTickets: result.total,
+                  openTickets: openTickets.length,
+                  tickets: result.tickets.slice(0, 5).map((t) => ({
+                    id: t.id,
+                    title: t.title,
+                    status: t.status,
+                    priority: t.priority,
+                  })),
+                },
+              });
+            }
           } catch {
             services.push({
               key: "jira",
