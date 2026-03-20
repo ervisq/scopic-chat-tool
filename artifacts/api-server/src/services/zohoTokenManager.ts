@@ -57,10 +57,15 @@ export async function getZohoAccessToken(
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
   });
 
-  const { access_token, expires_in } = response.data;
+  const { access_token, expires_in, error: tokenError } = response.data;
 
   if (!access_token) {
-    throw new Error(response.data.error || "Failed to obtain Zoho access token");
+    const errMsg = tokenError || "Failed to obtain Zoho access token";
+    console.error("Zoho token exchange failed:", JSON.stringify(response.data));
+    if (tokenError === "invalid_code" || tokenError === "invalid_client") {
+      throw new Error(`Zoho authorization expired or invalid. Please disconnect Zoho in Connected Services and reconnect.`);
+    }
+    throw new Error(errMsg);
   }
 
   const expiresInMs = (expires_in || 3600) * 1000;
