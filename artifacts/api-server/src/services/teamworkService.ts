@@ -212,6 +212,11 @@ function buildTaskParams(query: string): Record<string, string | number | boolea
     params["includeCompletedTasks"] = false;
   }
 
+  if (lower.includes("latest") || lower.includes("recent")) {
+    params["orderBy"] = "updatedAt";
+    params["orderMode"] = "desc";
+  }
+
   if (lower.includes("high priority") || lower.includes("urgent") || lower.includes("critical")) {
     params["priority"] = "high";
   } else if (lower.includes("medium priority")) {

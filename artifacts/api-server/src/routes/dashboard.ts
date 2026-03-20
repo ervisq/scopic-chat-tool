@@ -209,7 +209,10 @@ router.get("/dashboard", async (req, res) => {
       promises.push(
         (async () => {
           try {
-            const result = await queryTeamwork("my tasks", userId);
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            const dateFilter = thirtyDaysAgo.toISOString().split("T")[0];
+            const result = await queryTeamwork(`my latest tasks due after ${dateFilter}`, userId);
             if (result.source === "error") {
               services.push({
                 key: "teamwork",
