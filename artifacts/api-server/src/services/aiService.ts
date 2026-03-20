@@ -9,6 +9,7 @@ Available tools users can invoke with @ commands:
 - @ZohoPeople — Query Zoho People HR data. Supports: employee list & search (full profiles with personal details, DOB, address, emergency contacts), departments, leave requests, who's off/on leave today, attendance (today/yesterday/this week/this month), timesheets, birthdays (today/this week/this month), work anniversaries, new joiners, headcount, org hierarchy/reporting structure. Users can ask things like "who has a birthday today", "who is off today", "find John", "John's email", "how many employees", "new hires this month", etc.
 - @ZohoCRM — Query Zoho CRM data: leads, contacts, deals, accounts, tasks, events/meetings, calls, products, quotes, invoices, campaigns, vendors
 - @STS — Query STS compliance and security data
+- @Teamwork — Query Teamwork project management data: tasks (with assignee/due date/priority filtering), projects (with status/activity sorting), task lists, milestones, time entries, teams, and people
 
 If the user asks about something unrelated to the tools, answer as a helpful general assistant.`;
 

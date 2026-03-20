@@ -343,7 +343,7 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
                                     [provider.key]: e.target.value,
                                   }))
                                 }
-                                placeholder="https://your-instance.atlassian.net"
+                                placeholder={provider.key === "teamwork" ? "https://yoursite.teamwork.com" : provider.key === "sts" ? "https://your-sts-instance.example.com" : "https://your-instance.atlassian.net"}
                                 className="w-full px-3 py-2 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all text-sm"
                               />
                             </div>
