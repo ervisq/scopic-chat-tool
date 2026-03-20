@@ -90,7 +90,8 @@ artifacts-monorepo/
 - Zoho token manager (`zohoTokenManager.ts`): exchanges refresh tokens for access tokens, caches in memory with TTL
 - Domain validation: only known Zoho accounts domains are allowed (SSRF protection)
 - Separate tool commands: `@ZohoPeople` for HR data, `@ZohoCRM` for sales data (no auto-routing)
-- Zoho People service (`zohoPeopleService.ts`): employees (list + search by name), departments, leave requests, attendance (with date range: today/this week/this month/last month), timesheets/time logs
+- Zoho People service (`zohoPeopleService.ts`): full employee profiles (30+ fields including personal info, DOB, address, emergency contacts), search by name/email/department, birthdays (today/week/month), work anniversaries, who's off today, new joiners, headcount, org hierarchy, departments, leave requests, attendance (with date ranges), timesheets
+- Employee data paginates up to 2000 records (200 per batch)
 - Zoho CRM service (`zohoCrmService.ts`): leads, contacts, deals, accounts, tasks, events/meetings, calls, products, quotes, invoices, campaigns, vendors
 - Record limit: 200 per query for both People and CRM
 
