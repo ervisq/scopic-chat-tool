@@ -82,8 +82,13 @@ artifacts-monorepo/
 
 ## Zoho Integration (People + CRM)
 
-- Per-user OAuth credentials: Client ID, Client Secret, Refresh Token, Accounts Domain
-- Module selection: users choose People, CRM, or both via checkboxes in Connected Services
+- Automated OAuth flow: users click "Connect with Zoho" button, authorize in Zoho, redirect back
+- Shared OAuth client: `ZOHO_CLIENT_ID` and `ZOHO_CLIENT_SECRET` stored as server env vars
+- Per-user refresh tokens stored encrypted in DB (obtained automatically via OAuth callback)
+- OAuth state uses secure random nonce (not JWT) with 10-minute TTL, stored server-side
+- OAuth routes: `GET /api/zoho/auth-url` (protected), `GET /api/zoho/callback` (public with nonce validation)
+- Module selection: users choose People, CRM, or both via checkboxes after connecting
+- Module update endpoint: `POST /api/credentials/:provider/modules` with allowlist validation
 - Zoho token manager (`zohoTokenManager.ts`): exchanges refresh tokens for access tokens, caches in memory with TTL
 - Domain validation: only known Zoho accounts domains are allowed (SSRF protection)
 - `@Zoho` command auto-routes queries to the correct module based on keywords:

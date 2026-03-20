@@ -46,17 +46,27 @@ export async function queryZoho(query: string, userId?: number): Promise<ZohoRou
   const cred = await getUserCredentials(userId, "zoho");
   if (!cred) {
     return {
-      reply: "Your Zoho account is not connected. Please go to Connected Services (Settings icon) to link your Zoho credentials.",
+      reply: "Your Zoho account is not connected. Please go to Connected Services (Settings icon) and click 'Connect with Zoho'.",
       source: "not_connected",
     };
   }
 
   const { credentials } = cred;
-  const { clientId, clientSecret, refreshToken, domain, modules } = credentials;
+  const { refreshToken, modules } = credentials;
 
-  if (!clientId || !clientSecret || !refreshToken) {
+  const clientId = process.env.ZOHO_CLIENT_ID || "";
+  const clientSecret = process.env.ZOHO_CLIENT_SECRET || "";
+
+  if (!clientId || !clientSecret) {
     return {
-      reply: "Your Zoho credentials are incomplete. Please update them in Connected Services (Settings icon).",
+      reply: "Zoho OAuth is not configured on this server. Please contact your administrator.",
+      source: "error",
+    };
+  }
+
+  if (!refreshToken) {
+    return {
+      reply: "Your Zoho connection is incomplete. Please reconnect via Connected Services (Settings icon).",
       source: "error",
     };
   }
@@ -67,7 +77,7 @@ export async function queryZoho(query: string, userId?: number): Promise<ZohoRou
       ? modules.split(",").map((m: string) => m.trim())
       : [];
   const detectedModule = detectModule(query);
-  const accountsDomain = domain || "https://accounts.zoho.com";
+  const accountsDomain = "https://accounts.zoho.com";
 
   if (detectedModule === "people" || (detectedModule === "ambiguous" && enabledModules.includes("people") && !enabledModules.includes("crm"))) {
     if (!enabledModules.includes("people")) {
@@ -83,7 +93,7 @@ export async function queryZoho(query: string, userId?: number): Promise<ZohoRou
       const msg = err instanceof Error ? err.message : String(err);
       console.error("Zoho People API error:", msg);
       return {
-        reply: `Error querying Zoho People: ${msg}. Please check your credentials in Connected Services.`,
+        reply: `Error querying Zoho People: ${msg}. Please check your connection in Connected Services.`,
         source: "error",
       };
     }
@@ -103,7 +113,7 @@ export async function queryZoho(query: string, userId?: number): Promise<ZohoRou
       const msg = err instanceof Error ? err.message : String(err);
       console.error("Zoho CRM API error:", msg);
       return {
-        reply: `Error querying Zoho CRM: ${msg}. Please check your credentials in Connected Services.`,
+        reply: `Error querying Zoho CRM: ${msg}. Please check your connection in Connected Services.`,
         source: "error",
       };
     }

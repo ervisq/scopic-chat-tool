@@ -34,6 +34,7 @@ interface ProviderConfig {
   fields: ProviderField[];
   hasInstanceUrl: boolean;
   modules?: ProviderModule[];
+  oauth?: boolean;
 }
 
 const PROVIDERS: ProviderConfig[] = [
@@ -52,14 +53,10 @@ const PROVIDERS: ProviderConfig[] = [
     name: "Zoho",
     key: "zoho",
     color: "bg-amber-500",
-    description: "Connect your Zoho account. Select which modules you have access to — People (HR) for employee data, CRM for sales data, or both.",
+    description: "Connect your Zoho account to access People (HR) and CRM (Sales) data. Click the button below to authorize securely with Zoho.",
     hasInstanceUrl: false,
-    fields: [
-      { key: "clientId", label: "Client ID", type: "text", placeholder: "Zoho OAuth client ID" },
-      { key: "clientSecret", label: "Client Secret", type: "password", placeholder: "Zoho OAuth client secret" },
-      { key: "refreshToken", label: "Refresh Token", type: "password", placeholder: "Zoho OAuth refresh token" },
-      { key: "domain", label: "Accounts Domain", type: "text", placeholder: "https://accounts.zoho.com" },
-    ],
+    oauth: true,
+    fields: [],
     modules: [
       { key: "people", label: "People", description: "HR data: employees, leave, attendance" },
       { key: "crm", label: "CRM", description: "Sales data: leads, contacts, deals, accounts" },
@@ -86,10 +83,27 @@ export default function ConnectionsPage({ token, onBack }: ConnectionsPageProps)
   const [selectedModules, setSelectedModules] = useState<Record<string, string[]>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [oauthLoading, setOauthLoading] = useState<string | null>(null);
 
   const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("zoho_success") === "true") {
+      setMessage({ type: "success", text: "Zoho connected successfully! You can now select your modules below." });
+      setExpandedProvider("zoho");
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (params.get("zoho_error")) {
+      const errorMap: Record<string, string> = {
+        missing_params: "Zoho authorization was incomplete. Please try again.",
+        invalid_state: "Session expired. Please log in again and retry.",
+        no_refresh_token: "Zoho did not grant offline access. Please try again and make sure to accept all permissions.",
+        token_exchange_failed: "Failed to complete Zoho authorization. Please try again.",
+      };
+      const errCode = params.get("zoho_error") || "";
+      setMessage({ type: "error", text: errorMap[errCode] || `Zoho connection failed: ${errCode}` });
+      window.history.replaceState({}, "", window.location.pathname);
+    }
     fetchConnections();
   }, []);
 
@@ -126,6 +140,61 @@ export default function ConnectionsPage({ token, onBack }: ConnectionsPageProps)
     });
   }
 
+  async function handleOAuthConnect(provider: ProviderConfig) {
+    setOauthLoading(provider.key);
+    setMessage(null);
+    try {
+      const res = await fetch(`${baseUrl}/api/zoho/auth-url`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        window.location.href = data.authUrl;
+      } else {
+        const err = await res.json();
+        setMessage({ type: "error", text: err.message || "Failed to start Zoho authorization" });
+        setOauthLoading(null);
+      }
+    } catch {
+      setMessage({ type: "error", text: "Network error" });
+      setOauthLoading(null);
+    }
+  }
+
+  async function handleModuleSave(provider: ProviderConfig) {
+    const modules = selectedModules[provider.key] || [];
+    if (modules.length === 0) {
+      setMessage({ type: "error", text: "Please select at least one module" });
+      return;
+    }
+
+    setSaving(provider.key);
+    setMessage(null);
+    try {
+      const res = await fetch(`${baseUrl}/api/credentials/${provider.key}/modules`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ modules }),
+      });
+
+      if (res.ok) {
+        setMessage({ type: "success", text: `${provider.name} modules updated successfully` });
+        setExpandedProvider(null);
+        await fetchConnections();
+      } else {
+        const err = await res.json();
+        setMessage({ type: "error", text: err.message || "Failed to save modules" });
+      }
+    } catch {
+      setMessage({ type: "error", text: "Network error" });
+    } finally {
+      setSaving(null);
+    }
+  }
+
   async function handleSave(provider: ProviderConfig) {
     const creds = formData[provider.key] || {};
     const requiredFields = provider.fields.filter((f) => f.key !== "domain");
@@ -138,22 +207,10 @@ export default function ConnectionsPage({ token, onBack }: ConnectionsPageProps)
       setMessage({ type: "error", text: "Instance URL is required" });
       return;
     }
-    if (provider.modules && provider.modules.length > 0) {
-      const modules = selectedModules[provider.key] || [];
-      if (modules.length === 0) {
-        setMessage({ type: "error", text: "Please select at least one module" });
-        return;
-      }
-    }
 
     setSaving(provider.key);
     setMessage(null);
     try {
-      const credPayload = { ...creds };
-      if (provider.modules) {
-        credPayload.modules = (selectedModules[provider.key] || []).join(",");
-      }
-
       const res = await fetch(`${baseUrl}/api/credentials/${provider.key}`, {
         method: "POST",
         headers: {
@@ -161,7 +218,7 @@ export default function ConnectionsPage({ token, onBack }: ConnectionsPageProps)
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          credentials: credPayload,
+          credentials: creds,
           instanceUrl: provider.hasInstanceUrl ? instanceUrls[provider.key] : undefined,
         }),
       });
@@ -171,7 +228,6 @@ export default function ConnectionsPage({ token, onBack }: ConnectionsPageProps)
         setExpandedProvider(null);
         setFormData((prev) => ({ ...prev, [provider.key]: {} }));
         setInstanceUrls((prev) => ({ ...prev, [provider.key]: "" }));
-        setSelectedModules((prev) => ({ ...prev, [provider.key]: [] }));
         await fetchConnections();
       } else {
         const err = await res.json();
@@ -290,7 +346,9 @@ export default function ConnectionsPage({ token, onBack }: ConnectionsPageProps)
                         }
                         className="text-xs px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
                       >
-                        {connected ? "Update" : "Connect"}
+                        {provider.oauth
+                          ? connected ? "Modules" : "Connect"
+                          : connected ? "Update" : "Connect"}
                       </button>
                     </div>
                   </div>
@@ -299,104 +357,146 @@ export default function ConnectionsPage({ token, onBack }: ConnectionsPageProps)
                     <div className="border-t border-border/50 p-4 space-y-3 bg-background/50">
                       <p className="text-xs text-muted-foreground">{provider.description}</p>
 
-                      {provider.hasInstanceUrl && (
-                        <div>
-                          <label className="block text-xs font-medium text-foreground mb-1">
-                            Instance URL
-                          </label>
-                          <input
-                            type="url"
-                            value={instanceUrls[provider.key] || ""}
-                            onChange={(e) =>
-                              setInstanceUrls((prev) => ({
-                                ...prev,
-                                [provider.key]: e.target.value,
-                              }))
-                            }
-                            placeholder="https://your-instance.atlassian.net"
-                            className="w-full px-3 py-2 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all text-sm"
-                          />
-                        </div>
-                      )}
-
-                      {provider.fields.map((field) => (
-                        <div key={field.key}>
-                          <label className="block text-xs font-medium text-foreground mb-1">
-                            {field.label}
-                            {field.key === "domain" && (
-                              <span className="ml-1 text-muted-foreground font-normal">(optional)</span>
-                            )}
-                          </label>
-                          <input
-                            type={field.type}
-                            value={formData[provider.key]?.[field.key] || ""}
-                            onChange={(e) =>
-                              setFormData((prev) => ({
-                                ...prev,
-                                [provider.key]: {
-                                  ...prev[provider.key],
-                                  [field.key]: e.target.value,
-                                },
-                              }))
-                            }
-                            placeholder={field.placeholder}
-                            className="w-full px-3 py-2 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all text-sm"
-                          />
-                        </div>
-                      ))}
-
-                      {provider.modules && provider.modules.length > 0 && (
-                        <div>
-                          <label className="block text-xs font-medium text-foreground mb-2">
-                            Modules <span className="text-muted-foreground font-normal">(select at least one)</span>
-                          </label>
-                          <div className="space-y-2">
-                            {provider.modules.map((mod) => {
-                              const checked = (selectedModules[provider.key] || []).includes(mod.key);
-                              return (
-                                <label
-                                  key={mod.key}
-                                  className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
-                                    checked
-                                      ? "border-primary/40 bg-primary/5"
-                                      : "border-border hover:border-border/80"
-                                  }`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={() => toggleModule(provider.key, mod.key)}
-                                    className="mt-0.5 rounded border-border text-primary focus:ring-primary/20"
-                                  />
-                                  <div>
-                                    <span className="text-sm font-medium text-foreground">{mod.label}</span>
-                                    <p className="text-xs text-muted-foreground mt-0.5">{mod.description}</p>
-                                  </div>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="flex justify-end gap-2 pt-1">
-                        <button
-                          onClick={() => setExpandedProvider(null)}
-                          className="text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={() => handleSave(provider)}
-                          disabled={saving === provider.key}
-                          className="text-xs px-4 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-1.5"
-                        >
-                          {saving === provider.key && (
-                            <Loader2 className="w-3 h-3 animate-spin" />
+                      {provider.oauth ? (
+                        <>
+                          {!connected && (
+                            <button
+                              onClick={() => handleOAuthConnect(provider)}
+                              disabled={oauthLoading === provider.key}
+                              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 transition-colors text-sm font-medium"
+                            >
+                              {oauthLoading === provider.key ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <ExternalLink className="w-4 h-4" />
+                              )}
+                              Connect with Zoho
+                            </button>
                           )}
-                          Save
-                        </button>
-                      </div>
+
+                          {connected && provider.modules && provider.modules.length > 0 && (
+                            <>
+                              <div>
+                                <label className="block text-xs font-medium text-foreground mb-2">
+                                  Modules <span className="text-muted-foreground font-normal">(select which you want to use)</span>
+                                </label>
+                                <div className="space-y-2">
+                                  {provider.modules.map((mod) => {
+                                    const checked = (selectedModules[provider.key] || []).includes(mod.key);
+                                    return (
+                                      <label
+                                        key={mod.key}
+                                        className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                                          checked
+                                            ? "border-primary/40 bg-primary/5"
+                                            : "border-border hover:border-border/80"
+                                        }`}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={checked}
+                                          onChange={() => toggleModule(provider.key, mod.key)}
+                                          className="mt-0.5 rounded border-border text-primary focus:ring-primary/20"
+                                        />
+                                        <div>
+                                          <span className="text-sm font-medium text-foreground">{mod.label}</span>
+                                          <p className="text-xs text-muted-foreground mt-0.5">{mod.description}</p>
+                                        </div>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              <div className="flex justify-end gap-2 pt-1">
+                                <button
+                                  onClick={() => setExpandedProvider(null)}
+                                  className="text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={() => handleModuleSave(provider)}
+                                  disabled={saving === provider.key}
+                                  className="text-xs px-4 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                                >
+                                  {saving === provider.key && (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  )}
+                                  Save Modules
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {provider.hasInstanceUrl && (
+                            <div>
+                              <label className="block text-xs font-medium text-foreground mb-1">
+                                Instance URL
+                              </label>
+                              <input
+                                type="url"
+                                value={instanceUrls[provider.key] || ""}
+                                onChange={(e) =>
+                                  setInstanceUrls((prev) => ({
+                                    ...prev,
+                                    [provider.key]: e.target.value,
+                                  }))
+                                }
+                                placeholder="https://your-instance.atlassian.net"
+                                className="w-full px-3 py-2 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all text-sm"
+                              />
+                            </div>
+                          )}
+
+                          {provider.fields.map((field) => (
+                            <div key={field.key}>
+                              <label className="block text-xs font-medium text-foreground mb-1">
+                                {field.label}
+                                {field.key === "domain" && (
+                                  <span className="ml-1 text-muted-foreground font-normal">(optional)</span>
+                                )}
+                              </label>
+                              <input
+                                type={field.type}
+                                value={formData[provider.key]?.[field.key] || ""}
+                                onChange={(e) =>
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    [provider.key]: {
+                                      ...prev[provider.key],
+                                      [field.key]: e.target.value,
+                                    },
+                                  }))
+                                }
+                                placeholder={field.placeholder}
+                                className="w-full px-3 py-2 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all text-sm"
+                              />
+                            </div>
+                          ))}
+
+                          <div className="flex justify-end gap-2 pt-1">
+                            <button
+                              onClick={() => setExpandedProvider(null)}
+                              className="text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => handleSave(provider)}
+                              disabled={saving === provider.key}
+                              className="text-xs px-4 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                            >
+                              {saving === provider.key && (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              )}
+                              Save
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
