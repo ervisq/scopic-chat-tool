@@ -74,23 +74,38 @@ async function stsApiGet(
   token: string,
   params: Record<string, string | number> = {},
 ): Promise<any> {
-  const url = `${apiUrl}${endpoint}`;
-  const queryParams = {
+  const baseUrl = `${apiUrl}${endpoint}`;
+  const allParams: Record<string, string | number> = {
     ...params,
-    "token[token_id]": token,
     limit: params.limit ?? 0,
     offset: params.offset ?? 0,
   };
 
-  const response = await axios.get(url, {
-    params: queryParams,
-    timeout: 15000,
-    headers: {
-      Accept: "application/json",
-    },
-  });
+  const searchParts: string[] = [];
+  searchParts.push(`token%5Btoken_id%5D=${encodeURIComponent(String(token))}`);
+  for (const [key, val] of Object.entries(allParams)) {
+    searchParts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(val))}`);
+  }
+  const fullUrl = `${baseUrl}?${searchParts.join("&")}`;
 
-  return response.data;
+  console.log("[STS] Requesting:", fullUrl.replace(token, "***TOKEN***"));
+
+  try {
+    const response = await axios.get(fullUrl, {
+      timeout: 15000,
+      headers: {
+        Accept: "application/json",
+      },
+    });
+    console.log("[STS] Response status:", response.status, "data type:", typeof response.data, Array.isArray(response.data) ? `array(${response.data.length})` : "");
+    return response.data;
+  } catch (error: any) {
+    console.error("[STS] Request failed:", error?.response?.status, error?.response?.statusText);
+    if (error?.response?.data) {
+      console.error("[STS] Response body:", JSON.stringify(error.response.data).substring(0, 500));
+    }
+    throw error;
+  }
 }
 
 function parseWeekOffset(query: string): number {
