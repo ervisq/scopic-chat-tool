@@ -8,6 +8,17 @@ import { encrypt, decrypt } from "../lib/crypto";
 import * as OTPAuth from "otpauth";
 import QRCode from "qrcode";
 
+interface ProfileUpdates {
+  name?: string;
+  phone?: string | null;
+  profilePictureUrl?: string | null;
+}
+
+interface PreferencesUpdates {
+  theme?: string;
+  defaultPage?: string;
+}
+
 const router: IRouter = Router();
 
 router.get("/account/profile", async (req, res) => {
@@ -35,7 +46,7 @@ router.put("/account/profile", async (req, res) => {
     const { userId } = getAuthUser(req);
     const { name, phone, profilePictureUrl } = req.body;
 
-    const updates: Record<string, any> = {};
+    const updates: ProfileUpdates = {};
     if (name !== undefined) {
       if (!name || typeof name !== "string" || name.trim().length === 0) {
         res.status(400).json({ message: "Name is required" });
@@ -44,14 +55,14 @@ router.put("/account/profile", async (req, res) => {
       updates.name = name.trim();
     }
     if (phone !== undefined) {
-      updates.phone = phone ? phone.trim() : null;
+      updates.phone = typeof phone === "string" && phone.trim() ? phone.trim() : null;
     }
     if (profilePictureUrl !== undefined) {
-      if (profilePictureUrl && profilePictureUrl.length > 2 * 1024 * 1024) {
+      if (typeof profilePictureUrl === "string" && profilePictureUrl.length > 2 * 1024 * 1024) {
         res.status(400).json({ message: "Profile picture is too large (max 1.5MB)" });
         return;
       }
-      updates.profilePictureUrl = profilePictureUrl || null;
+      updates.profilePictureUrl = typeof profilePictureUrl === "string" && profilePictureUrl ? profilePictureUrl : null;
     }
 
     if (Object.keys(updates).length === 0) {
@@ -131,7 +142,7 @@ router.put("/account/preferences", async (req, res) => {
     const { userId } = getAuthUser(req);
     const { theme, defaultPage } = req.body;
 
-    const updates: Record<string, any> = {};
+    const updates: PreferencesUpdates = {};
     if (theme !== undefined) {
       if (!["light", "dark"].includes(theme)) {
         res.status(400).json({ message: "Theme must be 'light' or 'dark'" });

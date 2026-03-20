@@ -26,17 +26,24 @@ function AuthGate() {
     isLoading, requires2fa, updateUser,
   } = useAuth();
   const [page, setPage] = useState<Page>("dashboard");
-  const [initialPageSet, setInitialPageSet] = useState(false);
+  const [lastAuthUser, setLastAuthUser] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isAuthenticated && user?.defaultPage && !initialPageSet) {
-      const validPages: Page[] = ["dashboard", "chat", "admin", "connections", "account"];
-      if (validPages.includes(user.defaultPage as Page)) {
-        setPage(user.defaultPage as Page);
+    if (isAuthenticated && user) {
+      const currentEmail = user.email;
+      if (currentEmail !== lastAuthUser) {
+        setLastAuthUser(currentEmail);
+        const validPages: Page[] = ["dashboard", "chat", "admin", "connections", "account"];
+        if (user.defaultPage && validPages.includes(user.defaultPage as Page)) {
+          setPage(user.defaultPage as Page);
+        } else {
+          setPage("dashboard");
+        }
       }
-      setInitialPageSet(true);
+    } else if (!isAuthenticated) {
+      setLastAuthUser(null);
     }
-  }, [isAuthenticated, user?.defaultPage, initialPageSet]);
+  }, [isAuthenticated, user, lastAuthUser]);
 
   if (isLoading) {
     return (

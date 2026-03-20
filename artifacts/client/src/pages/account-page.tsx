@@ -13,9 +13,18 @@ import {
   EyeOff,
 } from "lucide-react";
 
+interface UserUpdate {
+  name?: string;
+  phone?: string;
+  profilePictureUrl?: string;
+  theme?: string;
+  defaultPage?: string;
+  totpEnabled?: boolean;
+}
+
 interface AccountPageProps {
   token: string | null;
-  onUpdateUser: (user: Record<string, any>) => void;
+  onUpdateUser: (user: UserUpdate) => void;
 }
 
 type Tab = "general" | "preferences" | "security";
@@ -71,7 +80,7 @@ export default function AccountPage({ token, onUpdateUser }: AccountPageProps) {
   );
 }
 
-function GeneralTab({ token, onUpdateUser }: { token: string | null; onUpdateUser: (u: Record<string, any>) => void }) {
+function GeneralTab({ token, onUpdateUser }: { token: string | null; onUpdateUser: (u: UserUpdate) => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -357,7 +366,7 @@ function GeneralTab({ token, onUpdateUser }: { token: string | null; onUpdateUse
   );
 }
 
-function PreferencesTab({ token, onUpdateUser }: { token: string | null; onUpdateUser: (u: Record<string, any>) => void }) {
+function PreferencesTab({ token, onUpdateUser }: { token: string | null; onUpdateUser: (u: UserUpdate) => void }) {
   const [theme, setTheme] = useState("light");
   const [defaultPage, setDefaultPage] = useState("dashboard");
   const [loading, setLoading] = useState(true);

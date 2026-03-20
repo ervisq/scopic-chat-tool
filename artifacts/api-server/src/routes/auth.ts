@@ -7,10 +7,11 @@ import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { decrypt } from "../lib/crypto";
 import * as OTPAuth from "otpauth";
+import type { User } from "@workspace/db/schema";
 
 const router: IRouter = Router();
 
-function getTotpFrequencyMs(frequency: string): number {
+function getTotpFrequencyMs(frequency: string | null): number {
   switch (frequency) {
     case "weekly": return 7 * 24 * 60 * 60 * 1000;
     case "biweekly": return 14 * 24 * 60 * 60 * 1000;
@@ -19,7 +20,7 @@ function getTotpFrequencyMs(frequency: string): number {
   }
 }
 
-function needs2fa(user: any): boolean {
+function needs2fa(user: User): boolean {
   if (!user.totpEnabled || !user.totpSecret) return false;
   if (!user.totpLastVerified) return true;
   const elapsed = Date.now() - new Date(user.totpLastVerified).getTime();

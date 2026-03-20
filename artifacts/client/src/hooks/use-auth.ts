@@ -103,9 +103,9 @@ export function useAuth() {
       if (data.user?.theme) applyTheme(data.user.theme);
       setState({ token: data.token, user: data.user, isLoading: false, requires2fa: false, tempToken: null });
       return { success: true as const };
-    } catch (error: any) {
+    } catch (err) {
       setState((s) => ({ ...s, isLoading: false }));
-      return { success: false as const, error: error.message };
+      return { success: false as const, error: err instanceof Error ? err.message : "Login failed" };
     }
   }, []);
 
@@ -130,9 +130,9 @@ export function useAuth() {
       if (data.user?.theme) applyTheme(data.user.theme);
       setState({ token: data.token, user: data.user, isLoading: false, requires2fa: false, tempToken: null });
       return { success: true as const };
-    } catch (error: any) {
+    } catch (err) {
       setState((s) => ({ ...s, isLoading: false }));
-      return { success: false as const, error: error.message };
+      return { success: false as const, error: err instanceof Error ? err.message : "Verification failed" };
     }
   }, [state.tempToken]);
 
@@ -157,9 +157,9 @@ export function useAuth() {
       if (data.user?.theme) applyTheme(data.user.theme);
       setState({ token: data.token, user: data.user, isLoading: false, requires2fa: false, tempToken: null });
       return { success: true as const };
-    } catch (error: any) {
+    } catch (err) {
       setState((s) => ({ ...s, isLoading: false }));
-      return { success: false as const, error: error.message };
+      return { success: false as const, error: err instanceof Error ? err.message : "Registration failed" };
     }
   }, []);
 
