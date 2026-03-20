@@ -35,6 +35,18 @@ const STS_DEFAULT_API = "https://time.scopicsoftware.com/stsapi";
 const STS_FALLBACK_API = "https://api-tt.scopicsoftware.com/stsapi";
 const STS_ALLOWED_HOSTS = ["time.scopicsoftware.com", "api-tt.scopicsoftware.com"];
 
+function resolveInstanceBase(instanceUrl?: string | null): string {
+  if (!instanceUrl) return "https://time.scopicsoftware.com";
+  try {
+    const parsed = new URL(instanceUrl);
+    if (parsed.protocol !== "https:") return "https://time.scopicsoftware.com";
+    if (!STS_ALLOWED_HOSTS.includes(parsed.hostname)) return "https://time.scopicsoftware.com";
+    return `${parsed.protocol}//${parsed.hostname}`;
+  } catch {
+    return "https://time.scopicsoftware.com";
+  }
+}
+
 function resolveStsApiUrl(instanceUrl?: string | null): string {
   if (!instanceUrl) return STS_DEFAULT_API;
 
@@ -68,33 +80,55 @@ function getWeekRange(weekOffset: number = 0): { startISO: string; endISO: strin
   return { startISO: fmt(monday), endISO: fmt(sunday) };
 }
 
+async function establishStsSession(instanceUrl: string, token: string): Promise<string> {
+  const pageUrl = `${instanceUrl}/time?token%5Btoken_id%5D=${encodeURIComponent(token)}`;
+  console.log("[STS] Establishing session via:", pageUrl.replace(token, "***TOKEN***"));
+
+  const response = await axios.get(pageUrl, {
+    timeout: 15000,
+    maxRedirects: 5,
+    validateStatus: (status) => status < 400,
+    headers: {
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "User-Agent": "Mozilla/5.0 (compatible; WorkHub/1.0)",
+    },
+  });
+
+  const setCookieHeaders = response.headers["set-cookie"];
+  if (!setCookieHeaders || setCookieHeaders.length === 0) {
+    throw new Error("No session cookies returned from STS");
+  }
+
+  const cookies = setCookieHeaders
+    .map((c: string) => c.split(";")[0])
+    .join("; ");
+
+  console.log("[STS] Session established, cookies obtained:", cookies.substring(0, 80) + "...");
+  return cookies;
+}
+
 async function stsApiGet(
   apiUrl: string,
   endpoint: string,
-  token: string,
+  cookies: string,
   params: Record<string, string | number> = {},
 ): Promise<any> {
-  const baseUrl = `${apiUrl}${endpoint}`;
-  const allParams: Record<string, string | number> = {
+  const url = `${apiUrl}${endpoint}`;
+  const queryParams: Record<string, string | number> = {
     ...params,
     limit: params.limit ?? 0,
     offset: params.offset ?? 0,
   };
 
-  const searchParts: string[] = [];
-  searchParts.push(`token%5Btoken_id%5D=${encodeURIComponent(String(token))}`);
-  for (const [key, val] of Object.entries(allParams)) {
-    searchParts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(val))}`);
-  }
-  const fullUrl = `${baseUrl}?${searchParts.join("&")}`;
-
-  console.log("[STS] Requesting:", fullUrl.replace(token, "***TOKEN***"));
+  console.log("[STS] API request:", url, "params:", JSON.stringify(queryParams));
 
   try {
-    const response = await axios.get(fullUrl, {
+    const response = await axios.get(url, {
+      params: queryParams,
       timeout: 15000,
       headers: {
         Accept: "application/json",
+        Cookie: cookies,
       },
     });
     console.log("[STS] Response status:", response.status, "data type:", typeof response.data, Array.isArray(response.data) ? `array(${response.data.length})` : "");
@@ -137,18 +171,20 @@ export async function querySts(query: string, userId?: number): Promise<StsWeekR
     return { ...emptyResult, source: "error", errorMessage: "STS token not configured. Please update your STS connection with your token." };
   }
 
+  const instanceBase = resolveInstanceBase(cred.instanceUrl);
   const primaryApi = resolveStsApiUrl(cred.instanceUrl);
   const weekOffset = parseWeekOffset(query);
   const { startISO, endISO } = getWeekRange(weekOffset);
 
-  const apiUrls = [primaryApi];
+  const attempts = [{ base: instanceBase, api: primaryApi }];
   if (primaryApi !== STS_FALLBACK_API) {
-    apiUrls.push(STS_FALLBACK_API);
+    attempts.push({ base: "https://api-tt.scopicsoftware.com", api: STS_FALLBACK_API });
   }
 
-  for (const apiUrl of apiUrls) {
+  for (const { base, api: apiUrl } of attempts) {
     try {
-      const timeData = await stsApiGet(apiUrl, "/time", tokenId, {
+      const cookies = await establishStsSession(base, tokenId);
+      const timeData = await stsApiGet(apiUrl, "/time", cookies, {
         startDate: startISO,
         endDate: endISO,
       });
