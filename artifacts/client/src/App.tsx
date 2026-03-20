@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import Sidebar, { type Page } from "@/components/sidebar";
+import AppLayout from "@/components/app-layout";
+import { type Page } from "@/components/sidebar";
 import DashboardPage from "@/pages/dashboard-page";
 import ChatPage from "@/pages/chat-page";
 import LoginPage from "@/pages/login-page";
@@ -53,17 +54,14 @@ function AuthGate() {
   }
 
   return (
-    <div className="flex h-dvh bg-background">
-      <Sidebar
-        activePage={page}
-        onNavigate={setPage}
-        user={user}
-        onLogout={logout}
-      />
-      <main className="flex-1 min-w-0">
-        {content}
-      </main>
-    </div>
+    <AppLayout
+      activePage={page}
+      onNavigate={setPage}
+      user={user}
+      onLogout={logout}
+    >
+      {content}
+    </AppLayout>
   );
 }
 

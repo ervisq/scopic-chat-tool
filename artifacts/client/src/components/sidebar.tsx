@@ -7,7 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export type Page = "dashboard" | "chat" | "admin" | "connections";
 
@@ -25,8 +25,27 @@ const NAV_ITEMS: { page: Page; label: string; icon: typeof LayoutDashboard }[] =
   { page: "admin", label: "Admin", icon: Shield },
 ];
 
+const BREAKPOINT = 768;
+
 export default function Sidebar({ activePage, onNavigate, user, onLogout }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [manualCollapse, setManualCollapse] = useState<boolean | null>(null);
+  const [isSmallScreen, setIsSmallScreen] = useState(
+    typeof window !== "undefined" ? window.innerWidth < BREAKPOINT : false,
+  );
+
+  useEffect(() => {
+    function handleResize() {
+      setIsSmallScreen(window.innerWidth < BREAKPOINT);
+    }
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    setManualCollapse(null);
+  }, [isSmallScreen]);
+
+  const collapsed = manualCollapse !== null ? manualCollapse : isSmallScreen;
 
   return (
     <aside
@@ -41,7 +60,7 @@ export default function Sidebar({ activePage, onNavigate, user, onLogout }: Side
           </span>
         )}
         <button
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={() => setManualCollapse(!collapsed)}
           className={`flex items-center justify-center w-7 h-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors ${
             collapsed ? "" : "ml-auto"
           }`}
