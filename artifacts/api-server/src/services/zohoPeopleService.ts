@@ -95,6 +95,7 @@ export interface ZohoPeopleResult {
   departments?: ZohoDepartment[];
   timeLogs?: ZohoTimeLog[];
   total: number;
+  totalFetched?: number;
   source: "live" | "error";
   contextLabel?: string;
 }
@@ -149,93 +150,151 @@ function mapEmployee(rec: Record<string, string>): ZohoEmployee {
   };
 }
 
+function parseRecords(data: unknown): Record<string, string>[] {
+  const results: Record<string, string>[] = [];
+
+  if (Array.isArray(data)) {
+    for (const row of data) {
+      const firstVal = Object.values(row)[0];
+      if (Array.isArray(firstVal)) {
+        results.push((firstVal[0] || {}) as Record<string, string>);
+      } else if (typeof firstVal === "object" && firstVal) {
+        results.push(firstVal as Record<string, string>);
+      } else {
+        results.push(row as Record<string, string>);
+      }
+    }
+    return results;
+  }
+
+  if (data && typeof data === "object") {
+    const obj = data as Record<string, unknown>;
+    if (obj.response && typeof obj.response === "object") {
+      const resp = obj.response as Record<string, unknown>;
+      if (resp.result) {
+        const resultArr = Array.isArray(resp.result) ? resp.result : [resp.result];
+        for (const item of resultArr) {
+          if (typeof item !== "object" || !item) continue;
+          for (const val of Object.values(item)) {
+            if (Array.isArray(val)) {
+              results.push((val[0] || {}) as Record<string, string>);
+            } else if (typeof val === "object" && val) {
+              results.push(val as Record<string, string>);
+            }
+          }
+        }
+        return results;
+      }
+    }
+  }
+
+  return results;
+}
+
 async function fetchEmployees(accessToken: string): Promise<ZohoEmployee[]> {
   const allEmployees: ZohoEmployee[] = [];
   let sIndex = 1;
   const batchSize = 200;
 
   while (true) {
-    const response = await axios.get(`${PEOPLE_BASE}/people/api/forms/employee/getRecords`, {
-      params: { sIndex, limit: batchSize },
-      headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
-    });
-
-    const data = response.data;
-    console.log("[ZohoPeople] Raw response type:", typeof data, "isArray:", Array.isArray(data));
+    let data: unknown;
+    try {
+      const response = await axios.get(`${PEOPLE_BASE}/people/api/forms/employee/getRecords`, {
+        params: { sIndex, limit: batchSize },
+        headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+      });
+      data = response.data;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[ZohoPeople] API request failed:", msg);
+      if (allEmployees.length > 0) break;
+      throw new Error(`Failed to fetch employees: ${msg}`);
+    }
 
     if (data && typeof data === "object" && !Array.isArray(data)) {
-      if (data.response?.errors) {
+      const obj = data as Record<string, unknown>;
+      const resp = obj.response as Record<string, unknown> | undefined;
+      if (resp?.errors) {
+        const errObj = resp.errors as Record<string, unknown>;
         if (allEmployees.length > 0) break;
-        throw new Error(data.response?.errors?.message || "Failed to fetch employees");
-      }
-      if (data.response?.result) {
-        const resultRecords = Array.isArray(data.response.result) ? data.response.result : [data.response.result];
-        console.log("[ZohoPeople] Found response.result with", resultRecords.length, "records");
-        for (const row of resultRecords) {
-          if (typeof row === "object") {
-            const rec = (Object.values(row)[0]?.[0] || Object.values(row)[0] || row) as Record<string, string>;
-            console.log("[ZohoPeople] Sample record keys:", Object.keys(rec).slice(0, 15).join(", "));
-            allEmployees.push(mapEmployee(rec));
-          }
-        }
-        if (resultRecords.length < batchSize) break;
-        sIndex += batchSize;
-        if (sIndex > 2000) break;
-        continue;
+        throw new Error(String(errObj.message || errObj.code || "Failed to fetch employees"));
       }
     }
 
-    const records = Array.isArray(data) ? data : [];
+    const records = parseRecords(data);
+
     if (records.length === 0) {
       if (allEmployees.length > 0) break;
-      console.log("[ZohoPeople] No records found. Raw data sample:", JSON.stringify(data).slice(0, 500));
+      console.log("[ZohoPeople] No records returned. Raw:", JSON.stringify(data).slice(0, 500));
       break;
     }
 
     if (sIndex === 1) {
-      const firstRow = records[0];
-      const firstKey = Object.keys(firstRow)[0];
-      const firstVal = firstRow[firstKey];
-      console.log("[ZohoPeople] First record structure — key:", firstKey, "value type:", typeof firstVal, "isArray:", Array.isArray(firstVal));
-      if (Array.isArray(firstVal) && firstVal[0]) {
-        console.log("[ZohoPeople] Record field keys:", Object.keys(firstVal[0]).slice(0, 20).join(", "));
-      } else if (typeof firstVal === "object" && firstVal) {
-        console.log("[ZohoPeople] Record field keys:", Object.keys(firstVal).slice(0, 20).join(", "));
-      }
+      console.log("[ZohoPeople] First batch: got", records.length, "records. Fields:", Object.keys(records[0]).slice(0, 15).join(", "));
     }
 
-    for (const row of records) {
-      const firstVal = Object.values(row)[0];
-      let rec: Record<string, string>;
-      if (Array.isArray(firstVal)) {
-        rec = (firstVal[0] || {}) as Record<string, string>;
-      } else if (typeof firstVal === "object" && firstVal) {
-        rec = firstVal as Record<string, string>;
-      } else {
-        rec = row as Record<string, string>;
-      }
+    for (const rec of records) {
       allEmployees.push(mapEmployee(rec));
     }
 
     if (records.length < batchSize) break;
     sIndex += batchSize;
-
     if (sIndex > 2000) break;
   }
 
   console.log("[ZohoPeople] Total employees fetched:", allEmployees.length);
   if (allEmployees.length > 0) {
     const sample = allEmployees[0];
-    console.log("[ZohoPeople] First employee:", JSON.stringify({ name: sample.name, email: sample.email, department: sample.department, designation: sample.designation }));
+    console.log("[ZohoPeople] Sample:", JSON.stringify({ name: sample.name, email: sample.email, dept: sample.department }));
+  }
+
+  if (allEmployees.length <= 1) {
+    console.log("[ZohoPeople] Only", allEmployees.length, "employee found — your Zoho People role may restrict access to other employees. An admin account is needed to see all employee data.");
   }
 
   return allEmployees;
 }
 
+function getLimitedAccessWarning(total: number): string {
+  if (total <= 1) {
+    return "\n\n⚠️ Note: Only your own employee record is visible. To see all employees' data, the Zoho connection must be made with an Admin or HR Manager account in Zoho People. Please ask your Zoho admin to connect, or ask them to upgrade your Zoho People role to include 'View' permissions for all employee records.";
+  }
+  return "";
+}
+
+async function searchEmployeeViaApi(accessToken: string, searchTerm: string): Promise<ZohoEmployee[]> {
+  const results: ZohoEmployee[] = [];
+  const nameSearch = searchTerm.trim();
+  try {
+    const resp = await axios.get(`${PEOPLE_BASE}/people/api/forms/employee/getRecords`, {
+      params: {
+        searchColumn: "EMPLOYEEMAILALIAS",
+        searchValue: nameSearch,
+        sIndex: 1,
+        limit: 50,
+      },
+      headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+    });
+
+    const recs = parseRecords(resp.data);
+    if (recs.length > 0) {
+      console.log("[ZohoPeople] searchRecords found", recs.length, "matches via API search");
+      for (const rec of recs) results.push(mapEmployee(rec));
+    }
+  } catch (err) {
+    console.log("[ZohoPeople] API search failed, falling back to local filter:", (err as Error).message);
+  }
+
+  return results;
+}
+
 async function searchEmployee(accessToken: string, searchTerm: string): Promise<ZohoEmployee[]> {
+  const apiResults = await searchEmployeeViaApi(accessToken, searchTerm);
+  if (apiResults.length > 0) return apiResults;
+
   const allEmployees = await fetchEmployees(accessToken);
   const lower = searchTerm.toLowerCase();
-  return allEmployees.filter(
+  const filtered = allEmployees.filter(
     (e) =>
       e.name.toLowerCase().includes(lower) ||
       e.email.toLowerCase().includes(lower) ||
@@ -244,6 +303,12 @@ async function searchEmployee(accessToken: string, searchTerm: string): Promise<
       e.employeeId.toLowerCase().includes(lower) ||
       e.location.toLowerCase().includes(lower),
   );
+
+  if (filtered.length === 0 && allEmployees.length <= 1) {
+    return allEmployees;
+  }
+
+  return filtered;
 }
 
 function parseZohoDate(dateStr: string): Date | null {
@@ -686,11 +751,12 @@ export async function queryZohoPeople(
   const searchTerm = extractSearchTerm(query);
   if (searchTerm) {
     const employees = await searchEmployee(accessToken, searchTerm);
-    return { type: "employee_detail", employees, total: employees.length, source: "live" };
+    const allCount = employees.length;
+    return { type: "employee_detail", employees, total: employees.length, totalFetched: allCount, source: "live" };
   }
 
   const employees = await fetchEmployees(accessToken);
-  return { type: "employees", employees, total: employees.length, source: "live" };
+  return { type: "employees", employees, total: employees.length, totalFetched: employees.length, source: "live" };
 }
 
 export function formatPeopleResult(result: ZohoPeopleResult, query: string): string {
@@ -766,7 +832,8 @@ export function formatPeopleResult(result: ZohoPeopleResult, query: string): str
   }
 
   if ((result.type === "employees" || result.type === "employee_detail") && result.employees) {
-    if (result.employees.length === 0) return `No employees found matching your query.${q}`;
+    const fetchedCount = result.totalFetched ?? result.total;
+    if (result.employees.length === 0) return `No employees found matching your query.${getLimitedAccessWarning(fetchedCount)}${q}`;
     const isDetail = result.type === "employee_detail" || result.employees.length <= 5;
     const lines = result.employees.map((e) => {
       if (isDetail) {
@@ -812,7 +879,8 @@ export function formatPeopleResult(result: ZohoPeopleResult, query: string): str
       return line;
     });
     const heading = label || (result.type === "employee_detail" ? "Employee Details" : "Employees");
-    return `Zoho People — ${heading} (${result.total} found):\n${lines.join("\n")}${q}`;
+    const warning = getLimitedAccessWarning(fetchedCount);
+    return `Zoho People — ${heading} (${result.total} found):\n${lines.join("\n")}${warning}${q}`;
   }
 
   return `No Zoho People data found.${q}`;
