@@ -32,7 +32,7 @@ export interface StsWeekResult {
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 const STS_DEFAULT_API = "https://time.scopicsoftware.com/stsapi";
-const STS_FALLBACK_API = "https://api-tt.scopicsoftware.com";
+const STS_FALLBACK_API = "https://api-tt.scopicsoftware.com/stsapi";
 const STS_ALLOWED_HOSTS = ["time.scopicsoftware.com", "api-tt.scopicsoftware.com"];
 
 function resolveStsApiUrl(instanceUrl?: string | null): string {
