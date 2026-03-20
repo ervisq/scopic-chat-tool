@@ -2,47 +2,12 @@ import { getUserCredentials } from "../lib/credential-store";
 import { queryZohoPeople, formatPeopleResult } from "./zohoPeopleService";
 import { queryZohoCrm, formatCrmResult } from "./zohoCrmService";
 
-export interface ZohoRouterResult {
+export interface ZohoDirectResult {
   reply: string;
-  source: "live" | "not_connected" | "module_disabled" | "error";
+  source: "live" | "not_connected" | "error";
 }
 
-const PEOPLE_KEYWORDS = [
-  "employee", "employees", "staff", "team", "people",
-  "leave", "time off", "vacation", "pto", "absence",
-  "attendance", "check-in", "checkin",
-  "hr", "human resource",
-  "department", "designation",
-];
-
-const CRM_KEYWORDS = [
-  "lead", "leads", "prospect",
-  "deal", "deals", "pipeline", "opportunity",
-  "contact", "contacts",
-  "account", "accounts", "company", "organization",
-  "sales", "revenue", "crm",
-  "customer",
-];
-
-function detectModule(query: string): "people" | "crm" | "ambiguous" {
-  const lower = query.toLowerCase();
-  const hasPeople = PEOPLE_KEYWORDS.some((kw) => lower.includes(kw));
-  const hasCrm = CRM_KEYWORDS.some((kw) => lower.includes(kw));
-
-  if (hasPeople && !hasCrm) return "people";
-  if (hasCrm && !hasPeople) return "crm";
-  if (hasPeople && hasCrm) return "crm";
-  return "ambiguous";
-}
-
-export async function queryZoho(query: string, userId?: number): Promise<ZohoRouterResult> {
-  if (!userId) {
-    return {
-      reply: "Your Zoho account is not connected. Please go to Connected Services (Settings icon) to link your Zoho credentials.",
-      source: "not_connected",
-    };
-  }
-
+async function getZohoCredentials(userId: number): Promise<{ refreshToken: string; clientId: string; clientSecret: string } | ZohoDirectResult> {
   const cred = await getUserCredentials(userId, "zoho");
   if (!cred) {
     return {
@@ -52,7 +17,7 @@ export async function queryZoho(query: string, userId?: number): Promise<ZohoRou
   }
 
   const { credentials } = cred;
-  const { refreshToken, modules } = credentials;
+  const { refreshToken } = credentials;
 
   const clientId = process.env.ZOHO_CLIENT_ID || "";
   const clientSecret = process.env.ZOHO_CLIENT_SECRET || "";
@@ -71,64 +36,69 @@ export async function queryZoho(query: string, userId?: number): Promise<ZohoRou
     };
   }
 
-  const enabledModules: string[] = Array.isArray(modules)
-    ? modules
-    : typeof modules === "string" && modules.length > 0
-      ? modules.split(",").map((m: string) => m.trim())
-      : [];
-  const detectedModule = detectModule(query);
-  const accountsDomain = "https://accounts.zoho.com";
+  return { refreshToken, clientId, clientSecret };
+}
 
-  if (detectedModule === "people" || (detectedModule === "ambiguous" && enabledModules.includes("people") && !enabledModules.includes("crm"))) {
-    if (!enabledModules.includes("people")) {
-      return {
-        reply: "You haven't enabled the Zoho People module. Go to Connected Services (Settings icon) and check the \"People\" checkbox to enable it.",
-        source: "module_disabled",
-      };
-    }
-    try {
-      const result = await queryZohoPeople(query, clientId, clientSecret, refreshToken, accountsDomain);
-      return { reply: formatPeopleResult(result, query), source: "live" };
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("Zoho People API error:", msg);
-      return {
-        reply: `Error querying Zoho People: ${msg}. Please check your connection in Connected Services.`,
-        source: "error",
-      };
-    }
-  }
+function isError(result: unknown): result is ZohoDirectResult {
+  return typeof result === "object" && result !== null && "reply" in result && "source" in result;
+}
 
-  if (detectedModule === "crm" || (detectedModule === "ambiguous" && enabledModules.includes("crm"))) {
-    if (!enabledModules.includes("crm")) {
-      return {
-        reply: "You haven't enabled the Zoho CRM module. Go to Connected Services (Settings icon) and check the \"CRM\" checkbox to enable it.",
-        source: "module_disabled",
-      };
-    }
-    try {
-      const result = await queryZohoCrm(query, clientId, clientSecret, refreshToken, accountsDomain);
-      return { reply: formatCrmResult(result, query), source: "live" };
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("Zoho CRM API error:", msg);
-      return {
-        reply: `Error querying Zoho CRM: ${msg}. Please check your connection in Connected Services.`,
-        source: "error",
-      };
-    }
-  }
-
-  if (enabledModules.length === 0) {
+export async function queryZohoPeopleDirect(query: string, userId?: number): Promise<ZohoDirectResult> {
+  if (!userId) {
     return {
-      reply: "Your Zoho account is connected but no modules are enabled. Go to Connected Services (Settings icon) and enable People and/or CRM.",
-      source: "module_disabled",
+      reply: "Your Zoho account is not connected. Please go to Connected Services (Settings icon) and click 'Connect with Zoho'.",
+      source: "not_connected",
     };
   }
 
-  const available = enabledModules.map((m: string) => m === "people" ? "People (HR: employees, leave, attendance)" : "CRM (leads, contacts, deals, accounts)").join(" or ");
-  return {
-    reply: `I couldn't determine which Zoho module to use for your query. Try being more specific — you can ask about ${available}.`,
-    source: "error",
-  };
+  const credsOrError = await getZohoCredentials(userId);
+  if (isError(credsOrError)) return credsOrError;
+
+  const { refreshToken, clientId, clientSecret } = credsOrError;
+
+  try {
+    const result = await queryZohoPeople(query, clientId, clientSecret, refreshToken, "https://accounts.zoho.com");
+    return { reply: formatPeopleResult(result, query), source: "live" };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("Zoho People API error:", msg);
+    return {
+      reply: `Error querying Zoho People: ${msg}. Please check your connection in Connected Services.`,
+      source: "error",
+    };
+  }
+}
+
+export async function queryZohoCrmDirect(query: string, userId?: number): Promise<ZohoDirectResult> {
+  if (!userId) {
+    return {
+      reply: "Your Zoho account is not connected. Please go to Connected Services (Settings icon) and click 'Connect with Zoho'.",
+      source: "not_connected",
+    };
+  }
+
+  const credsOrError = await getZohoCredentials(userId);
+  if (isError(credsOrError)) return credsOrError;
+
+  const { refreshToken, clientId, clientSecret } = credsOrError;
+
+  try {
+    const result = await queryZohoCrm(query, clientId, clientSecret, refreshToken, "https://accounts.zoho.com");
+    return { reply: formatCrmResult(result, query), source: "live" };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("Zoho CRM API error:", msg);
+    return {
+      reply: `Error querying Zoho CRM: ${msg}. Please check your connection in Connected Services.`,
+      source: "error",
+    };
+  }
+}
+
+export function formatZohoPeopleDirectResult(result: ZohoDirectResult): string {
+  return result.reply;
+}
+
+export function formatZohoCrmDirectResult(result: ZohoDirectResult): string {
+  return result.reply;
 }

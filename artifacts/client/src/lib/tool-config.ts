@@ -17,12 +17,20 @@ export const TOOLS: ToolConfig[] = [
     borderColor: "border-blue-500/30",
   },
   {
-    name: "Zoho",
-    label: "Zoho",
-    description: "People (HR) & CRM (Sales)",
+    name: "ZohoPeople",
+    label: "Zoho People",
+    description: "HR: employees, leave, attendance",
     bgColor: "bg-amber-500/15",
     textColor: "text-amber-600 dark:text-amber-400",
     borderColor: "border-amber-500/30",
+  },
+  {
+    name: "ZohoCRM",
+    label: "Zoho CRM",
+    description: "Sales: leads, contacts, deals",
+    bgColor: "bg-orange-500/15",
+    textColor: "text-orange-600 dark:text-orange-400",
+    borderColor: "border-orange-500/30",
   },
   {
     name: "STS",

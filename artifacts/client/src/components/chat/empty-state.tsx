@@ -1,14 +1,14 @@
 import { motion } from "framer-motion";
-import { MessageSquare, TicketCheck, Users, Shield } from "lucide-react";
+import { MessageSquare, TicketCheck, Users, Shield, Briefcase } from "lucide-react";
 
 interface EmptyStateProps {
   onSuggestionClick: (text: string) => void;
 }
 
 const suggestions = [
-  { icon: MessageSquare, text: "What can you help me with today?" },
   { icon: TicketCheck, text: "@JIRA show my open tickets" },
-  { icon: Users, text: "@Zoho list recent contacts" },
+  { icon: Users, text: "@ZohoPeople show all employees" },
+  { icon: Briefcase, text: "@ZohoCRM list recent deals" },
   { icon: Shield, text: "@STS show compliance status" },
 ];
 

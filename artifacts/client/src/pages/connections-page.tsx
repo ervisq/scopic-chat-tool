@@ -20,12 +20,6 @@ interface ProviderField {
   placeholder: string;
 }
 
-interface ProviderModule {
-  key: string;
-  label: string;
-  description: string;
-}
-
 interface ProviderConfig {
   name: string;
   key: string;
@@ -33,7 +27,6 @@ interface ProviderConfig {
   description: string;
   fields: ProviderField[];
   hasInstanceUrl: boolean;
-  modules?: ProviderModule[];
   oauth?: boolean;
 }
 
@@ -53,14 +46,10 @@ const PROVIDERS: ProviderConfig[] = [
     name: "Zoho",
     key: "zoho",
     color: "bg-amber-500",
-    description: "Connect your Zoho account to access People (HR) and CRM (Sales) data. Click the button below to authorize securely with Zoho.",
+    description: "Connect your Zoho account to access People (HR) and CRM (Sales) data. Use @ZohoPeople and @ZohoCRM commands in chat after connecting.",
     hasInstanceUrl: false,
     oauth: true,
     fields: [],
-    modules: [
-      { key: "people", label: "People", description: "HR data: employees, leave, attendance" },
-      { key: "crm", label: "CRM", description: "Sales data: leads, contacts, deals, accounts" },
-    ],
   },
   {
     name: "STS",
@@ -80,7 +69,6 @@ export default function ConnectionsPage({ token, onBack }: ConnectionsPageProps)
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
   const [formData, setFormData] = useState<Record<string, Record<string, string>>>({});
   const [instanceUrls, setInstanceUrls] = useState<Record<string, string>>({});
-  const [selectedModules, setSelectedModules] = useState<Record<string, string[]>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [oauthLoading, setOauthLoading] = useState<string | null>(null);
@@ -90,7 +78,7 @@ export default function ConnectionsPage({ token, onBack }: ConnectionsPageProps)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("zoho_success") === "true") {
-      setMessage({ type: "success", text: "Zoho connected successfully! You can now select your modules below." });
+      setMessage({ type: "success", text: "Zoho connected successfully! Use @ZohoPeople and @ZohoCRM in chat." });
       setExpandedProvider("zoho");
       window.history.replaceState({}, "", window.location.pathname);
     } else if (params.get("zoho_error")) {
@@ -130,16 +118,6 @@ export default function ConnectionsPage({ token, onBack }: ConnectionsPageProps)
     return connections.find((c) => c.provider === provider);
   }
 
-  function toggleModule(providerKey: string, moduleKey: string) {
-    setSelectedModules((prev) => {
-      const current = prev[providerKey] || [];
-      if (current.includes(moduleKey)) {
-        return { ...prev, [providerKey]: current.filter((m) => m !== moduleKey) };
-      }
-      return { ...prev, [providerKey]: [...current, moduleKey] };
-    });
-  }
-
   async function handleOAuthConnect(provider: ProviderConfig) {
     setOauthLoading(provider.key);
     setMessage(null);
@@ -158,40 +136,6 @@ export default function ConnectionsPage({ token, onBack }: ConnectionsPageProps)
     } catch {
       setMessage({ type: "error", text: "Network error" });
       setOauthLoading(null);
-    }
-  }
-
-  async function handleModuleSave(provider: ProviderConfig) {
-    const modules = selectedModules[provider.key] || [];
-    if (modules.length === 0) {
-      setMessage({ type: "error", text: "Please select at least one module" });
-      return;
-    }
-
-    setSaving(provider.key);
-    setMessage(null);
-    try {
-      const res = await fetch(`${baseUrl}/api/credentials/${provider.key}/modules`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ modules }),
-      });
-
-      if (res.ok) {
-        setMessage({ type: "success", text: `${provider.name} modules updated successfully` });
-        setExpandedProvider(null);
-        await fetchConnections();
-      } else {
-        const err = await res.json();
-        setMessage({ type: "error", text: err.message || "Failed to save modules" });
-      }
-    } catch {
-      setMessage({ type: "error", text: "Network error" });
-    } finally {
-      setSaving(null);
     }
   }
 
@@ -346,9 +290,7 @@ export default function ConnectionsPage({ token, onBack }: ConnectionsPageProps)
                         }
                         className="text-xs px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
                       >
-                        {provider.oauth
-                          ? connected ? "Modules" : "Connect"
-                          : connected ? "Update" : "Connect"}
+                        {connected ? "Update" : "Connect"}
                       </button>
                     </div>
                   </div>
@@ -374,59 +316,10 @@ export default function ConnectionsPage({ token, onBack }: ConnectionsPageProps)
                             </button>
                           )}
 
-                          {connected && provider.modules && provider.modules.length > 0 && (
-                            <>
-                              <div>
-                                <label className="block text-xs font-medium text-foreground mb-2">
-                                  Modules <span className="text-muted-foreground font-normal">(select which you want to use)</span>
-                                </label>
-                                <div className="space-y-2">
-                                  {provider.modules.map((mod) => {
-                                    const checked = (selectedModules[provider.key] || []).includes(mod.key);
-                                    return (
-                                      <label
-                                        key={mod.key}
-                                        className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
-                                          checked
-                                            ? "border-primary/40 bg-primary/5"
-                                            : "border-border hover:border-border/80"
-                                        }`}
-                                      >
-                                        <input
-                                          type="checkbox"
-                                          checked={checked}
-                                          onChange={() => toggleModule(provider.key, mod.key)}
-                                          className="mt-0.5 rounded border-border text-primary focus:ring-primary/20"
-                                        />
-                                        <div>
-                                          <span className="text-sm font-medium text-foreground">{mod.label}</span>
-                                          <p className="text-xs text-muted-foreground mt-0.5">{mod.description}</p>
-                                        </div>
-                                      </label>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-
-                              <div className="flex justify-end gap-2 pt-1">
-                                <button
-                                  onClick={() => setExpandedProvider(null)}
-                                  className="text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground transition-colors"
-                                >
-                                  Cancel
-                                </button>
-                                <button
-                                  onClick={() => handleModuleSave(provider)}
-                                  disabled={saving === provider.key}
-                                  className="text-xs px-4 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-1.5"
-                                >
-                                  {saving === provider.key && (
-                                    <Loader2 className="w-3 h-3 animate-spin" />
-                                  )}
-                                  Save Modules
-                                </button>
-                              </div>
-                            </>
+                          {connected && (
+                            <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                              Connected! Use <span className="font-mono font-semibold">@ZohoPeople</span> for HR data and <span className="font-mono font-semibold">@ZohoCRM</span> for sales data in chat.
+                            </p>
                           )}
                         </>
                       ) : (
