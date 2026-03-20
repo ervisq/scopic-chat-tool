@@ -35,11 +35,26 @@ function AuthGate() {
   }
 
   if (page === "admin") {
-    return <AdminPage onBack={() => setPage("dashboard")} />;
+    return (
+      <AdminPage
+        onBack={() => setPage("dashboard")}
+        onOpenDashboard={() => setPage("dashboard")}
+        onOpenChat={() => setPage("chat")}
+        onOpenConnections={() => setPage("connections")}
+      />
+    );
   }
 
   if (page === "connections") {
-    return <ConnectionsPage token={token} onBack={() => setPage("dashboard")} />;
+    return (
+      <ConnectionsPage
+        token={token}
+        onBack={() => setPage("dashboard")}
+        onOpenDashboard={() => setPage("dashboard")}
+        onOpenChat={() => setPage("chat")}
+        onOpenAdmin={() => setPage("admin")}
+      />
+    );
   }
 
   if (page === "chat") {
