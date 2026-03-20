@@ -161,16 +161,59 @@ async function fetchEmployees(accessToken: string): Promise<ZohoEmployee[]> {
     });
 
     const data = response.data;
-    if (!data || data.response?.errors) {
-      if (allEmployees.length > 0) break;
-      throw new Error(data.response?.errors?.message || "Failed to fetch employees");
+    console.log("[ZohoPeople] Raw response type:", typeof data, "isArray:", Array.isArray(data));
+
+    if (data && typeof data === "object" && !Array.isArray(data)) {
+      if (data.response?.errors) {
+        if (allEmployees.length > 0) break;
+        throw new Error(data.response?.errors?.message || "Failed to fetch employees");
+      }
+      if (data.response?.result) {
+        const resultRecords = Array.isArray(data.response.result) ? data.response.result : [data.response.result];
+        console.log("[ZohoPeople] Found response.result with", resultRecords.length, "records");
+        for (const row of resultRecords) {
+          if (typeof row === "object") {
+            const rec = (Object.values(row)[0]?.[0] || Object.values(row)[0] || row) as Record<string, string>;
+            console.log("[ZohoPeople] Sample record keys:", Object.keys(rec).slice(0, 15).join(", "));
+            allEmployees.push(mapEmployee(rec));
+          }
+        }
+        if (resultRecords.length < batchSize) break;
+        sIndex += batchSize;
+        if (sIndex > 2000) break;
+        continue;
+      }
     }
 
     const records = Array.isArray(data) ? data : [];
-    if (records.length === 0) break;
+    if (records.length === 0) {
+      if (allEmployees.length > 0) break;
+      console.log("[ZohoPeople] No records found. Raw data sample:", JSON.stringify(data).slice(0, 500));
+      break;
+    }
+
+    if (sIndex === 1) {
+      const firstRow = records[0];
+      const firstKey = Object.keys(firstRow)[0];
+      const firstVal = firstRow[firstKey];
+      console.log("[ZohoPeople] First record structure — key:", firstKey, "value type:", typeof firstVal, "isArray:", Array.isArray(firstVal));
+      if (Array.isArray(firstVal) && firstVal[0]) {
+        console.log("[ZohoPeople] Record field keys:", Object.keys(firstVal[0]).slice(0, 20).join(", "));
+      } else if (typeof firstVal === "object" && firstVal) {
+        console.log("[ZohoPeople] Record field keys:", Object.keys(firstVal).slice(0, 20).join(", "));
+      }
+    }
 
     for (const row of records) {
-      const rec = (Object.values(row)[0]?.[0] || {}) as Record<string, string>;
+      const firstVal = Object.values(row)[0];
+      let rec: Record<string, string>;
+      if (Array.isArray(firstVal)) {
+        rec = (firstVal[0] || {}) as Record<string, string>;
+      } else if (typeof firstVal === "object" && firstVal) {
+        rec = firstVal as Record<string, string>;
+      } else {
+        rec = row as Record<string, string>;
+      }
       allEmployees.push(mapEmployee(rec));
     }
 
@@ -178,6 +221,12 @@ async function fetchEmployees(accessToken: string): Promise<ZohoEmployee[]> {
     sIndex += batchSize;
 
     if (sIndex > 2000) break;
+  }
+
+  console.log("[ZohoPeople] Total employees fetched:", allEmployees.length);
+  if (allEmployees.length > 0) {
+    const sample = allEmployees[0];
+    console.log("[ZohoPeople] First employee:", JSON.stringify({ name: sample.name, email: sample.email, department: sample.department, designation: sample.designation }));
   }
 
   return allEmployees;
