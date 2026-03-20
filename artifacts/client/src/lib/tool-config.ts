@@ -43,7 +43,7 @@ export const TOOLS: ToolConfig[] = [
   {
     name: "Teamwork",
     label: "Teamwork",
-    description: "Projects, tasks, task lists, milestones, time entries, teams & people",
+    description: "Tasks, projects, task lists, milestones, time entries, teams, people, comments, tags & activity",
     bgColor: "bg-purple-500/15",
     textColor: "text-purple-600 dark:text-purple-400",
     borderColor: "border-purple-500/30",

@@ -4,12 +4,21 @@ import { getUserCredentials } from "../lib/credential-store";
 export interface TeamworkTask {
   id: number;
   name: string;
+  description: string;
   status: string;
   assignee: string;
   priority: string;
   dueDate: string;
+  startDate: string;
+  progress: number;
+  estimatedMinutes: number;
   projectName: string;
   taskListName: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+  parentTaskId: number | null;
+  commentCount: number;
 }
 
 export interface TeamworkProject {
@@ -18,9 +27,14 @@ export interface TeamworkProject {
   description: string;
   status: string;
   company: string;
+  category: string;
   startDate: string;
   endDate: string;
   lastUpdated: string;
+  owner: string;
+  tags: string[];
+  taskCount: number;
+  health: number;
 }
 
 export interface TeamworkTaskList {
@@ -29,16 +43,21 @@ export interface TeamworkTaskList {
   description: string;
   projectName: string;
   taskCount: number;
+  completedCount: number;
   milestone: string;
+  status: string;
 }
 
 export interface TeamworkMilestone {
   id: number;
   title: string;
+  description: string;
   deadline: string;
   completed: boolean;
   projectName: string;
   responsible: string;
+  tags: string[];
+  createdAt: string;
 }
 
 export interface TeamworkTimeEntry {
@@ -50,6 +69,9 @@ export interface TeamworkTimeEntry {
   person: string;
   projectName: string;
   taskName: string;
+  isBillable: boolean;
+  tags: string[];
+  createdAt: string;
 }
 
 export interface TeamworkPerson {
@@ -59,6 +81,11 @@ export interface TeamworkPerson {
   email: string;
   company: string;
   title: string;
+  role: string;
+  phone: string;
+  isAdmin: boolean;
+  lastLogin: string;
+  createdAt: string;
 }
 
 export interface TeamworkTeam {
@@ -66,11 +93,39 @@ export interface TeamworkTeam {
   name: string;
   description: string;
   memberCount: number;
+  members: string[];
   projectNames: string[];
 }
 
-type TeamworkData = TeamworkTask[] | TeamworkProject[] | TeamworkTaskList[] | TeamworkMilestone[] | TeamworkTimeEntry[] | TeamworkPerson[] | TeamworkTeam[];
-type ResultType = "tasks" | "projects" | "tasklists" | "milestones" | "time" | "people" | "teams";
+export interface TeamworkComment {
+  id: number;
+  body: string;
+  author: string;
+  createdAt: string;
+  taskName: string;
+  projectName: string;
+}
+
+export interface TeamworkTag {
+  id: number;
+  name: string;
+  color: string;
+  projectId: number;
+  projectName: string;
+}
+
+export interface TeamworkActivity {
+  id: number;
+  description: string;
+  activityType: string;
+  person: string;
+  date: string;
+  projectName: string;
+  itemLink: string;
+}
+
+type TeamworkData = TeamworkTask[] | TeamworkProject[] | TeamworkTaskList[] | TeamworkMilestone[] | TeamworkTimeEntry[] | TeamworkPerson[] | TeamworkTeam[] | TeamworkComment[] | TeamworkTag[] | TeamworkActivity[];
+type ResultType = "tasks" | "projects" | "tasklists" | "milestones" | "time" | "people" | "teams" | "comments" | "tags" | "activity";
 
 export interface TeamworkServiceResult {
   source: "live" | "not_connected" | "error";
@@ -113,12 +168,21 @@ function createClient(siteUrl: string, apiToken: string) {
   });
 }
 
-type QueryCategory = "tasks" | "projects" | "tasklists" | "milestones" | "time" | "people" | "teams";
+type QueryCategory = "tasks" | "projects" | "tasklists" | "milestones" | "time" | "people" | "teams" | "comments" | "tags" | "activity";
 
 function detectCategory(query: string): QueryCategory {
   const lower = query.toLowerCase();
 
-  if (lower.includes("time") || lower.includes("hour") || lower.includes("log") || lower.includes("timesheet") || lower.includes("tracked")) {
+  if (lower.includes("comment") || lower.includes("discussion") || lower.includes("note on task") || lower.includes("reply") || lower.includes("feedback on")) {
+    return "comments";
+  }
+  if (lower.includes("tag") || lower.includes("label") || lower.includes("category")) {
+    return "tags";
+  }
+  if (lower.includes("activity") || lower.includes("recent changes") || lower.includes("what happened") || lower.includes("history") || lower.includes("changelog")) {
+    return "activity";
+  }
+  if (lower.includes("time") || lower.includes("hour") || lower.includes("log") || lower.includes("timesheet") || lower.includes("tracked") || lower.includes("billable")) {
     return "time";
   }
   if (lower.includes("milestone") || lower.includes("deadline")) {
@@ -127,13 +191,13 @@ function detectCategory(query: string): QueryCategory {
   if (lower.includes("task list") || lower.includes("tasklist") || lower.includes("list of task")) {
     return "tasklists";
   }
-  if (lower.includes("team") && !lower.includes("task") && !lower.includes("project")) {
+  if (lower.includes("team") && !lower.includes("task") && !lower.includes("project") && !lower.includes("teamwork")) {
     return "teams";
   }
   if (lower.includes("project update") || lower.includes("project status") || lower.includes("project") || lower.includes("workspace")) {
     return "projects";
   }
-  if (lower.includes("people") || lower.includes("team member") || lower.includes("teammate") || lower.includes("person") || lower.includes("coworker") || lower.includes("who is") || lower.includes("who are") || lower.includes("staff") || lower.includes("employee")) {
+  if (lower.includes("people") || lower.includes("team member") || lower.includes("teammate") || lower.includes("person") || lower.includes("coworker") || lower.includes("who is") || lower.includes("who are") || lower.includes("staff") || lower.includes("employee") || lower.includes("contact")) {
     return "people";
   }
   return "tasks";
@@ -190,7 +254,7 @@ function buildTaskParams(query: string): Record<string, string | number | boolea
   const lower = query.toLowerCase();
   const params: Record<string, string | number | boolean> = {
     pageSize: 25,
-    include: "projects,assignees,taskLists",
+    include: "projects,assignees,taskLists,tags",
   };
 
   if (lower.includes("my") || lower.includes("assigned to me")) {
@@ -236,6 +300,16 @@ function buildTaskParams(query: string): Record<string, string | number | boolea
   return params;
 }
 
+function extractPersonName(obj: Record<string, unknown> | undefined): string {
+  if (!obj) return "";
+  return `${(obj.firstName as string) || ""} ${(obj.lastName as string) || ""}`.trim();
+}
+
+function extractTags(tagList: unknown): string[] {
+  if (!Array.isArray(tagList)) return [];
+  return tagList.map((tag: Record<string, unknown>) => (tag.name as string) || "").filter(Boolean);
+}
+
 async function fetchTasks(siteUrl: string, apiToken: string, query: string): Promise<TeamworkServiceResult> {
   const client = createClient(siteUrl, apiToken);
   const params = buildTaskParams(query);
@@ -250,14 +324,21 @@ async function fetchTasks(siteUrl: string, apiToken: string, query: string): Pro
     return {
       id: t.id as number,
       name: (t.name as string) || "Untitled",
+      description: (t.description as string) || "",
       status: (t.status as string) || "unknown",
-      assignee: assignees && assignees.length > 0
-        ? `${(assignees[0] as Record<string, unknown>).firstName || ""} ${(assignees[0] as Record<string, unknown>).lastName || ""}`.trim()
-        : "Unassigned",
+      assignee: assignees && assignees.length > 0 ? extractPersonName(assignees[0] as Record<string, unknown>) : "Unassigned",
       priority: (t.priority as string) || "none",
       dueDate: (t.dueDate as string) || "",
+      startDate: (t.startDate as string) || "",
+      progress: (t.progress as number) || 0,
+      estimatedMinutes: (t.estimatedMinutes as number) || 0,
       projectName: (project?.name as string) || "",
       taskListName: (taskList?.name as string) || "",
+      tags: extractTags(t.tags),
+      createdAt: (t.createdAt as string) || "",
+      updatedAt: (t.updatedAt as string) || "",
+      parentTaskId: (t.parentTaskId as number) || null,
+      commentCount: (t.commentCount as number) || 0,
     };
   });
 
@@ -269,7 +350,7 @@ async function fetchProjects(siteUrl: string, apiToken: string, query: string): 
   const lower = query.toLowerCase();
   const params: Record<string, string | number | boolean> = {
     pageSize: 25,
-    include: "companies",
+    include: "companies,tags",
   };
 
   if (lower.includes("active") || lower.includes("current")) {
@@ -288,15 +369,21 @@ async function fetchProjects(siteUrl: string, apiToken: string, query: string): 
 
   const mapped: TeamworkProject[] = projects.slice(0, 25).map((p: Record<string, unknown>) => {
     const company = p.company as Record<string, unknown> | undefined;
+    const owner = p.owner as Record<string, unknown> | undefined;
     return {
       id: p.id as number,
       name: (p.name as string) || "Untitled",
       description: (p.description as string) || "",
       status: (p.status as string) || "unknown",
       company: (company?.name as string) || "",
+      category: (p.category as string) || "",
       startDate: (p.startDate as string) || "",
       endDate: (p.endDate as string) || "",
       lastUpdated: (p.updatedAt as string) || (p.lastActivityAt as string) || "",
+      owner: owner ? extractPersonName(owner) : "",
+      tags: extractTags(p.tags),
+      taskCount: ((p.taskCounts as Record<string, unknown>)?.total as number) || 0,
+      health: (p.health as number) || 0,
     };
   });
 
@@ -319,7 +406,9 @@ async function fetchTaskLists(siteUrl: string, apiToken: string): Promise<Teamwo
       description: (tl.description as string) || "",
       projectName: (project?.name as string) || "",
       taskCount: (tl.taskCount as number) || 0,
+      completedCount: (tl.completedCount as number) || 0,
       milestone: (milestone?.title as string) || "",
+      status: (tl.status as string) || "",
     };
   });
 
@@ -329,7 +418,7 @@ async function fetchTaskLists(siteUrl: string, apiToken: string): Promise<Teamwo
 async function fetchMilestones(siteUrl: string, apiToken: string): Promise<TeamworkServiceResult> {
   const client = createClient(siteUrl, apiToken);
   const response = await client.get("/projects/api/v3/milestones.json", {
-    params: { pageSize: 25 },
+    params: { pageSize: 25, include: "tags" },
   });
   const milestones = response.data?.milestones || [];
 
@@ -339,23 +428,35 @@ async function fetchMilestones(siteUrl: string, apiToken: string): Promise<Teamw
     return {
       id: m.id as number,
       title: (m.title as string) || "Untitled",
+      description: (m.description as string) || "",
       deadline: (m.deadline as string) || "",
       completed: (m.completed as boolean) || false,
       projectName: (project?.name as string) || "",
-      responsible: responsible
-        ? `${(responsible.firstName as string) || ""} ${(responsible.lastName as string) || ""}`.trim()
-        : "",
+      responsible: responsible ? extractPersonName(responsible) : "",
+      tags: extractTags(m.tags),
+      createdAt: (m.createdAt as string) || "",
     };
   });
 
   return { source: "live", type: "milestones", data: mapped, total: mapped.length };
 }
 
-async function fetchTimeEntries(siteUrl: string, apiToken: string): Promise<TeamworkServiceResult> {
+async function fetchTimeEntries(siteUrl: string, apiToken: string, query: string): Promise<TeamworkServiceResult> {
   const client = createClient(siteUrl, apiToken);
-  const response = await client.get("/projects/api/v3/time.json", {
-    params: { pageSize: 25 },
-  });
+  const lower = query.toLowerCase();
+  const params: Record<string, string | number | boolean> = {
+    pageSize: 25,
+    include: "tags",
+  };
+
+  if (lower.includes("my") || lower.includes("mine")) {
+    params["assignedToMe"] = true;
+  }
+  if (lower.includes("billable")) {
+    params["isBillable"] = true;
+  }
+
+  const response = await client.get("/projects/api/v3/time.json", { params });
   const entries = response.data?.timelogs || [];
 
   const mapped: TeamworkTimeEntry[] = entries.slice(0, 25).map((e: Record<string, unknown>) => {
@@ -368,11 +469,12 @@ async function fetchTimeEntries(siteUrl: string, apiToken: string): Promise<Team
       hours: (e.hours as number) || 0,
       minutes: (e.minutes as number) || 0,
       date: (e.date as string) || "",
-      person: person
-        ? `${(person.firstName as string) || ""} ${(person.lastName as string) || ""}`.trim()
-        : "",
+      person: person ? extractPersonName(person) : "",
       projectName: (project?.name as string) || "",
       taskName: (task?.name as string) || "",
+      isBillable: (e.isBillable as boolean) || false,
+      tags: extractTags(e.tags),
+      createdAt: (e.createdAt as string) || "",
     };
   });
 
@@ -395,6 +497,11 @@ async function fetchPeople(siteUrl: string, apiToken: string): Promise<TeamworkS
       email: (p.emailAddress as string) || "",
       company: (company?.name as string) || "",
       title: (p.title as string) || "",
+      role: (p.userRole as string) || (p.type as string) || "",
+      phone: (p.phoneNumberMobile as string) || (p.phoneNumberOffice as string) || "",
+      isAdmin: (p.isAdmin as boolean) || false,
+      lastLogin: (p.lastLogin as string) || "",
+      createdAt: (p.createdAt as string) || "",
     };
   });
 
@@ -404,7 +511,7 @@ async function fetchPeople(siteUrl: string, apiToken: string): Promise<TeamworkS
 async function fetchTeams(siteUrl: string, apiToken: string): Promise<TeamworkServiceResult> {
   const client = createClient(siteUrl, apiToken);
   const response = await client.get("/projects/api/v3/teams.json", {
-    params: { pageSize: 25, include: "projects" },
+    params: { pageSize: 25, include: "projects,members" },
   });
   const teams = response.data?.teams || [];
 
@@ -416,11 +523,81 @@ async function fetchTeams(siteUrl: string, apiToken: string): Promise<TeamworkSe
       name: (t.name as string) || "Untitled",
       description: (t.description as string) || "",
       memberCount: members ? members.length : ((t.memberCount as number) || 0),
-      projectNames: projects ? projects.map((p) => (p.name as string) || "") : [],
+      members: members ? members.map((m) => extractPersonName(m)).filter(Boolean) : [],
+      projectNames: projects ? projects.map((p) => (p.name as string) || "").filter(Boolean) : [],
     };
   });
 
   return { source: "live", type: "teams", data: mapped, total: mapped.length };
+}
+
+async function fetchComments(siteUrl: string, apiToken: string): Promise<TeamworkServiceResult> {
+  const client = createClient(siteUrl, apiToken);
+  const response = await client.get("/projects/api/v3/comments.json", {
+    params: { pageSize: 25, orderBy: "createdAt", orderMode: "desc" },
+  });
+  const comments = response.data?.comments || [];
+
+  const mapped: TeamworkComment[] = comments.slice(0, 25).map((c: Record<string, unknown>) => {
+    const author = c.author as Record<string, unknown> | undefined;
+    const task = c.task as Record<string, unknown> | undefined;
+    const project = c.project as Record<string, unknown> | undefined;
+    return {
+      id: c.id as number,
+      body: (c.body as string) || (c.htmlBody as string) || "",
+      author: author ? extractPersonName(author) : "",
+      createdAt: (c.createdAt as string) || "",
+      taskName: (task?.name as string) || "",
+      projectName: (project?.name as string) || "",
+    };
+  });
+
+  return { source: "live", type: "comments", data: mapped, total: mapped.length };
+}
+
+async function fetchTags(siteUrl: string, apiToken: string): Promise<TeamworkServiceResult> {
+  const client = createClient(siteUrl, apiToken);
+  const response = await client.get("/projects/api/v3/tags.json", {
+    params: { pageSize: 50 },
+  });
+  const tags = response.data?.tags || [];
+
+  const mapped: TeamworkTag[] = tags.slice(0, 50).map((tag: Record<string, unknown>) => {
+    const project = tag.project as Record<string, unknown> | undefined;
+    return {
+      id: tag.id as number,
+      name: (tag.name as string) || "",
+      color: (tag.color as string) || "",
+      projectId: (tag.projectId as number) || 0,
+      projectName: (project?.name as string) || "",
+    };
+  });
+
+  return { source: "live", type: "tags", data: mapped, total: mapped.length };
+}
+
+async function fetchActivity(siteUrl: string, apiToken: string): Promise<TeamworkServiceResult> {
+  const client = createClient(siteUrl, apiToken);
+  const response = await client.get("/projects/api/v3/latestactivity.json", {
+    params: { pageSize: 25 },
+  });
+  const activities = response.data?.activities || response.data?.activity || [];
+
+  const mapped: TeamworkActivity[] = activities.slice(0, 25).map((a: Record<string, unknown>) => {
+    const user = a.user as Record<string, unknown> | undefined;
+    const project = a.project as Record<string, unknown> | undefined;
+    return {
+      id: a.id as number,
+      description: (a.description as string) || (a.activityDescription as string) || "",
+      activityType: (a.type as string) || (a.activityType as string) || "",
+      person: user ? extractPersonName(user) : "",
+      date: (a.dateTime as string) || (a.createdAt as string) || "",
+      projectName: (project?.name as string) || "",
+      itemLink: (a.link as string) || "",
+    };
+  });
+
+  return { source: "live", type: "activity", data: mapped, total: mapped.length };
 }
 
 export async function queryTeamwork(query: string, userId?: number): Promise<TeamworkServiceResult> {
@@ -454,11 +631,17 @@ export async function queryTeamwork(query: string, userId?: number): Promise<Tea
       case "milestones":
         return await fetchMilestones(siteUrl, apiToken);
       case "time":
-        return await fetchTimeEntries(siteUrl, apiToken);
+        return await fetchTimeEntries(siteUrl, apiToken, query);
       case "people":
         return await fetchPeople(siteUrl, apiToken);
       case "teams":
         return await fetchTeams(siteUrl, apiToken);
+      case "comments":
+        return await fetchComments(siteUrl, apiToken);
+      case "tags":
+        return await fetchTags(siteUrl, apiToken);
+      case "activity":
+        return await fetchActivity(siteUrl, apiToken);
       case "tasks":
       default:
         return await fetchTasks(siteUrl, apiToken, query);
@@ -485,53 +668,136 @@ export function formatTeamworkResult(result: TeamworkServiceResult, query: strin
   switch (result.type) {
     case "tasks": {
       const tasks = result.data as TeamworkTask[];
-      const lines = tasks.map(
-        (t) => `• #${t.id}: ${t.name} (${t.status}) — ${t.assignee} [${t.priority}]${t.dueDate ? ` due ${t.dueDate}` : ""}${t.projectName ? ` | ${t.projectName}` : ""}${t.taskListName ? ` [${t.taskListName}]` : ""}`,
-      );
+      const lines = tasks.map((t) => {
+        let line = `• #${t.id}: ${t.name} (${t.status}) — ${t.assignee} [${t.priority}]`;
+        if (t.progress > 0) line += ` ${t.progress}% done`;
+        if (t.dueDate) line += ` due ${t.dueDate}`;
+        if (t.startDate) line += ` started ${t.startDate}`;
+        if (t.estimatedMinutes > 0) line += ` est. ${Math.round(t.estimatedMinutes / 60)}h`;
+        if (t.projectName) line += ` | ${t.projectName}`;
+        if (t.taskListName) line += ` [${t.taskListName}]`;
+        if (t.tags.length > 0) line += ` tags: ${t.tags.join(", ")}`;
+        if (t.commentCount > 0) line += ` (${t.commentCount} comments)`;
+        if (t.description) line += `\n  Description: ${t.description.substring(0, 200)}${t.description.length > 200 ? "..." : ""}`;
+        return line;
+      });
       return `Teamwork tasks (${result.total} found):\n${lines.join("\n")}\n\nQuery: "${query}"`;
     }
     case "projects": {
       const projects = result.data as TeamworkProject[];
-      const lines = projects.map(
-        (p) => `• ${p.name} (${p.status})${p.company ? ` — ${p.company}` : ""}${p.startDate ? ` | ${p.startDate}` : ""}${p.endDate ? ` → ${p.endDate}` : ""}${p.lastUpdated ? ` (updated: ${p.lastUpdated})` : ""}`,
-      );
+      const lines = projects.map((p) => {
+        let line = `• ${p.name} (${p.status})`;
+        if (p.owner) line += ` owned by ${p.owner}`;
+        if (p.company) line += ` — ${p.company}`;
+        if (p.category) line += ` [${p.category}]`;
+        if (p.startDate) line += ` | ${p.startDate}`;
+        if (p.endDate) line += ` → ${p.endDate}`;
+        if (p.taskCount > 0) line += ` (${p.taskCount} tasks)`;
+        if (p.lastUpdated) line += ` updated: ${p.lastUpdated}`;
+        if (p.tags.length > 0) line += ` tags: ${p.tags.join(", ")}`;
+        if (p.description) line += `\n  ${p.description.substring(0, 200)}${p.description.length > 200 ? "..." : ""}`;
+        return line;
+      });
       return `Teamwork projects (${result.total} found):\n${lines.join("\n")}\n\nQuery: "${query}"`;
     }
     case "tasklists": {
       const lists = result.data as TeamworkTaskList[];
-      const lines = lists.map(
-        (tl) => `• ${tl.name} — ${tl.taskCount} task${tl.taskCount !== 1 ? "s" : ""}${tl.projectName ? ` | ${tl.projectName}` : ""}${tl.milestone ? ` (milestone: ${tl.milestone})` : ""}${tl.description ? `: ${tl.description}` : ""}`,
-      );
+      const lines = lists.map((tl) => {
+        let line = `• ${tl.name} — ${tl.taskCount} task${tl.taskCount !== 1 ? "s" : ""} (${tl.completedCount} completed)`;
+        if (tl.projectName) line += ` | ${tl.projectName}`;
+        if (tl.milestone) line += ` (milestone: ${tl.milestone})`;
+        if (tl.status) line += ` [${tl.status}]`;
+        if (tl.description) line += `: ${tl.description.substring(0, 150)}`;
+        return line;
+      });
       return `Teamwork task lists (${result.total} found):\n${lines.join("\n")}\n\nQuery: "${query}"`;
     }
     case "milestones": {
       const milestones = result.data as TeamworkMilestone[];
-      const lines = milestones.map(
-        (m) => `• ${m.title} — ${m.completed ? "✓ Completed" : `Due: ${m.deadline || "No deadline"}`}${m.projectName ? ` | ${m.projectName}` : ""}${m.responsible ? ` (${m.responsible})` : ""}`,
-      );
+      const lines = milestones.map((m) => {
+        let line = `• ${m.title} — ${m.completed ? "✓ Completed" : `Due: ${m.deadline || "No deadline"}`}`;
+        if (m.projectName) line += ` | ${m.projectName}`;
+        if (m.responsible) line += ` (${m.responsible})`;
+        if (m.tags.length > 0) line += ` tags: ${m.tags.join(", ")}`;
+        if (m.description) line += `\n  ${m.description.substring(0, 200)}${m.description.length > 200 ? "..." : ""}`;
+        return line;
+      });
       return `Teamwork milestones (${result.total} found):\n${lines.join("\n")}\n\nQuery: "${query}"`;
     }
     case "time": {
       const entries = result.data as TeamworkTimeEntry[];
       const totalHours = entries.reduce((sum, e) => sum + e.hours + e.minutes / 60, 0);
-      const lines = entries.map(
-        (e) => `• ${e.date}: ${e.hours}h${e.minutes}m — ${e.person}${e.taskName ? ` on "${e.taskName}"` : ""}${e.projectName ? ` (${e.projectName})` : ""}${e.description ? `: ${e.description}` : ""}`,
-      );
-      return `Teamwork time entries (${result.total} found, ${totalHours.toFixed(1)} total hours):\n${lines.join("\n")}\n\nQuery: "${query}"`;
+      const billableHours = entries.filter((e) => e.isBillable).reduce((sum, e) => sum + e.hours + e.minutes / 60, 0);
+      const lines = entries.map((e) => {
+        let line = `• ${e.date}: ${e.hours}h${e.minutes}m — ${e.person}`;
+        if (e.isBillable) line += " [billable]";
+        if (e.taskName) line += ` on "${e.taskName}"`;
+        if (e.projectName) line += ` (${e.projectName})`;
+        if (e.tags.length > 0) line += ` tags: ${e.tags.join(", ")}`;
+        if (e.description) line += `: ${e.description}`;
+        return line;
+      });
+      let header = `Teamwork time entries (${result.total} found, ${totalHours.toFixed(1)} total hours`;
+      if (billableHours > 0) header += `, ${billableHours.toFixed(1)} billable`;
+      header += "):";
+      return `${header}\n${lines.join("\n")}\n\nQuery: "${query}"`;
     }
     case "people": {
       const people = result.data as TeamworkPerson[];
-      const lines = people.map(
-        (p) => `• ${p.firstName} ${p.lastName}${p.title ? ` — ${p.title}` : ""}${p.email ? ` (${p.email})` : ""}${p.company ? ` | ${p.company}` : ""}`,
-      );
+      const lines = people.map((p) => {
+        let line = `• ${p.firstName} ${p.lastName}`;
+        if (p.title) line += ` — ${p.title}`;
+        if (p.role) line += ` (${p.role})`;
+        if (p.email) line += ` | ${p.email}`;
+        if (p.phone) line += ` | ${p.phone}`;
+        if (p.company) line += ` | ${p.company}`;
+        if (p.isAdmin) line += " [Admin]";
+        if (p.lastLogin) line += ` last login: ${p.lastLogin}`;
+        return line;
+      });
       return `Teamwork people (${result.total} found):\n${lines.join("\n")}\n\nQuery: "${query}"`;
     }
     case "teams": {
       const teams = result.data as TeamworkTeam[];
-      const lines = teams.map(
-        (t) => `• ${t.name} — ${t.memberCount} member${t.memberCount !== 1 ? "s" : ""}${t.projectNames.length > 0 ? ` | Projects: ${t.projectNames.join(", ")}` : ""}${t.description ? `: ${t.description}` : ""}`,
-      );
+      const lines = teams.map((t) => {
+        let line = `• ${t.name} — ${t.memberCount} member${t.memberCount !== 1 ? "s" : ""}`;
+        if (t.members.length > 0) line += `: ${t.members.join(", ")}`;
+        if (t.projectNames.length > 0) line += ` | Projects: ${t.projectNames.join(", ")}`;
+        if (t.description) line += `\n  ${t.description.substring(0, 150)}`;
+        return line;
+      });
       return `Teamwork teams (${result.total} found):\n${lines.join("\n")}\n\nQuery: "${query}"`;
+    }
+    case "comments": {
+      const comments = result.data as TeamworkComment[];
+      const lines = comments.map((c) => {
+        let line = `• ${c.author} on ${c.createdAt}`;
+        if (c.taskName) line += ` — task: "${c.taskName}"`;
+        if (c.projectName) line += ` (${c.projectName})`;
+        line += `\n  ${c.body.replace(/<[^>]+>/g, "").substring(0, 300)}${c.body.length > 300 ? "..." : ""}`;
+        return line;
+      });
+      return `Teamwork comments (${result.total} found):\n${lines.join("\n")}\n\nQuery: "${query}"`;
+    }
+    case "tags": {
+      const tags = result.data as TeamworkTag[];
+      const lines = tags.map((tag) => {
+        let line = `• ${tag.name}`;
+        if (tag.color) line += ` (${tag.color})`;
+        if (tag.projectName) line += ` | ${tag.projectName}`;
+        return line;
+      });
+      return `Teamwork tags (${result.total} found):\n${lines.join("\n")}\n\nQuery: "${query}"`;
+    }
+    case "activity": {
+      const activities = result.data as TeamworkActivity[];
+      const lines = activities.map((a) => {
+        let line = `• ${a.date}: ${a.person} — ${a.activityType}`;
+        if (a.description) line += `: ${a.description.replace(/<[^>]+>/g, "").substring(0, 200)}`;
+        if (a.projectName) line += ` (${a.projectName})`;
+        return line;
+      });
+      return `Teamwork recent activity (${result.total} found):\n${lines.join("\n")}\n\nQuery: "${query}"`;
     }
     default:
       return `Teamwork data (${result.total} items found) for query: "${query}"`;

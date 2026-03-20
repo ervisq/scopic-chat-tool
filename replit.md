@@ -99,10 +99,18 @@ artifacts-monorepo/
 
 - Per-user credentials: API token + site URL (e.g. `https://yoursite.teamwork.com`)
 - Auth: Basic auth with API token as username, `"x"` as password
-- Teamwork API v3 endpoints: tasks, projects, task lists, milestones, time entries, people, teams
+- Teamwork API v3 endpoints: tasks, projects, task lists, milestones, time entries, people, teams, comments, tags, activity
 - Keyword-based routing in `teamworkService.ts` maps queries to appropriate endpoint
-- Task filtering: assignee name, due date ranges (today/week/month/custom), priority levels, status (active/completed/overdue)
+- Task data: id, name, description, status, assignee, priority, due/start dates, progress %, estimated time, project, task list, tags, comment count, created/updated timestamps, parent task
+- Task filtering: assignee name, due date ranges (today/week/month/custom), priority levels, status (active/completed/overdue), sort by latest
+- Project data: id, name, description, status, company, category, dates, owner, tags, task counts, health, last updated
 - Project filtering: status (active/completed), sort by recent activity
+- People data: name, email, phone, company, title, role, admin status, last login
+- Time entries: hours/minutes, billable flag, person, task, project, tags, totals
+- Teams: member names list, project assignments
+- Comments: body (HTML stripped), author, timestamp, task/project context
+- Tags: name, color, project association
+- Activity: recent changes log with person, type, description, timestamp
 - SSRF protection: validates instanceUrl (HTTPS only, blocks private/loopback IPs)
 - Error messages sanitized (no raw API error details exposed to users)
 - Dashboard card shows top 5 tasks with active task count
