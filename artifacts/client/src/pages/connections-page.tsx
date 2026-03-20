@@ -55,7 +55,7 @@ const PROVIDERS: ProviderConfig[] = [
     key: "sts",
     color: "bg-emerald-500",
     description: "Connect to STS (Scopic Time System) to view your working hours. Find your token in the STS URL after logging in: the value after token[token_id]= in the address bar.",
-    hasInstanceUrl: false,
+    hasInstanceUrl: true,
     fields: [
       { key: "tokenId", label: "STS Token", type: "password", placeholder: "Paste your token_id from the STS URL" },
     ],
@@ -343,7 +343,7 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
                                     [provider.key]: e.target.value,
                                   }))
                                 }
-                                placeholder={provider.key === "teamwork" ? "https://yoursite.teamwork.com" : "https://your-instance.atlassian.net"}
+                                placeholder={provider.key === "teamwork" ? "https://yoursite.teamwork.com" : provider.key === "sts" ? "https://time.scopicsoftware.com" : "https://your-instance.atlassian.net"}
                                 className="w-full px-3 py-2 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all text-sm"
                               />
                             </div>

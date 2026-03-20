@@ -61,7 +61,9 @@ artifacts-monorepo/
 - Auth: token-based (`token[token_id]` query param), token obtained from STS URL after browser login
 - Per-user credentials: each user pastes their STS token from the URL bar
 - Backward compatible: accepts both `tokenId` (new) and `apiKey` (legacy) credential field names
-- SSRF protection: STS API base URL is hardcoded server-side, ignores user-provided instanceUrl
+- SSRF protection: STS API URL validated against allowlist (time.scopicsoftware.com, api-tt.scopicsoftware.com); rejects non-HTTPS and unknown hosts
+- Fallback: if primary API URL fails (connection/5xx), automatically retries with api-tt.scopicsoftware.com
+- Instance URL: optional, defaults to https://time.scopicsoftware.com, validated server-side
 - Service (`stsService.ts`): fetches weekly time entries, calculates daily/project breakdowns, total hours
 - Dashboard card: shows total hours logged this week + per-day and per-project summary
 - Chat `@STS`: returns detailed time data (daily breakdown, project breakdown, individual entries)
