@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
+import DashboardPage from "@/pages/dashboard-page";
 import ChatPage from "@/pages/chat-page";
 import LoginPage from "@/pages/login-page";
 import AdminPage from "@/pages/admin-page";
@@ -15,9 +16,11 @@ const queryClient = new QueryClient({
   },
 });
 
+type Page = "dashboard" | "chat" | "admin" | "connections";
+
 function AuthGate() {
   const { isAuthenticated, user, token, login, register, logout, isLoading } = useAuth();
-  const [page, setPage] = useState<"chat" | "admin" | "connections">("chat");
+  const [page, setPage] = useState<Page>("dashboard");
 
   if (isLoading) {
     return (
@@ -32,17 +35,31 @@ function AuthGate() {
   }
 
   if (page === "admin") {
-    return <AdminPage onBack={() => setPage("chat")} />;
+    return <AdminPage onBack={() => setPage("dashboard")} />;
   }
 
   if (page === "connections") {
-    return <ConnectionsPage token={token} onBack={() => setPage("chat")} />;
+    return <ConnectionsPage token={token} onBack={() => setPage("dashboard")} />;
+  }
+
+  if (page === "chat") {
+    return (
+      <ChatPage
+        user={user}
+        onLogout={logout}
+        onOpenAdmin={() => setPage("admin")}
+        onOpenConnections={() => setPage("connections")}
+        onOpenDashboard={() => setPage("dashboard")}
+      />
+    );
   }
 
   return (
-    <ChatPage
+    <DashboardPage
       user={user}
+      token={token}
       onLogout={logout}
+      onOpenChat={() => setPage("chat")}
       onOpenAdmin={() => setPage("admin")}
       onOpenConnections={() => setPage("connections")}
     />

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ArrowUp, LogOut, LayoutDashboard, Settings } from "lucide-react";
+import { ArrowUp, LogOut, LayoutDashboard, Settings, Home } from "lucide-react";
 import { useChat } from "@/hooks/use-chat";
 import { ChatMessageBubble } from "@/components/chat/chat-message-bubble";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
@@ -14,9 +14,10 @@ interface ChatPageProps {
   onLogout: () => void;
   onOpenAdmin: () => void;
   onOpenConnections: () => void;
+  onOpenDashboard?: () => void;
 }
 
-export default function ChatPage({ user, onLogout, onOpenAdmin, onOpenConnections }: ChatPageProps) {
+export default function ChatPage({ user, onLogout, onOpenAdmin, onOpenConnections, onOpenDashboard }: ChatPageProps) {
   const { messages, sendMessage, isTyping } = useChat();
   const [inputValue, setInputValue] = useState("");
   const [autocompleteIndex, setAutocompleteIndex] = useState(0);
@@ -110,26 +111,38 @@ export default function ChatPage({ user, onLogout, onOpenAdmin, onOpenConnection
     <div className="flex flex-col h-dvh bg-background">
       <header className="h-14 shrink-0 flex items-center justify-between px-4 md:px-6 border-b border-border/50 bg-background z-10">
         <h1 className="text-base font-semibold text-foreground">Chat</h1>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground">{user?.email}</span>
+        <div className="flex items-center gap-1">
+          {onOpenDashboard && (
+            <button
+              onClick={onOpenDashboard}
+              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              title="Dashboard"
+            >
+              <Home className="w-4 h-4" />
+              <span className="hidden sm:inline">Dashboard</span>
+            </button>
+          )}
           <button
             onClick={onOpenConnections}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            aria-label="Connected services"
+            className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+            title="Connected Services"
           >
             <Settings className="w-4 h-4" />
+            <span className="hidden sm:inline">Services</span>
           </button>
           <button
             onClick={onOpenAdmin}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            aria-label="Admin dashboard"
+            className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+            title="Admin"
           >
             <LayoutDashboard className="w-4 h-4" />
           </button>
+          <div className="w-px h-5 bg-border/50 mx-1" />
+          <span className="text-xs text-muted-foreground hidden sm:inline mr-1">{user?.name || user?.email}</span>
           <button
             onClick={onLogout}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            aria-label="Sign out"
+            className="flex items-center gap-1.5 text-sm px-2 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+            title="Sign out"
           >
             <LogOut className="w-4 h-4" />
           </button>

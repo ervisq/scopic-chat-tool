@@ -29,7 +29,7 @@ artifacts-monorepo/
 │   │   ├── src/services/   # Tool service layer (JIRA, Zoho, STS)
 │   │   └── src/lib/        # Utilities (tool command parser, crypto, usage tracker)
 │   └── client/             # React + Vite chat app (preview at /)
-│       ├── src/pages/      # Login, Chat, Admin, Connections pages
+│       ├── src/pages/      # Dashboard, Login, Chat, Admin, Connections pages
 │       ├── src/hooks/      # useAuth, useChat hooks
 │       └── src/components/ # Chat UI components
 ├── lib/                    # Shared libraries
@@ -110,6 +110,17 @@ artifacts-monorepo/
 - `user_credentials` table: id, user_id, provider, credentials_encrypted, instance_url, created_at, updated_at
 - Foreign key: user_credentials.user_id → users.id (cascade delete)
 
+## Dashboard
+
+- Default landing page after login (replaces direct-to-chat)
+- Shows service summary cards for Jira, Zoho People, Zoho CRM, STS
+- Connected services show data previews (e.g., top 5 Jira tasks with priority/status)
+- Disconnected services show "Connect" CTA buttons
+- "Open App" buttons launch external tool URLs in new tabs
+- "Open AI Chat" button navigates to chat page
+- Header navigation: Chat, Services, Admin, Logout
+- Backend route: `GET /api/dashboard` aggregates all service statuses for the authenticated user
+
 ## API Endpoints
 
 - `GET /api/healthz` — health check (public)
@@ -121,6 +132,7 @@ artifacts-monorepo/
 - `GET /api/credentials` — list connected services (protected)
 - `POST /api/credentials/:provider` — save credentials (protected)
 - `DELETE /api/credentials/:provider` — remove credentials (protected)
+- `GET /api/dashboard` — aggregated service summaries (protected)
 
 ## Packages
 

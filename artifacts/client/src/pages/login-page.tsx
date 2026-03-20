@@ -52,7 +52,7 @@ export default function LoginPage({ onLogin, onRegister, isLoading }: LoginPageP
             {isRegister ? "Create account" : "Welcome back"}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {isRegister ? "Sign up to get started" : "Sign in to access the chat"}
+            {isRegister ? "Sign up to get started" : "Sign in to your dashboard"}
           </p>
         </div>
 
