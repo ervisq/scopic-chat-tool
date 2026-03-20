@@ -279,6 +279,13 @@ export default function DashboardPage({
     fetchDashboard();
   }, []);
 
+  const defaultServices: ServiceData[] = [
+    { key: "jira", name: "JIRA", connected: false },
+    { key: "zoho_people", name: "Zoho People", connected: false },
+    { key: "zoho_crm", name: "Zoho CRM", connected: false },
+    { key: "sts", name: "STS", connected: false },
+  ];
+
   async function fetchDashboard() {
     try {
       const res = await fetch(`${baseUrl}/api/dashboard`, {
@@ -286,9 +293,12 @@ export default function DashboardPage({
       });
       if (res.ok) {
         const data = await res.json();
-        setServices(data.services || []);
+        setServices(data.services?.length ? data.services : defaultServices);
+      } else {
+        setServices(defaultServices);
       }
     } catch {
+      setServices(defaultServices);
     } finally {
       setLoading(false);
     }

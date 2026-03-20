@@ -77,86 +77,82 @@ router.get("/dashboard", async (req, res) => {
 
     const zohoConn = connMap.get("zoho");
     if (zohoConn) {
-      promises.push(
-        (async () => {
-          try {
-            const tokens = await getZohoTokens(userId);
-            if (!tokens) {
+      const zohoTokens = await getZohoTokens(userId);
+      if (!zohoTokens) {
+        services.push({
+          key: "zoho_people",
+          name: "Zoho People",
+          connected: true,
+          summary: { status: "Reconnect needed — token expired" },
+        });
+        services.push({
+          key: "zoho_crm",
+          name: "Zoho CRM",
+          connected: true,
+          summary: { status: "Reconnect needed — token expired" },
+        });
+      } else {
+        promises.push(
+          (async () => {
+            try {
+              const result = await queryZohoPeople(
+                "headcount",
+                zohoTokens.clientId,
+                zohoTokens.clientSecret,
+                zohoTokens.refreshToken,
+                "https://accounts.zoho.com",
+              );
               services.push({
                 key: "zoho_people",
                 name: "Zoho People",
                 connected: true,
-                summary: { status: "Reconnect needed — token expired" },
+                summary: {
+                  status: `${result.total} employee${result.total !== 1 ? "s" : ""} in directory`,
+                  employeeCount: result.total,
+                },
               });
-              return;
+            } catch {
+              services.push({
+                key: "zoho_people",
+                name: "Zoho People",
+                connected: true,
+                summary: { status: "Connected" },
+              });
             }
-            const result = await queryZohoPeople(
-              "headcount",
-              tokens.clientId,
-              tokens.clientSecret,
-              tokens.refreshToken,
-              "https://accounts.zoho.com",
-            );
-            services.push({
-              key: "zoho_people",
-              name: "Zoho People",
-              connected: true,
-              summary: {
-                status: `${result.total} employee${result.total !== 1 ? "s" : ""} in directory`,
-                employeeCount: result.total,
-              },
-            });
-          } catch {
-            services.push({
-              key: "zoho_people",
-              name: "Zoho People",
-              connected: true,
-              summary: { status: "Connected" },
-            });
-          }
-        })(),
-      );
+          })(),
+        );
 
-      promises.push(
-        (async () => {
-          try {
-            const tokens = await getZohoTokens(userId);
-            if (!tokens) {
+        promises.push(
+          (async () => {
+            try {
+              const result = await queryZohoCrm(
+                "leads",
+                zohoTokens.clientId,
+                zohoTokens.clientSecret,
+                zohoTokens.refreshToken,
+                "https://accounts.zoho.com",
+              );
+              const totalLeads = result.total ?? 0;
               services.push({
                 key: "zoho_crm",
                 name: "Zoho CRM",
                 connected: true,
-                summary: { status: "Reconnect needed — token expired" },
+                summary: {
+                  status: `${totalLeads} lead${totalLeads !== 1 ? "s" : ""} in pipeline`,
+                  leadCount: totalLeads,
+                },
               });
-              return;
+            } catch {
+              services.push({
+                key: "zoho_crm",
+                name: "Zoho CRM",
+                connected: true,
+                summary: { status: "Connected" },
+              });
             }
-            const result = await queryZohoCrm(
-              "leads",
-              tokens.clientId,
-              tokens.clientSecret,
-              tokens.refreshToken,
-              "https://accounts.zoho.com",
-            );
-            const totalLeads = result.total ?? 0;
-            services.push({
-              key: "zoho_crm",
-              name: "Zoho CRM",
-              connected: true,
-              summary: {
-                status: `${totalLeads} lead${totalLeads !== 1 ? "s" : ""} in pipeline`,
-                leadCount: totalLeads,
-              },
-            });
-          } catch {
-            services.push({
-              key: "zoho_crm",
-              name: "Zoho CRM",
-              connected: true,
-              summary: { status: "Connected" },
-            });
-          }
-        })(),
-      );
+          })(),
+        );
+      }
     } else {
       services.push({ key: "zoho_people", name: "Zoho People", connected: false });
       services.push({ key: "zoho_crm", name: "Zoho CRM", connected: false });
