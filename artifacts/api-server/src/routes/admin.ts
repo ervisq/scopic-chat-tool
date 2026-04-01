@@ -3,7 +3,7 @@ import { getUsageLog, getUsageStats } from "../lib/usage-tracker";
 import { getAuthUser, requireSuperAdmin } from "../middlewares/auth";
 import { db } from "@workspace/db";
 import { users } from "@workspace/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -33,7 +33,7 @@ router.get("/users", async (_req, res) => {
 
 router.patch("/users/:id/role", requireSuperAdmin, async (req, res) => {
   try {
-    const userId = parseInt(req.params.id, 10);
+    const userId = parseInt(String(req.params.id), 10);
     if (isNaN(userId)) {
       res.status(400).json({ message: "Invalid user ID" });
       return;
