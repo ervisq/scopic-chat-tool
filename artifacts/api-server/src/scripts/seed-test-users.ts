@@ -11,7 +11,7 @@ import bcrypt from "bcryptjs";
 import { encrypt } from "../lib/crypto";
 import * as OTPAuth from "otpauth";
 
-const TEST_PASSWORD = "Scopic2024!";
+const TEST_PASSWORD = "Scopic1234";
 
 const testUsers = [
   { email: "ervis.q@scopicsoftware.com", name: "Ervis", role: "super_admin" },
