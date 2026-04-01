@@ -81,7 +81,8 @@ router.post("/auth/register", async (req, res) => {
 
 router.post("/auth/login", async (req, res) => {
   try {
-    const { email, password } = LoginBody.parse(req.body);
+    const { email: rawEmail, password } = LoginBody.parse(req.body);
+    const email = rawEmail.toLowerCase().trim();
 
     const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
     if (!user) {
