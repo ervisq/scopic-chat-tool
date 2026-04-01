@@ -22,15 +22,16 @@ async function migrateRoles() {
   if (isAdminCheck.rows.length > 0) {
     console.log("Migrating is_admin data to role column...");
     await db.execute(
-      sql`UPDATE users SET role = 'admin' WHERE is_admin = true AND email != 'ervis.q@scopicsoftware.com'`
+      sql`UPDATE users SET role = 'admin' WHERE is_admin = true AND LOWER(email) != 'ervis.q@scopicsoftware.com'`
     );
+    console.log("Dropping is_admin column...");
     await db.execute(sql`ALTER TABLE users DROP COLUMN is_admin`);
     console.log("Dropped is_admin column.");
   }
 
   console.log("Setting super_admin for ervis.q@scopicsoftware.com...");
   await db.execute(
-    sql`UPDATE users SET role = 'super_admin' WHERE email = 'ervis.q@scopicsoftware.com'`
+    sql`UPDATE users SET role = 'super_admin' WHERE LOWER(email) = 'ervis.q@scopicsoftware.com'`
   );
   console.log("Set super_admin role.");
 
