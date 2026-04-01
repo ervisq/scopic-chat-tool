@@ -38,7 +38,9 @@ router.post("/auth/register", async (req, res) => {
       return;
     }
 
-    if (typeof email !== "string" || !email.toLowerCase().endsWith(ALLOWED_EMAIL_DOMAIN)) {
+    const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+
+    if (!normalizedEmail || !normalizedEmail.endsWith(ALLOWED_EMAIL_DOMAIN)) {
       res.status(400).json({ message: "Only @scopicsoftware.com email addresses are allowed to register" });
       return;
     }
@@ -47,8 +49,6 @@ router.post("/auth/register", async (req, res) => {
       res.status(400).json({ message: "Password must be at least 6 characters" });
       return;
     }
-
-    const normalizedEmail = email.toLowerCase().trim();
     const existing = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
     if (existing.length > 0) {
       res.status(409).json({ message: "An account with this email already exists" });
