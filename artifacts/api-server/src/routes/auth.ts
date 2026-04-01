@@ -48,14 +48,15 @@ router.post("/auth/register", async (req, res) => {
       return;
     }
 
-    const existing = await db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1);
+    const normalizedEmail = email.toLowerCase().trim();
+    const existing = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
     if (existing.length > 0) {
       res.status(409).json({ message: "An account with this email already exists" });
       return;
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const [user] = await db.insert(users).values({ email: email.toLowerCase(), passwordHash, name }).returning();
+    const [user] = await db.insert(users).values({ email: normalizedEmail, passwordHash, name }).returning();
 
     const token = signToken({ userId: user.id, email: user.email, name: user.name, role: user.role });
 
