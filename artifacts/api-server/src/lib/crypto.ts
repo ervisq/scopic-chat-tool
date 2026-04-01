@@ -7,20 +7,27 @@ const IV_LENGTH = 16;
 const LEGACY_SALT = "salt";
 const LEGACY_SECRET = "dev-secret-change-in-production";
 
+let cachedEncryptionKey: string | null = null;
+let cachedSalt: Buffer | null = null;
+
 function getEncryptionSecret(): string {
+  if (cachedEncryptionKey) return cachedEncryptionKey;
   const secret = process.env.CREDENTIALS_ENCRYPTION_KEY;
   if (!secret) {
     throw new Error("CREDENTIALS_ENCRYPTION_KEY environment variable is required");
   }
+  cachedEncryptionKey = secret;
   return secret;
 }
 
 function getEncryptionSalt(): Buffer {
+  if (cachedSalt) return cachedSalt;
   const saltHex = process.env.ENCRYPTION_SALT;
   if (!saltHex) {
     throw new Error("ENCRYPTION_SALT environment variable is required");
   }
-  return Buffer.from(saltHex, "hex");
+  cachedSalt = Buffer.from(saltHex, "hex");
+  return cachedSalt;
 }
 
 function deriveKey(secret: string, salt: string | Buffer): Buffer {
