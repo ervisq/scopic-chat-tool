@@ -18,6 +18,6 @@ router.use(requireAuth, chatRouter);
 router.use(requireAuth, credentialsRouter);
 router.use(requireAuth, dashboardRouter);
 router.use(requireAuth, accountRouter);
-router.use(requireAuth, requireAdmin, adminRouter);
+router.use("/admin", requireAuth, requireAdmin, adminRouter);
 
 export default router;

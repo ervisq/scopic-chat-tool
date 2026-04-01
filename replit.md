@@ -144,9 +144,20 @@ artifacts-monorepo/
 - Each service checks for per-user credentials in DB
 - Unknown tools return a helpful error listing available tools
 
+## Roles & Access Control
+
+- Three roles: `super_admin`, `admin`, `user` (stored in `users.role` column, default: `user`)
+- Registration restricted to `@scopicsoftware.com` email addresses
+- Super Admin (ervis.q@scopicsoftware.com): can manage all users, promote/demote between admin/user
+- Admin: can view user list and usage stats (read-only)
+- User: standard access, no admin panel visibility
+- Middleware: `requireAdmin` (admin + super_admin), `requireSuperAdmin` (super_admin only)
+- JWT payload includes `role` field
+- Sidebar hides Admin link for non-admin users
+
 ## Database Schema
 
-- `users` table: id, email, password_hash, name, phone, profile_picture_url, theme, default_page, totp_secret, totp_enabled, totp_frequency, totp_last_verified, is_admin, created_at
+- `users` table: id, email, password_hash, name, phone, profile_picture_url, theme, default_page, totp_secret, totp_enabled, totp_frequency, totp_last_verified, role (super_admin/admin/user), created_at
 - `zoho_token_cache` table: cache_key (HMAC-SHA256 hash, PK), access_token, expires_at, updated_at
 - `user_credentials` table: id, user_id, provider, credentials_encrypted, instance_url, created_at, updated_at
 - Foreign key: user_credentials.user_id → users.id (cascade delete)
@@ -178,7 +189,9 @@ artifacts-monorepo/
 - `POST /api/auth/verify-2fa` — verify TOTP code during 2FA login (public, requires `tempToken`)
 - `GET /api/auth/me` — get current user with preferences + 2FA status (protected)
 - `POST /api/chat` — send chat message (protected)
-- `GET /api/usage` — usage statistics (admin only)
+- `GET /api/admin/usage` — usage statistics (admin + super_admin)
+- `GET /api/admin/users` — list all users with roles (admin + super_admin)
+- `PATCH /api/admin/users/:id/role` — change user role (super_admin only, cannot set super_admin)
 - `GET /api/credentials` — list connected services (protected)
 - `POST /api/credentials/:provider` — save credentials (protected)
 - `DELETE /api/credentials/:provider` — remove credentials (protected)

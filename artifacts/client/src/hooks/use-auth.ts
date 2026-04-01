@@ -8,6 +8,7 @@ interface User {
   theme?: string;
   defaultPage?: string;
   totpEnabled?: boolean;
+  role?: string;
 }
 
 interface AuthState {

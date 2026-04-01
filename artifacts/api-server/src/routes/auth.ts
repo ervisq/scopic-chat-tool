@@ -11,6 +11,8 @@ import type { User } from "@workspace/db/schema";
 
 const router: IRouter = Router();
 
+const ALLOWED_EMAIL_DOMAIN = "@scopicsoftware.com";
+
 function getTotpFrequencyMs(frequency: string | null): number {
   switch (frequency) {
     case "weekly": return 7 * 24 * 60 * 60 * 1000;
@@ -36,21 +38,26 @@ router.post("/auth/register", async (req, res) => {
       return;
     }
 
+    if (typeof email !== "string" || !email.toLowerCase().endsWith(ALLOWED_EMAIL_DOMAIN)) {
+      res.status(400).json({ message: "Only @scopicsoftware.com email addresses are allowed to register" });
+      return;
+    }
+
     if (typeof password !== "string" || password.length < 6) {
       res.status(400).json({ message: "Password must be at least 6 characters" });
       return;
     }
 
-    const existing = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    const existing = await db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1);
     if (existing.length > 0) {
       res.status(409).json({ message: "An account with this email already exists" });
       return;
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const [user] = await db.insert(users).values({ email, passwordHash, name }).returning();
+    const [user] = await db.insert(users).values({ email: email.toLowerCase(), passwordHash, name }).returning();
 
-    const token = signToken({ userId: user.id, email: user.email, name: user.name });
+    const token = signToken({ userId: user.id, email: user.email, name: user.name, role: user.role });
 
     res.status(201).json({
       token,
@@ -62,6 +69,7 @@ router.post("/auth/register", async (req, res) => {
         theme: user.theme || "light",
         defaultPage: user.defaultPage || "dashboard",
         totpEnabled: false,
+        role: user.role,
       },
     });
   } catch (error: unknown) {
@@ -88,7 +96,7 @@ router.post("/auth/login", async (req, res) => {
     }
 
     if (needs2fa(user)) {
-      const tempToken = sign2faPendingToken({ userId: user.id, email: user.email, name: user.name });
+      const tempToken = sign2faPendingToken({ userId: user.id, email: user.email, name: user.name, role: user.role });
       res.json({
         requires2fa: true,
         tempToken,
@@ -97,7 +105,7 @@ router.post("/auth/login", async (req, res) => {
       return;
     }
 
-    const token = signToken({ userId: user.id, email: user.email, name: user.name });
+    const token = signToken({ userId: user.id, email: user.email, name: user.name, role: user.role });
 
     res.json({
       token,
@@ -109,6 +117,7 @@ router.post("/auth/login", async (req, res) => {
         theme: user.theme || "light",
         defaultPage: user.defaultPage || "dashboard",
         totpEnabled: user.totpEnabled || false,
+        role: user.role,
       },
     });
   } catch (error: unknown) {
@@ -163,7 +172,7 @@ router.post("/auth/verify-2fa", async (req, res) => {
 
     await db.update(users).set({ totpLastVerified: new Date() }).where(eq(users.id, user.id));
 
-    const token = signToken({ userId: user.id, email: user.email, name: user.name });
+    const token = signToken({ userId: user.id, email: user.email, name: user.name, role: user.role });
 
     res.json({
       token,
@@ -175,6 +184,7 @@ router.post("/auth/verify-2fa", async (req, res) => {
         theme: user.theme || "light",
         defaultPage: user.defaultPage || "dashboard",
         totpEnabled: user.totpEnabled || false,
+        role: user.role,
       },
     });
   } catch (error: unknown) {
@@ -200,6 +210,7 @@ router.get("/auth/me", requireAuth, async (req, res) => {
       theme: user.theme || "light",
       defaultPage: user.defaultPage || "dashboard",
       totpEnabled: user.totpEnabled || false,
+      role: user.role,
     });
   } catch (err) {
     console.error("Get me error:", err);

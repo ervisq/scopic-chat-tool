@@ -69,7 +69,7 @@ function AuthGate() {
   let content: React.ReactNode;
 
   if (page === "admin") {
-    content = <AdminPage />;
+    content = <AdminPage userRole={user?.role} />;
   } else if (page === "connections") {
     content = <ConnectionsPage token={token} />;
   } else if (page === "chat") {

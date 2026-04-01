@@ -14,6 +14,7 @@ export interface AuthPayload {
   userId: number;
   email: string;
   name: string;
+  role?: string;
   tokenType?: "session" | "2fa_pending";
 }
 
@@ -65,9 +66,23 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 export async function requireAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authUser = getAuthUser(req);
   try {
-    const [user] = await db.select({ isAdmin: users.isAdmin }).from(users).where(eq(users.id, authUser.userId)).limit(1);
-    if (!user || !user.isAdmin) {
+    const [user] = await db.select({ role: users.role }).from(users).where(eq(users.id, authUser.userId)).limit(1);
+    if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
       res.status(403).json({ message: "Admin access required" });
+      return;
+    }
+    next();
+  } catch {
+    res.status(500).json({ message: "Failed to verify admin status" });
+  }
+}
+
+export async function requireSuperAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const authUser = getAuthUser(req);
+  try {
+    const [user] = await db.select({ role: users.role }).from(users).where(eq(users.id, authUser.userId)).limit(1);
+    if (!user || user.role !== "super_admin") {
+      res.status(403).json({ message: "Super admin access required" });
       return;
     }
     next();

@@ -15,15 +15,15 @@ export type Page = "dashboard" | "chat" | "admin" | "connections" | "account";
 interface SidebarProps {
   activePage: Page;
   onNavigate: (page: Page) => void;
-  user: { email: string; name: string; profilePictureUrl?: string } | null;
+  user: { email: string; name: string; profilePictureUrl?: string; role?: string } | null;
   onLogout: () => void;
 }
 
-const NAV_ITEMS: { page: Page; label: string; icon: typeof LayoutDashboard }[] = [
+const NAV_ITEMS: { page: Page; label: string; icon: typeof LayoutDashboard; adminOnly?: boolean }[] = [
   { page: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { page: "chat", label: "Chat", icon: MessageSquare },
   { page: "connections", label: "Services", icon: Settings },
-  { page: "admin", label: "Admin", icon: Shield },
+  { page: "admin", label: "Admin", icon: Shield, adminOnly: true },
   { page: "account", label: "My Account", icon: UserCircle },
 ];
 
@@ -73,7 +73,7 @@ export default function Sidebar({ activePage, onNavigate, user, onLogout }: Side
       </div>
 
       <nav className="flex-1 py-2 px-2 space-y-1">
-        {NAV_ITEMS.map(({ page, label, icon: Icon }) => {
+        {NAV_ITEMS.filter(({ adminOnly }) => !adminOnly || user?.role === "admin" || user?.role === "super_admin").map(({ page, label, icon: Icon }) => {
           const isActive = activePage === page;
           return (
             <button
