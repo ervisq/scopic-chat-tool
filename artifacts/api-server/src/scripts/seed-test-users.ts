@@ -1,3 +1,8 @@
+if (process.env.NODE_ENV !== "development") {
+  console.error("ERROR: seed-test-users can only run in development mode.");
+  process.exit(1);
+}
+
 import { db } from "@workspace/db";
 import { users } from "@workspace/db/schema";
 import { sql } from "drizzle-orm";
