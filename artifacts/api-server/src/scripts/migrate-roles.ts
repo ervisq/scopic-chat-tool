@@ -29,10 +29,10 @@ async function migrateRoles() {
   }
 
   console.log("Setting super_admin for ervis.q@scopicsoftware.com...");
-  const result = await db.execute(
+  await db.execute(
     sql`UPDATE users SET role = 'super_admin' WHERE email = 'ervis.q@scopicsoftware.com'`
   );
-  console.log(`Updated ${(result as any).rowCount ?? 0} row(s) to super_admin.`);
+  console.log("Set super_admin role.");
 
   const constraintCheck = await db.execute(
     sql`SELECT constraint_name FROM information_schema.table_constraints WHERE table_name = 'users' AND constraint_name = 'users_role_check'`

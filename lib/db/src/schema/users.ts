@@ -1,6 +1,10 @@
-import { pgTable, serial, text, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, boolean, check } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { sql } from "drizzle-orm";
+
+export const userRoles = ["super_admin", "admin", "user"] as const;
+export type UserRole = (typeof userRoles)[number];
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -17,7 +21,9 @@ export const users = pgTable("users", {
   totpLastVerified: timestamp("totp_last_verified", { withTimezone: true }),
   role: text("role").default("user").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => [
+  check("users_role_check", sql`${table.role} IN ('super_admin', 'admin', 'user')`),
+]);
 
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
