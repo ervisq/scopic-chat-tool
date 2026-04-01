@@ -1,4 +1,5 @@
 import axios from "axios";
+import crypto from "crypto";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 
@@ -28,6 +29,13 @@ function validateZohoDomain(domain: string): string {
     );
   }
   return match;
+}
+
+function deriveCacheKey(clientId: string, refreshToken: string): string {
+  return crypto
+    .createHmac("sha256", clientId)
+    .update(refreshToken)
+    .digest("hex");
 }
 
 async function ensureTokenCacheTable(): Promise<void> {
@@ -76,6 +84,10 @@ async function setCachedToken(cacheKey: string, token: CachedToken): Promise<voi
           expires_at = EXCLUDED.expires_at,
           updated_at = NOW()`
   );
+
+  await db.execute(
+    sql`DELETE FROM zoho_token_cache WHERE expires_at < ${Date.now()}`
+  );
 }
 
 async function deleteCachedToken(cacheKey: string): Promise<void> {
@@ -95,7 +107,7 @@ export async function getZohoAccessToken(
   refreshToken: string,
   domain: string = "https://accounts.zoho.com",
 ): Promise<string> {
-  const cacheKey = `${clientId}:${refreshToken}`;
+  const cacheKey = deriveCacheKey(clientId, refreshToken);
   const cached = await getCachedToken(cacheKey);
 
   if (cached && cached.expiresAt > Date.now() + TOKEN_BUFFER_MS) {
@@ -138,5 +150,5 @@ export async function getZohoAccessToken(
 }
 
 export async function clearTokenCache(clientId: string, refreshToken: string): Promise<void> {
-  await deleteCachedToken(`${clientId}:${refreshToken}`);
+  await deleteCachedToken(deriveCacheKey(clientId, refreshToken));
 }

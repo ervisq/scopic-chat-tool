@@ -23,6 +23,9 @@ function getEncryptionSalt(): Buffer {
   if (!saltHex) {
     throw new Error("ENCRYPTION_SALT environment variable is required");
   }
+  if (!/^[0-9a-f]{32}$/i.test(saltHex)) {
+    throw new Error("ENCRYPTION_SALT must be exactly 32 hex characters (16 bytes)");
+  }
   cachedSalt = Buffer.from(saltHex, "hex");
   return cachedSalt;
 }
