@@ -28,3 +28,10 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+JWT_SECRET = "f5f5505208780d85ade2e6fd6ce755a5f277d6db21fd073e6c8d4aa96eb0155c"
+ENCRYPTION_SALT = "3dfd559891bacb8a1678209a26c803c8"
+CREDENTIALS_ENCRYPTION_KEY = "f5f5505208780d85ade2e6fd6ce755a5f277d6db21fd073e6c8d4aa96eb0155c"

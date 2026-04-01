@@ -1,10 +1,13 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import { db } from "@workspace/db";
+import { users } from "@workspace/db/schema";
+import { eq } from "drizzle-orm";
 
-const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === "development" ? "dev-secret-change-in-production" : "");
+const JWT_SECRET = process.env.JWT_SECRET;
 
 if (!JWT_SECRET) {
-  throw new Error("JWT_SECRET environment variable is required in production");
+  throw new Error("JWT_SECRET environment variable is required");
 }
 
 export interface AuthPayload {
@@ -23,15 +26,15 @@ export function getAuthUser(req: Request): AuthPayload {
 }
 
 export function signToken(payload: AuthPayload): string {
-  return jwt.sign({ ...payload, tokenType: "session" }, JWT_SECRET, { expiresIn: "30d" });
+  return jwt.sign({ ...payload, tokenType: "session" }, JWT_SECRET!, { expiresIn: "30d" });
 }
 
 export function sign2faPendingToken(payload: Omit<AuthPayload, "tokenType">): string {
-  return jwt.sign({ ...payload, tokenType: "2fa_pending" }, JWT_SECRET, { expiresIn: "10m" });
+  return jwt.sign({ ...payload, tokenType: "2fa_pending" }, JWT_SECRET!, { expiresIn: "10m" });
 }
 
 export function verifyToken(token: string): AuthPayload {
-  return jwt.verify(token, JWT_SECRET) as AuthPayload;
+  return jwt.verify(token, JWT_SECRET!) as AuthPayload;
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
@@ -56,5 +59,19 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     next();
   } catch {
     res.status(401).json({ message: "Invalid or expired token" });
+  }
+}
+
+export async function requireAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const authUser = getAuthUser(req);
+  try {
+    const [user] = await db.select({ isAdmin: users.isAdmin }).from(users).where(eq(users.id, authUser.userId)).limit(1);
+    if (!user || !user.isAdmin) {
+      res.status(403).json({ message: "Admin access required" });
+      return;
+    }
+    next();
+  } catch {
+    res.status(500).json({ message: "Failed to verify admin status" });
   }
 }

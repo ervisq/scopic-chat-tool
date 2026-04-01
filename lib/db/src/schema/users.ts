@@ -15,6 +15,7 @@ export const users = pgTable("users", {
   totpEnabled: boolean("totp_enabled").default(false),
   totpFrequency: text("totp_frequency").default("weekly"),
   totpLastVerified: timestamp("totp_last_verified", { withTimezone: true }),
+  isAdmin: boolean("is_admin").default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

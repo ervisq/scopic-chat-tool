@@ -43,6 +43,8 @@ export default function AdminPage({}: AdminPageProps) {
   const [data, setData] = useState<UsageData | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [accessDenied, setAccessDenied] = useState(false);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -51,6 +53,10 @@ export default function AdminPage({}: AdminPageProps) {
       const res = await fetch(`${baseUrl}/api/usage`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (res.status === 403) {
+        setAccessDenied(true);
+        return;
+      }
       if (res.ok) {
         setData(await res.json());
       }
@@ -83,6 +89,16 @@ export default function AdminPage({}: AdminPageProps) {
   const timelineData = data
     ? buildTimeline(data.log)
     : [];
+
+  if (accessDenied) {
+    return (
+      <div className="flex flex-col h-dvh bg-background items-center justify-center">
+        <Shield className="w-12 h-12 text-muted-foreground mb-4" />
+        <h1 className="text-xl font-semibold text-foreground mb-2">Access Denied</h1>
+        <p className="text-sm text-muted-foreground">You need admin privileges to view this page.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-dvh bg-background">

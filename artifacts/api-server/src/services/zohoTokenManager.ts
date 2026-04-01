@@ -1,11 +1,11 @@
 import axios from "axios";
+import { db } from "@workspace/db";
+import { sql } from "drizzle-orm";
 
 interface CachedToken {
   accessToken: string;
   expiresAt: number;
 }
-
-const tokenCache = new Map<string, CachedToken>();
 
 const TOKEN_BUFFER_MS = 60_000;
 
@@ -30,6 +30,65 @@ function validateZohoDomain(domain: string): string {
   return match;
 }
 
+async function ensureTokenCacheTable(): Promise<void> {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS zoho_token_cache (
+      cache_key TEXT PRIMARY KEY,
+      access_token TEXT NOT NULL,
+      expires_at BIGINT NOT NULL,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
+  `);
+}
+
+let tableEnsured = false;
+
+async function getCachedToken(cacheKey: string): Promise<CachedToken | null> {
+  if (!tableEnsured) {
+    await ensureTokenCacheTable();
+    tableEnsured = true;
+  }
+
+  const result = await db.execute(
+    sql`SELECT access_token, expires_at FROM zoho_token_cache WHERE cache_key = ${cacheKey} LIMIT 1`
+  );
+
+  const rows = result.rows as Array<{ access_token: string; expires_at: string }>;
+  if (rows.length === 0) return null;
+
+  return {
+    accessToken: rows[0].access_token,
+    expiresAt: parseInt(rows[0].expires_at, 10),
+  };
+}
+
+async function setCachedToken(cacheKey: string, token: CachedToken): Promise<void> {
+  if (!tableEnsured) {
+    await ensureTokenCacheTable();
+    tableEnsured = true;
+  }
+
+  await db.execute(
+    sql`INSERT INTO zoho_token_cache (cache_key, access_token, expires_at, updated_at)
+        VALUES (${cacheKey}, ${token.accessToken}, ${token.expiresAt}, NOW())
+        ON CONFLICT (cache_key) DO UPDATE SET
+          access_token = EXCLUDED.access_token,
+          expires_at = EXCLUDED.expires_at,
+          updated_at = NOW()`
+  );
+}
+
+async function deleteCachedToken(cacheKey: string): Promise<void> {
+  if (!tableEnsured) {
+    await ensureTokenCacheTable();
+    tableEnsured = true;
+  }
+
+  await db.execute(
+    sql`DELETE FROM zoho_token_cache WHERE cache_key = ${cacheKey}`
+  );
+}
+
 export async function getZohoAccessToken(
   clientId: string,
   clientSecret: string,
@@ -37,7 +96,7 @@ export async function getZohoAccessToken(
   domain: string = "https://accounts.zoho.com",
 ): Promise<string> {
   const cacheKey = `${clientId}:${refreshToken}`;
-  const cached = tokenCache.get(cacheKey);
+  const cached = await getCachedToken(cacheKey);
 
   if (cached && cached.expiresAt > Date.now() + TOKEN_BUFFER_MS) {
     return cached.accessToken;
@@ -70,7 +129,7 @@ export async function getZohoAccessToken(
 
   const expiresInMs = (expires_in || 3600) * 1000;
 
-  tokenCache.set(cacheKey, {
+  await setCachedToken(cacheKey, {
     accessToken: access_token,
     expiresAt: Date.now() + expiresInMs,
   });
@@ -78,6 +137,6 @@ export async function getZohoAccessToken(
   return access_token;
 }
 
-export function clearTokenCache(clientId: string, refreshToken: string): void {
-  tokenCache.delete(`${clientId}:${refreshToken}`);
+export async function clearTokenCache(clientId: string, refreshToken: string): Promise<void> {
+  await deleteCachedToken(`${clientId}:${refreshToken}`);
 }

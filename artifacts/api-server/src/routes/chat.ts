@@ -3,7 +3,7 @@ import { SendMessageBody, SendMessageResponse } from "@workspace/api-zod";
 import { parseToolCommand } from "../lib/parse-tool-command";
 import { routeToolCommand } from "../lib/tool-handlers";
 import { getAIResponse } from "../services/aiService";
-import { trackUsage, getUsageLog, getUsageStats } from "../lib/usage-tracker";
+import { trackUsage } from "../lib/usage-tracker";
 import { getAuthUser } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -44,10 +44,6 @@ router.post("/chat", async (req, res) => {
     console.error("Chat error:", msg);
     res.status(500).json({ message: "Failed to process your message. Please try again." });
   }
-});
-
-router.get("/usage", (_req, res) => {
-  res.json({ log: getUsageLog(), stats: getUsageStats() });
 });
 
 export default router;

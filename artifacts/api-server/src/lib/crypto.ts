@@ -4,16 +4,31 @@ const ALGORITHM = "aes-256-gcm";
 const KEY_LENGTH = 32;
 const IV_LENGTH = 16;
 
-function getEncryptionKey(): Buffer {
-  const secret = process.env.CREDENTIALS_ENCRYPTION_KEY || (process.env.NODE_ENV === "development" ? (process.env.JWT_SECRET || "dev-secret-change-in-production") : "");
+const LEGACY_SALT = "salt";
+const LEGACY_SECRET = "dev-secret-change-in-production";
+
+function getEncryptionSecret(): string {
+  const secret = process.env.CREDENTIALS_ENCRYPTION_KEY;
   if (!secret) {
-    throw new Error("CREDENTIALS_ENCRYPTION_KEY environment variable is required in production");
+    throw new Error("CREDENTIALS_ENCRYPTION_KEY environment variable is required");
   }
-  return crypto.scryptSync(secret, "salt", KEY_LENGTH);
+  return secret;
+}
+
+function getEncryptionSalt(): Buffer {
+  const saltHex = process.env.ENCRYPTION_SALT;
+  if (!saltHex) {
+    throw new Error("ENCRYPTION_SALT environment variable is required");
+  }
+  return Buffer.from(saltHex, "hex");
+}
+
+function deriveKey(secret: string, salt: string | Buffer): Buffer {
+  return crypto.scryptSync(secret, salt, KEY_LENGTH);
 }
 
 export function encrypt(plaintext: string): string {
-  const key = getEncryptionKey();
+  const key = deriveKey(getEncryptionSecret(), getEncryptionSalt());
   const iv = crypto.randomBytes(IV_LENGTH);
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
 
@@ -25,7 +40,6 @@ export function encrypt(plaintext: string): string {
 }
 
 export function decrypt(ciphertext: string): string {
-  const key = getEncryptionKey();
   const parts = ciphertext.split(":");
   if (parts.length !== 3) {
     throw new Error("Invalid encrypted data format");
@@ -35,10 +49,40 @@ export function decrypt(ciphertext: string): string {
   const authTag = Buffer.from(parts[1], "hex");
   const encrypted = parts[2];
 
-  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-  decipher.setAuthTag(authTag);
+  const key = deriveKey(getEncryptionSecret(), getEncryptionSalt());
+  try {
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+    decipher.setAuthTag(authTag);
+    let decrypted = decipher.update(encrypted, "hex", "utf8");
+    decrypted += decipher.final("utf8");
+    return decrypted;
+  } catch {
+    const legacyKey = deriveKey(LEGACY_SECRET, LEGACY_SALT);
+    const decipher = crypto.createDecipheriv(ALGORITHM, legacyKey, iv);
+    decipher.setAuthTag(authTag);
+    let decrypted = decipher.update(encrypted, "hex", "utf8");
+    decrypted += decipher.final("utf8");
+    return decrypted;
+  }
+}
 
-  let decrypted = decipher.update(encrypted, "hex", "utf8");
-  decrypted += decipher.final("utf8");
-  return decrypted;
+export function reEncrypt(ciphertext: string): string | null {
+  try {
+    const parts = ciphertext.split(":");
+    if (parts.length !== 3) return null;
+
+    const iv = Buffer.from(parts[0], "hex");
+    const authTag = Buffer.from(parts[1], "hex");
+    const encrypted = parts[2];
+
+    const legacyKey = deriveKey(LEGACY_SECRET, LEGACY_SALT);
+    const decipher = crypto.createDecipheriv(ALGORITHM, legacyKey, iv);
+    decipher.setAuthTag(authTag);
+    let decrypted = decipher.update(encrypted, "hex", "utf8");
+    decrypted += decipher.final("utf8");
+
+    return encrypt(decrypted);
+  } catch {
+    return null;
+  }
 }
