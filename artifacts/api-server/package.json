@@ -7,7 +7,8 @@
     "dev": "NODE_ENV=development tsx ./src/index.ts",
     "build": "tsx ./build.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "migrate:roles": "tsx ./src/scripts/migrate-roles.ts"
+    "migrate:roles": "tsx ./src/scripts/migrate-roles.ts",
+    "seed:test-users": "NODE_ENV=development tsx ./src/scripts/seed-test-users.ts"
   },
   "dependencies": {
     "@types/bcryptjs": "^3.0.0",
