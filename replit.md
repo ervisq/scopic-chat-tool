@@ -76,8 +76,8 @@ artifacts-monorepo/
 - Credentials encrypted with AES-256-GCM before storage in `user_credentials` table
 - Encryption key from `CREDENTIALS_ENCRYPTION_KEY` env var (required, no fallback)
 - Encryption salt from `ENCRYPTION_SALT` env var (16-byte hex, required, no fallback)
-- Legacy fallback: `decrypt()` tries new key+salt first, then legacy key+salt for backward compat
-- Migration scripts in `artifacts/api-server/src/scripts/` for re-encrypting existing data
+- No legacy fallback: `decrypt()` uses only the current env key+salt
+- All existing credentials and TOTP secrets have been re-encrypted with current key
 - API: `GET /api/credentials`, `POST /api/credentials/:provider`, `DELETE /api/credentials/:provider`
 - Supported providers: jira, zoho, sts, teamwork
 - Tool handlers receive userId and query user's credentials from DB
@@ -106,7 +106,7 @@ artifacts-monorepo/
 - Per-user refresh tokens stored encrypted in DB (obtained automatically via OAuth callback)
 - OAuth state uses secure random nonce (not JWT) with 10-minute TTL, stored server-side
 - OAuth routes: `GET /api/zoho/auth-url` (protected), `GET /api/zoho/callback` (public with nonce validation)
-- Zoho token manager (`zohoTokenManager.ts`): exchanges refresh tokens for access tokens, caches in PostgreSQL (`zoho_token_cache` table) with TTL
+- Zoho token manager (`zohoTokenManager.ts`): exchanges refresh tokens for access tokens, caches in PostgreSQL (`zoho_token_cache` table) with HMAC-SHA256 hashed cache keys and TTL-based expiry
 - Domain validation: only known Zoho accounts domains are allowed (SSRF protection)
 - Separate tool commands: `@ZohoPeople` for HR data, `@ZohoCRM` for sales data (no auto-routing)
 - Zoho People service (`zohoPeopleService.ts`): full employee profiles (30+ fields including personal info, DOB, address, emergency contacts), search by name/email/department, birthdays (today/week/month), work anniversaries, who's off today, new joiners, headcount, org hierarchy, departments, leave requests, attendance (with date ranges), timesheets
@@ -147,7 +147,7 @@ artifacts-monorepo/
 ## Database Schema
 
 - `users` table: id, email, password_hash, name, phone, profile_picture_url, theme, default_page, totp_secret, totp_enabled, totp_frequency, totp_last_verified, is_admin, created_at
-- `zoho_token_cache` table: cache_key (PK), access_token, expires_at, updated_at
+- `zoho_token_cache` table: cache_key (HMAC-SHA256 hash, PK), access_token, expires_at, updated_at
 - `user_credentials` table: id, user_id, provider, credentials_encrypted, instance_url, created_at, updated_at
 - Foreign key: user_credentials.user_id → users.id (cascade delete)
 
