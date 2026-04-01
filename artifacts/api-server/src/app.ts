@@ -17,11 +17,13 @@ if (process.env.REPLIT_DOMAINS) {
   }
 }
 
-if (process.env.ALLOWED_ORIGINS) {
-  for (const origin of process.env.ALLOWED_ORIGINS.split(",")) {
-    const trimmed = origin.trim();
-    if (trimmed) allowedOrigins.push(trimmed);
-  }
+if (process.env.ALLOWED_ORIGIN) {
+  const trimmed = process.env.ALLOWED_ORIGIN.trim();
+  if (trimmed) allowedOrigins.push(trimmed);
+}
+
+if (process.env.NODE_ENV === "development") {
+  allowedOrigins.push("http://localhost:3000", "http://localhost:5173", "http://localhost:4173");
 }
 
 app.use(

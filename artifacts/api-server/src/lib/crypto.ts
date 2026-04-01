@@ -4,12 +4,6 @@ const ALGORITHM = "aes-256-gcm";
 const KEY_LENGTH = 32;
 const IV_LENGTH = 16;
 
-const LEGACY_SALT = "salt";
-const LEGACY_SECRET = "dev-secret-change-in-production";
-
-const ROTATED_KEY = "f5f5505208780d85ade2e6fd6ce755a5f277d6db21fd073e6c8d4aa96eb0155c";
-const ROTATED_SALT = Buffer.from("3dfd559891bacb8a1678209a26c803c8", "hex");
-
 let cachedEncryptionKey: string | null = null;
 let cachedSalt: Buffer | null = null;
 
@@ -59,49 +53,10 @@ export function decrypt(ciphertext: string): string {
   const authTag = Buffer.from(parts[1], "hex");
   const encrypted = parts[2];
 
-  const fallbackKeys = [
-    deriveKey(getEncryptionSecret(), getEncryptionSalt()),
-    deriveKey(ROTATED_KEY, ROTATED_SALT),
-    deriveKey(LEGACY_SECRET, LEGACY_SALT),
-  ];
-
-  for (const key of fallbackKeys) {
-    try {
-      const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-      decipher.setAuthTag(authTag);
-      let decrypted = decipher.update(encrypted, "hex", "utf8");
-      decrypted += decipher.final("utf8");
-      return decrypted;
-    } catch {
-      continue;
-    }
-  }
-  throw new Error("Failed to decrypt: no matching key found");
-}
-
-export function reEncrypt(ciphertext: string): string | null {
-  const parts = ciphertext.split(":");
-  if (parts.length !== 3) return null;
-
-  const iv = Buffer.from(parts[0], "hex");
-  const authTag = Buffer.from(parts[1], "hex");
-  const encrypted = parts[2];
-
-  const oldKeys = [
-    deriveKey(ROTATED_KEY, ROTATED_SALT),
-    deriveKey(LEGACY_SECRET, LEGACY_SALT),
-  ];
-
-  for (const oldKey of oldKeys) {
-    try {
-      const decipher = crypto.createDecipheriv(ALGORITHM, oldKey, iv);
-      decipher.setAuthTag(authTag);
-      let decrypted = decipher.update(encrypted, "hex", "utf8");
-      decrypted += decipher.final("utf8");
-      return encrypt(decrypted);
-    } catch {
-      continue;
-    }
-  }
-  return null;
+  const key = deriveKey(getEncryptionSecret(), getEncryptionSalt());
+  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+  decipher.setAuthTag(authTag);
+  let decrypted = decipher.update(encrypted, "hex", "utf8");
+  decrypted += decipher.final("utf8");
+  return decrypted;
 }
