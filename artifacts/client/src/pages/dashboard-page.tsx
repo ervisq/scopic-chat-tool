@@ -7,6 +7,10 @@ import {
   AlertCircle,
   CheckCircle2,
   LayoutDashboard,
+  Mail,
+  Calendar,
+  Paperclip,
+  MapPin,
 } from "lucide-react";
 
 interface DashboardPageProps {
@@ -28,6 +32,22 @@ interface StsProjectSummary {
   hours: number;
 }
 
+interface OutlookEmailSummary {
+  subject: string;
+  from: string;
+  receivedAt: string;
+  isRead: boolean;
+  hasAttachments: boolean;
+}
+
+interface OutlookEventSummary {
+  subject: string;
+  startTime: string;
+  endTime: string;
+  location: string;
+  isAllDay: boolean;
+}
+
 interface ServiceData {
   key: string;
   name: string;
@@ -46,6 +66,8 @@ interface ServiceData {
     weekEnd?: string;
     daysSummary?: string;
     byProject?: StsProjectSummary[];
+    emails?: OutlookEmailSummary[];
+    events?: OutlookEventSummary[];
   };
   error?: string;
 }
@@ -89,6 +111,20 @@ const SERVICE_STYLES: Record<
     borderColor: "border-purple-500/20",
     icon: "TW",
   },
+  outlook_email: {
+    color: "bg-sky-500",
+    bgColor: "bg-sky-500/10",
+    textColor: "text-sky-600 dark:text-sky-400",
+    borderColor: "border-sky-500/20",
+    icon: "OE",
+  },
+  outlook_calendar: {
+    color: "bg-indigo-500",
+    bgColor: "bg-indigo-500/10",
+    textColor: "text-indigo-600 dark:text-indigo-400",
+    borderColor: "border-indigo-500/20",
+    icon: "OC",
+  },
 };
 
 const EXTERNAL_URLS: Record<string, (instanceUrl?: string | null) => string> = {
@@ -128,6 +164,38 @@ function PriorityDot({ priority }: { priority: string }) {
       title={priority}
     />
   );
+}
+
+function formatRelativeTime(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function formatEventDateTime(dateStr: string): string {
+  if (!dateStr) return "";
+  const d = new Date(dateStr + (dateStr.includes("Z") ? "" : "Z"));
+  return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function formatEventTime(dateStr: string): string {
+  if (!dateStr) return "";
+  const d = new Date(dateStr + (dateStr.includes("Z") ? "" : "Z"));
+  return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+function formatEventDate(dateStr: string): string {
+  if (!dateStr) return "";
+  const d = new Date(dateStr + (dateStr.includes("Z") ? "" : "Z"));
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) + " (All Day)";
 }
 
 function ServiceCard({
@@ -331,29 +399,125 @@ function ServiceCard({
               </div>
             )}
 
-            <a
-              href={externalUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-medium transition-colors ${style.bgColor} ${style.textColor} hover:opacity-80`}
-            >
-              Open {service.name}
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
+            {service.key === "outlook_email" && service.summary?.emails && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Recent Emails
+                  </p>
+                  <Mail className={`w-3.5 h-3.5 ${style.textColor}`} />
+                </div>
+                {service.summary.emails.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No recent emails</p>
+                ) : (
+                  service.summary.emails.map((email, idx) => (
+                    <div
+                      key={idx}
+                      className={`py-1.5 px-2 rounded-lg bg-muted/30 ${!email.isRead ? "border-l-2 border-sky-500" : ""}`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        {!email.isRead && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0" />
+                        )}
+                        <span className={`text-xs truncate flex-1 ${!email.isRead ? "font-semibold text-foreground" : "text-foreground"}`}>
+                          {email.subject}
+                        </span>
+                        {email.hasAttachments && (
+                          <Paperclip className="w-3 h-3 text-muted-foreground shrink-0" />
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between mt-0.5">
+                        <span className="text-[10px] text-muted-foreground truncate">
+                          {email.from}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground shrink-0 ml-2">
+                          {email.receivedAt ? formatRelativeTime(email.receivedAt) : ""}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+                <p className="text-[11px] text-muted-foreground">
+                  Use <span className="font-mono font-semibold">@Outlook</span> in chat for more
+                </p>
+              </div>
+            )}
+
+            {service.key === "outlook_calendar" && service.summary?.events && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Upcoming Events
+                  </p>
+                  <Calendar className={`w-3.5 h-3.5 ${style.textColor}`} />
+                </div>
+                {service.summary.events.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No upcoming events</p>
+                ) : (
+                  service.summary.events.map((event, idx) => (
+                    <div key={idx} className="py-1.5 px-2 rounded-lg bg-muted/30">
+                      <span className="text-xs font-medium text-foreground truncate block">
+                        {event.subject}
+                      </span>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[10px] text-muted-foreground">
+                          {event.isAllDay
+                            ? formatEventDate(event.startTime)
+                            : `${formatEventDateTime(event.startTime)} - ${formatEventTime(event.endTime)}`}
+                        </span>
+                      </div>
+                      {event.location && (
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <MapPin className="w-2.5 h-2.5 text-muted-foreground shrink-0" />
+                          <span className="text-[10px] text-muted-foreground truncate">
+                            {event.location}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+                <p className="text-[11px] text-muted-foreground">
+                  Use <span className="font-mono font-semibold">@Outlook</span> in chat for details
+                </p>
+              </div>
+            )}
+
+            {externalUrl !== "#" && (
+              <a
+                href={externalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-medium transition-colors ${style.bgColor} ${style.textColor} hover:opacity-80`}
+              >
+                Open {service.name}
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Connect your {service.name} account to see your data here and use
-              it in chat.
-            </p>
-            <button
-              onClick={onConnect}
-              className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-medium transition-colors ${style.color} text-white hover:opacity-90`}
-            >
-              <Link2 className="w-3.5 h-3.5" />
-              Connect {service.name}
-            </button>
+            {(service.key === "outlook_email" || service.key === "outlook_calendar") ? (
+              <div className={`rounded-lg ${style.bgColor} px-3 py-2`}>
+                <p className={`text-xs font-medium ${style.textColor}`}>
+                  {service.summary?.status || "Microsoft Outlook is not configured on this server."}
+                </p>
+              </div>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  Connect your {service.name} account to see your data here and use
+                  it in chat.
+                </p>
+                <button
+                  onClick={onConnect}
+                  className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-medium transition-colors ${style.color} text-white hover:opacity-90`}
+                >
+                  <Link2 className="w-3.5 h-3.5" />
+                  Connect {service.name}
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -377,6 +541,8 @@ export default function DashboardPage({
   }, []);
 
   const defaultServices: ServiceData[] = [
+    { key: "outlook_email", name: "Outlook Email", connected: false },
+    { key: "outlook_calendar", name: "Outlook Calendar", connected: false },
     { key: "jira", name: "JIRA", connected: false },
     { key: "zoho_people", name: "Zoho People", connected: false },
     { key: "zoho_crm", name: "Zoho CRM", connected: false },

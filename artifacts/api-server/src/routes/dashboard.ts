@@ -6,6 +6,10 @@ import { queryZohoPeople } from "../services/zohoPeopleService";
 import { queryZohoCrm } from "../services/zohoCrmService";
 import { querySts } from "../services/stsService";
 import { queryTeamwork } from "../services/teamworkService";
+import { getGraphClient, isGraphConfigured } from "../services/microsoftGraphClient";
+import { db } from "@workspace/db";
+import { users } from "@workspace/db/schema";
+import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -274,9 +278,123 @@ router.get("/dashboard", async (req, res) => {
       services.push({ key: "teamwork", name: "Teamwork", connected: false });
     }
 
+    if (isGraphConfigured()) {
+      const [userRow] = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).limit(1);
+      const userEmail = userRow?.email;
+
+      if (userEmail) {
+        promises.push(
+          (async () => {
+            try {
+              const client = getGraphClient();
+              const mailRes = await client
+                .api(`/users/${userEmail}/messages`)
+                .top(5)
+                .select("subject,from,receivedDateTime,isRead,hasAttachments")
+                .orderby("receivedDateTime desc")
+                .get();
+
+              const emails = (mailRes.value || []).map((m: any) => ({
+                subject: m.subject || "(No Subject)",
+                from: m.from?.emailAddress?.name || m.from?.emailAddress?.address || "Unknown",
+                receivedAt: m.receivedDateTime || "",
+                isRead: !!m.isRead,
+                hasAttachments: !!m.hasAttachments,
+              }));
+
+              services.push({
+                key: "outlook_email",
+                name: "Outlook Email",
+                connected: true,
+                summary: { emails },
+              });
+            } catch {
+              services.push({
+                key: "outlook_email",
+                name: "Outlook Email",
+                connected: true,
+                error: "Could not load emails",
+              });
+            }
+          })(),
+        );
+
+        promises.push(
+          (async () => {
+            try {
+              const client = getGraphClient();
+              const now = new Date();
+              const endWindow = new Date(now);
+              endWindow.setDate(endWindow.getDate() + 7);
+
+              const calRes = await client
+                .api(`/users/${userEmail}/calendarView`)
+                .query({
+                  startDateTime: now.toISOString(),
+                  endDateTime: endWindow.toISOString(),
+                })
+                .top(5)
+                .orderby("start/dateTime")
+                .select("subject,start,end,location,isAllDay")
+                .header("Prefer", 'outlook.timezone="UTC"')
+                .get();
+
+              const events = (calRes.value || []).map((e: any) => ({
+                subject: e.subject || "(No Title)",
+                startTime: e.start?.dateTime || "",
+                endTime: e.end?.dateTime || "",
+                location: e.location?.displayName || "",
+                isAllDay: !!e.isAllDay,
+              }));
+
+              services.push({
+                key: "outlook_calendar",
+                name: "Outlook Calendar",
+                connected: true,
+                summary: { events },
+              });
+            } catch {
+              services.push({
+                key: "outlook_calendar",
+                name: "Outlook Calendar",
+                connected: true,
+                error: "Could not load calendar events",
+              });
+            }
+          })(),
+        );
+      } else {
+        services.push({
+          key: "outlook_email",
+          name: "Outlook Email",
+          connected: false,
+          error: "Email not found for your account",
+        });
+        services.push({
+          key: "outlook_calendar",
+          name: "Outlook Calendar",
+          connected: false,
+          error: "Email not found for your account",
+        });
+      }
+    } else {
+      services.push({
+        key: "outlook_email",
+        name: "Outlook Email",
+        connected: false,
+        summary: { status: "Microsoft Outlook is not configured on this server." },
+      });
+      services.push({
+        key: "outlook_calendar",
+        name: "Outlook Calendar",
+        connected: false,
+        summary: { status: "Microsoft Outlook is not configured on this server." },
+      });
+    }
+
     await Promise.all(promises);
 
-    const order = ["jira", "zoho_people", "zoho_crm", "sts", "teamwork"];
+    const order = ["outlook_email", "outlook_calendar", "jira", "zoho_people", "zoho_crm", "sts", "teamwork"];
     services.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
 
     res.json({ services });
