@@ -155,11 +155,9 @@ export async function queryOutlookMail(
         .select("subject,from,receivedDateTime,bodyPreview,isRead,hasAttachments")
         .orderby("receivedDateTime desc");
 
-      if (filter) {
-        fallbackRequest.filter(filter);
-      }
+      const finalRequest = filter ? fallbackRequest.filter(filter) : fallbackRequest;
 
-      const fallbackResponse = await fallbackRequest.get();
+      const fallbackResponse = await finalRequest.get();
       const messages = (fallbackResponse.value || []).map(mapMessage);
       return { type: "emails", messages, total: messages.length, source: "live" };
     }
