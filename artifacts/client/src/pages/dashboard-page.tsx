@@ -12,6 +12,8 @@ import {
   Paperclip,
   MapPin,
   Filter,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 interface DashboardPageProps {
@@ -206,6 +208,234 @@ function formatEventDate(dateStr: string): string {
   if (!dateStr) return "";
   const d = new Date(dateStr + (dateStr.includes("Z") ? "" : "Z"));
   return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) + " (All Day)";
+}
+
+const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function getMonthGrid(year: number, month: number) {
+  const firstDay = new Date(year, month, 1);
+  let startOffset = firstDay.getDay() - 1;
+  if (startOffset < 0) startOffset = 6;
+
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+  const cells: { day: number; currentMonth: boolean; date: string }[] = [];
+
+  for (let i = startOffset - 1; i >= 0; i--) {
+    const d = daysInPrevMonth - i;
+    const m = month === 0 ? 11 : month - 1;
+    const y = month === 0 ? year - 1 : year;
+    cells.push({ day: d, currentMonth: false, date: `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}` });
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push({ day: d, currentMonth: true, date: `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}` });
+  }
+
+  const remaining = 7 - (cells.length % 7);
+  if (remaining < 7) {
+    for (let d = 1; d <= remaining; d++) {
+      const m = month === 11 ? 0 : month + 1;
+      const y = month === 11 ? year + 1 : year;
+      cells.push({ day: d, currentMonth: false, date: `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}` });
+    }
+  }
+
+  return cells;
+}
+
+function CalendarPanel({ service }: { service: ServiceData | undefined }) {
+  const today = new Date();
+  const [viewYear, setViewYear] = useState(today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(today.getMonth());
+
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const cells = useMemo(() => getMonthGrid(viewYear, viewMonth), [viewYear, viewMonth]);
+
+  const eventDates = useMemo(() => {
+    const dates = new Set<string>();
+    if (service?.summary?.events) {
+      for (const ev of service.summary.events) {
+        if (ev.startTime) {
+          const d = new Date(ev.startTime + (ev.startTime.includes("Z") ? "" : "Z"));
+          dates.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+        }
+      }
+    }
+    return dates;
+  }, [service?.summary?.events]);
+
+  function prevMonth() {
+    if (viewMonth === 0) {
+      setViewYear(viewYear - 1);
+      setViewMonth(11);
+    } else {
+      setViewMonth(viewMonth - 1);
+    }
+  }
+
+  function nextMonth() {
+    if (viewMonth === 11) {
+      setViewYear(viewYear + 1);
+      setViewMonth(0);
+    } else {
+      setViewMonth(viewMonth + 1);
+    }
+  }
+
+  function goToToday() {
+    setViewYear(today.getFullYear());
+    setViewMonth(today.getMonth());
+  }
+
+  const isCurrentMonth = viewYear === today.getFullYear() && viewMonth === today.getMonth();
+
+  const events = service?.summary?.events || [];
+  const isConnected = service?.connected ?? false;
+  const hasError = !!service?.error;
+  const notConfiguredMsg = !isConnected ? (service?.summary?.status || "Microsoft Outlook is not configured on this server.") : null;
+
+  return (
+    <div className="w-full md:w-[340px] shrink-0 md:self-stretch">
+      <div className="rounded-2xl border border-indigo-500/20 bg-card overflow-hidden md:h-full md:flex md:flex-col">
+        <div className="p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-xl bg-indigo-500 flex items-center justify-center shadow-sm">
+                <Calendar className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground text-sm">Calendar</h3>
+                {isConnected ? (
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400">Connected</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <AlertCircle className="w-3 h-3 text-muted-foreground" />
+                    <span className="text-[10px] text-muted-foreground">Not connected</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            {!isCurrentMonth && (
+              <button
+                onClick={goToToday}
+                className="text-[10px] font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+              >
+                Today
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between mb-3">
+            <button onClick={prevMonth} className="p-1 rounded-md hover:bg-muted/50 transition-colors">
+              <ChevronLeft className="w-4 h-4 text-muted-foreground" />
+            </button>
+            <span className="text-sm font-semibold text-foreground">
+              {MONTH_NAMES[viewMonth]} {viewYear}
+            </span>
+            <button onClick={nextMonth} className="p-1 rounded-md hover:bg-muted/50 transition-colors">
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-7 gap-0 mb-1">
+            {WEEKDAY_LABELS.map((wd) => (
+              <div key={wd} className="text-center text-[10px] font-medium text-muted-foreground py-1">
+                {wd}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-0">
+            {cells.map((cell, idx) => {
+              const isToday = cell.date === todayStr;
+              const hasEvent = eventDates.has(cell.date);
+              return (
+                <div
+                  key={idx}
+                  className={`relative flex flex-col items-center justify-center py-1.5 text-xs rounded-lg transition-colors
+                    ${cell.currentMonth ? "text-foreground" : "text-muted-foreground/40"}
+                    ${isToday ? "bg-indigo-500 text-white font-bold" : ""}
+                  `}
+                >
+                  {cell.day}
+                  {hasEvent && !isToday && (
+                    <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-indigo-500" />
+                  )}
+                  {hasEvent && isToday && (
+                    <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-white" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="border-t border-indigo-500/10 px-4 py-3 md:flex-1 md:flex md:flex-col md:min-h-0">
+          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2 shrink-0">
+            Upcoming Events
+          </p>
+
+          {notConfiguredMsg && (
+            <div className="rounded-lg bg-indigo-500/10 px-3 py-2">
+              <p className="text-xs font-medium text-indigo-600 dark:text-indigo-400">
+                {notConfiguredMsg}
+              </p>
+            </div>
+          )}
+
+          {isConnected && hasError && (
+            <p className="text-xs text-muted-foreground italic">{service?.error}</p>
+          )}
+
+          {isConnected && !hasError && (
+            <div className="space-y-1.5 md:flex-1 md:overflow-y-auto md:min-h-0 max-h-[240px] md:max-h-none">
+              {events.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No upcoming events</p>
+              ) : (
+                events.map((event, idx) => (
+                  <div key={idx} className="py-1.5 px-2 rounded-lg bg-muted/30">
+                    <span className="text-xs font-medium text-foreground truncate block">
+                      {event.subject}
+                    </span>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-[10px] text-muted-foreground">
+                        {event.isAllDay
+                          ? formatEventDate(event.startTime)
+                          : `${formatEventDateTime(event.startTime)} - ${formatEventTime(event.endTime)}`}
+                      </span>
+                    </div>
+                    {event.location && (
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <MapPin className="w-2.5 h-2.5 text-muted-foreground shrink-0" />
+                        <span className="text-[10px] text-muted-foreground truncate">
+                          {event.location}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {isConnected && !hasError && (
+            <p className="text-[11px] text-muted-foreground mt-2 shrink-0">
+              Use <span className="font-mono font-semibold">@Outlook</span> in chat for details
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function ProjectFilter({
@@ -692,6 +922,8 @@ export default function DashboardPage({
     }
   }
 
+  const calendarService = services.find((s) => s.key === "outlook_calendar");
+  const tileServices = services.filter((s) => s.key !== "outlook_calendar");
   const connectedCount = services.filter((s) => s.connected).length;
 
   return (
@@ -704,7 +936,7 @@ export default function DashboardPage({
       </header>
 
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-8">
+        <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-8">
           <div className="mb-6 md:mb-8">
             <h2 className="text-xl md:text-2xl font-bold text-foreground">
               Welcome back, {user?.name || "there"}
@@ -721,14 +953,19 @@ export default function DashboardPage({
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4 md:gap-5">
-              {services.map((service) => (
-                <ServiceCard
-                  key={service.key}
-                  service={service}
-                  onConnect={onOpenConnections}
-                />
-              ))}
+            <div className="flex flex-col md:flex-row md:items-start gap-5">
+              <CalendarPanel service={calendarService} />
+              <div className="flex-1 min-w-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5">
+                  {tileServices.map((service) => (
+                    <ServiceCard
+                      key={service.key}
+                      service={service}
+                      onConnect={onOpenConnections}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
