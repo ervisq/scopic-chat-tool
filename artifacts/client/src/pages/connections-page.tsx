@@ -254,7 +254,7 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
       <div className="flex-1 overflow-y-auto p-4 md:p-6">
         <div className="max-w-2xl mx-auto space-y-4">
           <p className="text-sm text-muted-foreground mb-6">
-            Connect your accounts to use tool commands in chat. Each employee connects their own credentials.
+            Connect your accounts to use tool commands in chat. Microsoft Outlook works automatically for all employees. Other services require individual connection.
           </p>
 
           {message && (
