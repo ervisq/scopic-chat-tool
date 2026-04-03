@@ -18,13 +18,22 @@ interface OutlookContactsResult {
   source: "live";
 }
 
+function escapeOData(value: string): string {
+  return value.replace(/'/g, "''");
+}
+
 function mapContact(c: any): OutlookContact {
   const emails = c.emailAddresses || [];
-  const phones = c.phones || [];
+  const businessPhones: string[] = c.businessPhones || [];
+  const homePhones: string[] = c.homePhones || [];
+  const mobilePhone: string = c.mobilePhone || "";
+
+  const phone = mobilePhone || (businessPhones.length > 0 ? businessPhones[0] : "") || (homePhones.length > 0 ? homePhones[0] : "");
+
   return {
     displayName: c.displayName || `${c.givenName || ""} ${c.surname || ""}`.trim() || "Unknown",
     email: emails.length > 0 ? emails[0].address : "",
-    phone: phones.length > 0 ? phones[0].number : "",
+    phone,
     company: c.companyName || "",
     jobTitle: c.jobTitle || "",
     department: c.department || "",
@@ -43,12 +52,13 @@ export async function queryOutlookContacts(
 
   const params: Record<string, string> = {
     $top: "50",
-    $select: "displayName,givenName,surname,emailAddresses,phones,companyName,jobTitle,department",
+    $select: "displayName,givenName,surname,emailAddresses,businessPhones,homePhones,mobilePhone,companyName,jobTitle,department",
     $orderby: "displayName",
   };
 
+  const escaped = escapeOData(cleanQuery);
   if (cleanQuery.length > 2 && !lower.match(/^(all|list|show|my)\s*(contacts?)?$/)) {
-    params.$filter = `startsWith(displayName,'${cleanQuery}') or startsWith(givenName,'${cleanQuery}') or startsWith(surname,'${cleanQuery}')`;
+    params.$filter = `startsWith(displayName,'${escaped}') or startsWith(givenName,'${escaped}') or startsWith(surname,'${escaped}')`;
   }
 
   const url = `${GRAPH_BASE}/me/contacts`;

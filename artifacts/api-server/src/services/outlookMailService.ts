@@ -31,18 +31,22 @@ function mapMessage(m: any): MailMessage {
   };
 }
 
+function escapeOData(value: string): string {
+  return value.replace(/'/g, "''");
+}
+
 function buildSearchFilter(query: string): { filter?: string; search?: string; top: number } {
   const lower = query.toLowerCase();
   const top = 20;
 
   const fromMatch = lower.match(/from\s+(\S+@\S+)/);
   if (fromMatch) {
-    return { filter: `from/emailAddress/address eq '${fromMatch[1]}'`, top };
+    return { filter: `from/emailAddress/address eq '${escapeOData(fromMatch[1])}'`, top };
   }
 
   const subjectMatch = lower.match(/subject[:\s]+["']?([^"']+)["']?/);
   if (subjectMatch) {
-    return { search: `"subject:${subjectMatch[1].trim()}"`, top };
+    return { search: `"subject:${escapeOData(subjectMatch[1].trim())}"`, top };
   }
 
   if (lower.includes("unread")) {
