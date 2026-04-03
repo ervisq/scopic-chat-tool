@@ -213,8 +213,8 @@ router.get("/dashboard", async (req, res) => {
                 },
               });
             }
-          } catch (err: any) {
-            console.error("[Dashboard] STS fetch error:", err?.message || err);
+          } catch (err: unknown) {
+            console.error("[Dashboard] STS fetch error:", err instanceof Error ? err.message : String(err));
             services.push({
               key: "sts",
               name: "STS",
