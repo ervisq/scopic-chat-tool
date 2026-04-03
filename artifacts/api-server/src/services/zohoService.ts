@@ -1,6 +1,8 @@
 import { getUserCredentials } from "../lib/credential-store";
 import { queryZohoPeople, formatPeopleResult } from "./zohoPeopleService";
 import { queryZohoCrm, formatCrmResult } from "./zohoCrmService";
+import { queryZohoRecruit, formatRecruitResult } from "./zohoRecruitService";
+import { queryZohoContracts, formatContractsResult } from "./zohoContractsService";
 
 export interface ZohoDirectResult {
   reply: string;
@@ -95,10 +97,54 @@ export async function queryZohoCrmDirect(query: string, userId?: number): Promis
   }
 }
 
-export function formatZohoPeopleDirectResult(result: ZohoDirectResult): string {
-  return result.reply;
+export async function queryZohoRecruitDirect(query: string, userId?: number): Promise<ZohoDirectResult> {
+  if (!userId) {
+    return {
+      reply: "Your Zoho account is not connected. Please go to Connected Services (Settings icon) and click 'Connect with Zoho'.",
+      source: "not_connected",
+    };
+  }
+
+  const credsOrError = await getZohoCredentials(userId);
+  if (isError(credsOrError)) return credsOrError;
+
+  const { refreshToken, clientId, clientSecret } = credsOrError;
+
+  try {
+    const result = await queryZohoRecruit(query, clientId, clientSecret, refreshToken, "https://accounts.zoho.com");
+    return { reply: formatRecruitResult(result, query), source: "live" };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("Zoho Recruit API error:", msg);
+    return {
+      reply: `Error querying Zoho Recruit: ${msg}. Please check your connection in Connected Services.`,
+      source: "error",
+    };
+  }
 }
 
-export function formatZohoCrmDirectResult(result: ZohoDirectResult): string {
-  return result.reply;
+export async function queryZohoContractsDirect(query: string, userId?: number): Promise<ZohoDirectResult> {
+  if (!userId) {
+    return {
+      reply: "Your Zoho account is not connected. Please go to Connected Services (Settings icon) and click 'Connect with Zoho'.",
+      source: "not_connected",
+    };
+  }
+
+  const credsOrError = await getZohoCredentials(userId);
+  if (isError(credsOrError)) return credsOrError;
+
+  const { refreshToken, clientId, clientSecret } = credsOrError;
+
+  try {
+    const result = await queryZohoContracts(query, clientId, clientSecret, refreshToken, "https://accounts.zoho.com");
+    return { reply: formatContractsResult(result, query), source: "live" };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("Zoho Contracts API error:", msg);
+    return {
+      reply: `Error querying Zoho Contracts: ${msg}. Please check your connection in Connected Services.`,
+      source: "error",
+    };
+  }
 }

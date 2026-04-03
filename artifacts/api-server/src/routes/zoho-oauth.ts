@@ -9,7 +9,7 @@ const router: IRouter = Router();
 const ZOHO_CLIENT_ID = process.env.ZOHO_CLIENT_ID || "";
 const ZOHO_CLIENT_SECRET = process.env.ZOHO_CLIENT_SECRET || "";
 const ZOHO_ACCOUNTS_URL = "https://accounts.zoho.com";
-const ZOHO_SCOPES = "ZohoPeople.forms.ALL,ZohoCRM.modules.ALL,ZohoCRM.settings.ALL";
+const ZOHO_SCOPES = "ZohoPeople.forms.ALL,ZohoCRM.modules.ALL,ZohoCRM.settings.ALL,ZohoRecruit.modules.ALL,ZohoRecruit.settings.ALL";
 
 const pendingStates = new Map<string, { userId: number; expiresAt: number }>();
 const STATE_TTL_MS = 10 * 60 * 1000;
@@ -119,7 +119,7 @@ router.get("/zoho/callback", async (req, res) => {
 
     await saveUserCredentials(userId, "zoho", {
       refreshToken: refresh_token,
-      modules: "people,crm",
+      modules: "people,crm,recruit,contracts",
     });
 
     res.redirect(`${frontendUrl}?zoho_success=true`);

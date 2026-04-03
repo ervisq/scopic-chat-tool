@@ -33,6 +33,22 @@ export const TOOLS: ToolConfig[] = [
     borderColor: "border-orange-500/30",
   },
   {
+    name: "ZohoRecruit",
+    label: "Zoho Recruit",
+    description: "Recruiting: candidates, job openings, interviews, hiring pipeline",
+    bgColor: "bg-rose-500/15",
+    textColor: "text-rose-600 dark:text-rose-400",
+    borderColor: "border-rose-500/30",
+  },
+  {
+    name: "ZohoContracts",
+    label: "Zoho Contracts",
+    description: "Contracts: active, expired, expiring, by company or type",
+    bgColor: "bg-teal-500/15",
+    textColor: "text-teal-600 dark:text-teal-400",
+    borderColor: "border-teal-500/30",
+  },
+  {
     name: "STS",
     label: "STS",
     description: "Working hours: this week, by project, daily breakdown",
