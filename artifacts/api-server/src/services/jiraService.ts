@@ -8,6 +8,7 @@ export interface JiraTicket {
   status: string;
   assignee: string;
   priority: string;
+  project: string;
 }
 
 export interface JiraServiceResult {
@@ -49,6 +50,7 @@ function parseIssues(issues: any[]): JiraTicket[] {
     status: mapStatus(issue.fields?.status),
     assignee: mapAssignee(issue.fields?.assignee),
     priority: mapPriority(issue.fields?.priority),
+    project: issue.fields?.project?.name || issue.fields?.project?.key || "",
   }));
 }
 
@@ -78,7 +80,7 @@ async function queryJiraOAuth(query: string, cloudId: string, refreshToken: stri
     {
       jql,
       maxResults: 20,
-      fields: ["summary", "status", "assignee", "priority", "issuetype"],
+      fields: ["summary", "status", "assignee", "priority", "issuetype", "project"],
     },
     {
       headers: {
@@ -106,7 +108,7 @@ async function queryJiraBasicAuth(query: string, instanceUrl: string, email: str
     {
       jql,
       maxResults: 20,
-      fields: ["summary", "status", "assignee", "priority", "issuetype"],
+      fields: ["summary", "status", "assignee", "priority", "issuetype", "project"],
     },
     {
       auth: {

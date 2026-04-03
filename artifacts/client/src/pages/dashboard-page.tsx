@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   MessageSquare,
   ExternalLink,
@@ -11,6 +11,7 @@ import {
   Calendar,
   Paperclip,
   MapPin,
+  Filter,
 } from "lucide-react";
 
 interface DashboardPageProps {
@@ -25,6 +26,7 @@ interface JiraTicketSummary {
   title: string;
   status: string;
   priority: string;
+  project: string;
 }
 
 interface StsProjectSummary {
@@ -48,6 +50,14 @@ interface OutlookEventSummary {
   isAllDay: boolean;
 }
 
+interface TeamworkTaskSummary {
+  id: number;
+  title: string;
+  status: string;
+  priority: string;
+  projectName: string;
+}
+
 interface ServiceData {
   key: string;
   name: string;
@@ -60,7 +70,7 @@ interface ServiceData {
     status?: string;
     totalTasks?: number;
     activeTasks?: number;
-    tasks?: { id: number; title: string; status: string; priority: string }[];
+    tasks?: TeamworkTaskSummary[];
     totalHours?: number;
     weekStart?: string;
     weekEnd?: string;
@@ -198,6 +208,37 @@ function formatEventDate(dateStr: string): string {
   return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) + " (All Day)";
 }
 
+function ProjectFilter({
+  projects,
+  selected,
+  onChange,
+  accentColor,
+}: {
+  projects: string[];
+  selected: string;
+  onChange: (val: string) => void;
+  accentColor: string;
+}) {
+  if (projects.length <= 1) return null;
+  return (
+    <div className="flex items-center gap-1.5 mb-2">
+      <Filter className={`w-3 h-3 ${accentColor} shrink-0`} />
+      <select
+        value={selected}
+        onChange={(e) => onChange(e.target.value)}
+        className="text-[11px] bg-muted/40 border border-border/50 rounded-md px-1.5 py-0.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary/30 truncate max-w-[180px]"
+      >
+        <option value="">All Projects</option>
+        {projects.map((p) => (
+          <option key={p} value={p}>
+            {p}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 function ServiceCard({
   service,
   onConnect,
@@ -207,6 +248,47 @@ function ServiceCard({
 }) {
   const style = SERVICE_STYLES[service.key] || SERVICE_STYLES.jira;
   const externalUrl = EXTERNAL_URLS[service.key]?.(service.instanceUrl) || "#";
+  const [projectFilter, setProjectFilter] = useState("");
+
+  const jiraProjects = useMemo(() =>
+    service.key === "jira" && service.summary?.tickets
+      ? [...new Set(service.summary.tickets.map((t) => t.project).filter(Boolean))].sort()
+      : [],
+    [service.key, service.summary?.tickets]
+  );
+
+  const teamworkProjects = useMemo(() =>
+    service.key === "teamwork" && service.summary?.tasks
+      ? [...new Set(service.summary.tasks.map((t) => t.projectName).filter(Boolean))].sort()
+      : [],
+    [service.key, service.summary?.tasks]
+  );
+
+  const stsProjects = useMemo(() =>
+    service.key === "sts" && service.summary?.byProject
+      ? [...new Set(service.summary.byProject.map((p) => p.name).filter(Boolean))].sort()
+      : [],
+    [service.key, service.summary?.byProject]
+  );
+
+  const availableProjects = jiraProjects.length > 0 ? jiraProjects : teamworkProjects.length > 0 ? teamworkProjects : stsProjects;
+  useEffect(() => {
+    if (projectFilter && !availableProjects.includes(projectFilter)) {
+      setProjectFilter("");
+    }
+  }, [availableProjects, projectFilter]);
+
+  const filteredJiraTickets = service.summary?.tickets
+    ? (projectFilter ? service.summary.tickets.filter((t) => t.project === projectFilter) : service.summary.tickets)
+    : [];
+
+  const filteredTeamworkTasks = service.summary?.tasks
+    ? (projectFilter ? service.summary.tasks.filter((t) => t.projectName === projectFilter) : service.summary.tasks)
+    : [];
+
+  const filteredStsProjects = service.summary?.byProject
+    ? (projectFilter ? service.summary.byProject.filter((p) => p.name === projectFilter) : service.summary.byProject)
+    : [];
 
   return (
     <div
@@ -267,12 +349,18 @@ function ServiceCard({
                     </span>
                   )}
                 </div>
-                {service.summary.tickets.length === 0 ? (
+                <ProjectFilter
+                  projects={jiraProjects}
+                  selected={projectFilter}
+                  onChange={setProjectFilter}
+                  accentColor={style.textColor}
+                />
+                {filteredJiraTickets.length === 0 ? (
                   <p className="text-xs text-muted-foreground">
-                    No tasks found
+                    {projectFilter ? "No tasks in this project" : "No tasks found"}
                   </p>
                 ) : (
-                  service.summary.tickets.map((t) => (
+                  filteredJiraTickets.map((t) => (
                     <div
                       key={t.id}
                       className="flex items-center gap-2 py-1.5 px-2 rounded-lg bg-muted/30"
@@ -303,12 +391,18 @@ function ServiceCard({
                     </span>
                   )}
                 </div>
-                {service.summary.tasks.length === 0 ? (
+                <ProjectFilter
+                  projects={teamworkProjects}
+                  selected={projectFilter}
+                  onChange={setProjectFilter}
+                  accentColor={style.textColor}
+                />
+                {filteredTeamworkTasks.length === 0 ? (
                   <p className="text-xs text-muted-foreground">
-                    No tasks found
+                    {projectFilter ? "No tasks in this project" : "No tasks found"}
                   </p>
                 ) : (
-                  service.summary.tasks.map((t) => (
+                  filteredTeamworkTasks.map((t) => (
                     <div
                       key={t.id}
                       className="flex items-center gap-2 py-1.5 px-2 rounded-lg bg-muted/30"
@@ -334,19 +428,27 @@ function ServiceCard({
                     Hours This Week
                   </p>
                   <span className={`text-sm font-bold ${style.textColor}`}>
-                    {service.summary.totalHours}h
+                    {projectFilter
+                      ? `${filteredStsProjects.reduce((sum, p) => sum + p.hours, 0).toFixed(1)}h`
+                      : `${service.summary.totalHours}h`}
                   </span>
                 </div>
-                {service.summary.daysSummary && (
+                <ProjectFilter
+                  projects={stsProjects}
+                  selected={projectFilter}
+                  onChange={setProjectFilter}
+                  accentColor={style.textColor}
+                />
+                {!projectFilter && service.summary.daysSummary && (
                   <div className={`rounded-lg ${style.bgColor} px-3 py-2`}>
                     <p className="text-[11px] text-muted-foreground">
                       {service.summary.daysSummary}
                     </p>
                   </div>
                 )}
-                {service.summary.byProject && service.summary.byProject.length > 0 && (
+                {filteredStsProjects.length > 0 && (
                   <div className="space-y-1">
-                    {service.summary.byProject.map((p) => (
+                    {filteredStsProjects.map((p) => (
                       <div
                         key={p.name}
                         className="flex items-center justify-between py-1 px-2 rounded-lg bg-muted/30"

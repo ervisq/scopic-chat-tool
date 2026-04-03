@@ -73,6 +73,7 @@ router.get("/dashboard", async (req, res) => {
                     title: t.title,
                     status: t.status,
                     priority: t.priority,
+                    project: t.project,
                   })),
                 },
               });
@@ -245,7 +246,7 @@ router.get("/dashboard", async (req, res) => {
                 error: "Could not load Teamwork data — check your credentials",
               });
             } else {
-              const tasks = result.data as { id: number; name: string; status: string; priority: string }[];
+              const tasks = result.data as { id: number; name: string; status: string; priority: string; projectName: string }[];
               const activeTasks = tasks.filter((t) => t.status.toLowerCase() !== "completed");
               services.push({
                 key: "teamwork",
@@ -261,6 +262,7 @@ router.get("/dashboard", async (req, res) => {
                     title: t.name,
                     status: t.status,
                     priority: t.priority,
+                    projectName: t.projectName,
                   })),
                 },
               });
