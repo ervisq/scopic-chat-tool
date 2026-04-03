@@ -8,6 +8,9 @@ import { eq } from "drizzle-orm";
 
 type OutlookCategory = "mail" | "calendar" | "contacts";
 
+const verifiedMailboxes = new Map<string, { verified: boolean; expiresAt: number }>();
+const MAILBOX_CACHE_TTL_MS = 30 * 60 * 1000;
+
 function detectCategory(query: string): OutlookCategory {
   const lower = query.toLowerCase();
 
@@ -46,6 +49,27 @@ async function getUserEmail(userId: number): Promise<string | null> {
   return user?.email || null;
 }
 
+async function verifyMailboxExists(email: string): Promise<boolean> {
+  const cached = verifiedMailboxes.get(email);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.verified;
+  }
+
+  try {
+    const client = getGraphClient();
+    await client.api(`/users/${email}`).select("id,mail").get();
+    verifiedMailboxes.set(email, { verified: true, expiresAt: Date.now() + MAILBOX_CACHE_TTL_MS });
+    return true;
+  } catch (err: any) {
+    const status = err?.statusCode || err?.response?.status;
+    if (status === 404) {
+      verifiedMailboxes.set(email, { verified: false, expiresAt: Date.now() + MAILBOX_CACHE_TTL_MS });
+      return false;
+    }
+    throw err;
+  }
+}
+
 export async function queryOutlookDirect(
   query: string,
   userId: number,
@@ -60,6 +84,11 @@ export async function queryOutlookDirect(
   }
 
   try {
+    const mailboxValid = await verifyMailboxExists(userEmail);
+    if (!mailboxValid) {
+      return { reply: `No Microsoft 365 mailbox found for ${userEmail}. Your registered email must match an active mailbox in the organization's Azure AD tenant.` };
+    }
+
     const client = getGraphClient();
     const category = detectCategory(query);
 
