@@ -142,7 +142,12 @@ export async function querySts(query: string, userId?: number): Promise<StsWeekR
       endDate: endISO,
     });
 
-    const rawEntries: any[] = Array.isArray(timeData) ? timeData : ((timeData as any)?.data || (timeData as any)?.items || (timeData as any)?.results || []);
+    const td = timeData as any;
+    if (td && typeof td === "object" && !Array.isArray(td) && (td.code === 401 || td.status === "Unauthorized" || (td.message && String(td.message).toLowerCase().includes("invalid token")))) {
+      return { ...emptyResult, source: "error" as const, errorMessage: "STS token is invalid. Please update your token in Connected Services." };
+    }
+
+    const rawEntries: any[] = Array.isArray(timeData) ? timeData : (td?.data || td?.items || td?.results || []);
 
     const entries: StsTimeEntry[] = rawEntries.map((e: any) => ({
       id: e.id || e.Id || 0,
