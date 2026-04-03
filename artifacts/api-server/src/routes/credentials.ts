@@ -60,7 +60,7 @@ router.post("/credentials/:provider/modules", async (req, res) => {
     }
 
     const ALLOWED_MODULES: Record<string, string[]> = {
-      zoho: ["people", "crm"],
+      zoho: ["people", "crm", "recruit", "contracts"],
     };
 
     const { modules } = req.body;
