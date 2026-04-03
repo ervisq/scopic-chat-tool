@@ -213,13 +213,14 @@ router.get("/dashboard", async (req, res) => {
                 },
               });
             }
-          } catch {
+          } catch (err: any) {
+            console.error("[Dashboard] STS fetch error:", err?.message || err);
             services.push({
               key: "sts",
               name: "STS",
               connected: true,
               instanceUrl: stsConn.instanceUrl,
-              summary: { status: "Connected" },
+              error: "Could not load STS data — check your token or try again later",
             });
           }
         })(),

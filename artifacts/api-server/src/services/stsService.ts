@@ -244,18 +244,23 @@ export async function querySts(query: string, userId?: number): Promise<StsWeekR
       const status = error?.response?.status;
       const isConnectionError = error.code === "ECONNREFUSED" || error.code === "ENOTFOUND" || (status && status >= 500);
 
-      if (isConnectionError && apiUrl !== apiUrls[apiUrls.length - 1]) {
+      if (isConnectionError && apiUrl !== attempts[attempts.length - 1].api) {
         console.warn(`STS primary API (${apiUrl}) failed, trying fallback...`);
         continue;
       }
 
       let errorMessage = "Failed to fetch STS data. Please check your token and try again.";
+      const errMsg = (error?.message || "").toLowerCase();
       if (status === 401 || status === 403) {
         errorMessage = "STS token expired or invalid. Please update your token in Connected Services.";
+      } else if (errMsg.includes("redirect") || errMsg.includes("maximum number of redirects")) {
+        errorMessage = "STS token appears expired or invalid (login redirect loop). Please update your token in Connected Services.";
       } else if (status === 404) {
         errorMessage = "STS API endpoint not found. Please verify your instance URL in Connected Services.";
       } else if (error.code === "ECONNREFUSED" || error.code === "ENOTFOUND") {
         errorMessage = "Cannot reach STS server. Please verify your instance URL in Connected Services.";
+      } else if (error.code === "ETIMEDOUT" || error.code === "ECONNABORTED" || errMsg.includes("timeout")) {
+        errorMessage = "STS server timed out. Please try again later.";
       }
       console.error("STS API error:", error?.message || error);
       return { ...emptyResult, source: "error" as const, errorMessage };
