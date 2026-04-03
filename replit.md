@@ -7,7 +7,7 @@ The primary goal is to streamline user interaction with multiple business tools,
 Key capabilities include:
 - User authentication with JWT and 2FA.
 - Per-user credential management for external services, with robust encryption.
-- Integration with Jira, Zoho People, Zoho CRM, Zoho Recruit, Zoho Contracts, STS (Scopic Time System), and Teamwork via dedicated services.
+- Integration with Jira, Zoho People, Zoho CRM, Zoho Recruit, Zoho Contracts, Microsoft Outlook (Email, Calendar, Contacts), STS (Scopic Time System), and Teamwork via dedicated services.
 - AI-powered chat using OpenAI, capable of understanding and executing tool commands.
 - A dashboard for a quick overview of connected services and their data.
 - Role-based access control for administrative functions.
@@ -56,6 +56,7 @@ The project is structured as a pnpm monorepo using TypeScript, Node.js 24, and p
     - **STS (Scopic Time System):** REST API at `https://time.scopicsoftware.com/stsapi`
     - **Jira:** Jira REST API v3
     - **Zoho:** Zoho People API, Zoho CRM API, Zoho Recruit API, Zoho Contracts API (OAuth 2.0 for authentication)
+    - **Microsoft Outlook:** Microsoft Graph API — Mail, Calendar, Contacts (OAuth 2.0 via Azure AD)
     - **Teamwork:** Teamwork API v3
 - **Build Tools:** esbuild, Vite
 - **Package Management:** pnpm
