@@ -1,6 +1,6 @@
 import type { Client } from "@microsoft/microsoft-graph-client";
 
-interface CalendarEvent {
+export interface CalendarEvent {
   subject: string;
   startTime: string;
   endTime: string;
@@ -205,6 +205,30 @@ export async function queryOutlookCalendar(
   }
 
   return { type: "events", events, total: events.length, source: "live" };
+}
+
+export async function getUpcomingEvents(
+  client: Client,
+  userEmail: string,
+  count: number = 5,
+): Promise<CalendarEvent[]> {
+  const now = new Date();
+  const endWindow = new Date(now);
+  endWindow.setDate(endWindow.getDate() + 7);
+
+  const response = await client
+    .api(`/users/${userEmail}/calendarView`)
+    .query({
+      startDateTime: now.toISOString(),
+      endDateTime: endWindow.toISOString(),
+    })
+    .top(count)
+    .orderby("start/dateTime")
+    .select("subject,start,end,location,isAllDay,organizer,showAs")
+    .header("Prefer", 'outlook.timezone="UTC"')
+    .get();
+
+  return (response.value || []).map(mapEvent);
 }
 
 export function formatCalendarResult(result: OutlookCalendarResult, query: string): string {

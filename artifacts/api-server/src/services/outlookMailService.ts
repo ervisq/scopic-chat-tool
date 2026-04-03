@@ -1,6 +1,6 @@
 import type { Client } from "@microsoft/microsoft-graph-client";
 
-interface MailMessage {
+export interface MailMessage {
   subject: string;
   from: string;
   receivedAt: string;
@@ -163,6 +163,20 @@ export async function queryOutlookMail(
     }
     throw err;
   }
+}
+
+export async function getRecentEmails(
+  client: Client,
+  userEmail: string,
+  count: number = 5,
+): Promise<MailMessage[]> {
+  const response = await client
+    .api(`/users/${userEmail}/messages`)
+    .top(count)
+    .select("subject,from,receivedDateTime,bodyPreview,isRead,hasAttachments")
+    .orderby("receivedDateTime desc")
+    .get();
+  return (response.value || []).map(mapMessage);
 }
 
 export function formatMailResult(result: OutlookMailResult, query: string): string {

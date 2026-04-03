@@ -7,6 +7,8 @@ import { queryZohoCrm } from "../services/zohoCrmService";
 import { querySts } from "../services/stsService";
 import { queryTeamwork } from "../services/teamworkService";
 import { getGraphClient, isGraphConfigured } from "../services/microsoftGraphClient";
+import { getRecentEmails } from "../services/outlookMailService";
+import { getUpcomingEvents } from "../services/outlookCalendarService";
 import { db } from "@workspace/db";
 import { users } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
@@ -283,25 +285,12 @@ router.get("/dashboard", async (req, res) => {
       const userEmail = userRow?.email;
 
       if (userEmail) {
+        const client = getGraphClient();
+
         promises.push(
           (async () => {
             try {
-              const client = getGraphClient();
-              const mailRes = await client
-                .api(`/users/${userEmail}/messages`)
-                .top(5)
-                .select("subject,from,receivedDateTime,isRead,hasAttachments")
-                .orderby("receivedDateTime desc")
-                .get();
-
-              const emails = (mailRes.value || []).map((m: any) => ({
-                subject: m.subject || "(No Subject)",
-                from: m.from?.emailAddress?.name || m.from?.emailAddress?.address || "Unknown",
-                receivedAt: m.receivedDateTime || "",
-                isRead: !!m.isRead,
-                hasAttachments: !!m.hasAttachments,
-              }));
-
+              const emails = await getRecentEmails(client, userEmail, 5);
               services.push({
                 key: "outlook_email",
                 name: "Outlook Email",
@@ -322,31 +311,7 @@ router.get("/dashboard", async (req, res) => {
         promises.push(
           (async () => {
             try {
-              const client = getGraphClient();
-              const now = new Date();
-              const endWindow = new Date(now);
-              endWindow.setDate(endWindow.getDate() + 7);
-
-              const calRes = await client
-                .api(`/users/${userEmail}/calendarView`)
-                .query({
-                  startDateTime: now.toISOString(),
-                  endDateTime: endWindow.toISOString(),
-                })
-                .top(5)
-                .orderby("start/dateTime")
-                .select("subject,start,end,location,isAllDay")
-                .header("Prefer", 'outlook.timezone="UTC"')
-                .get();
-
-              const events = (calRes.value || []).map((e: any) => ({
-                subject: e.subject || "(No Title)",
-                startTime: e.start?.dateTime || "",
-                endTime: e.end?.dateTime || "",
-                location: e.location?.displayName || "",
-                isAllDay: !!e.isAllDay,
-              }));
-
+              const events = await getUpcomingEvents(client, userEmail, 5);
               services.push({
                 key: "outlook_calendar",
                 name: "Outlook Calendar",
@@ -368,13 +333,13 @@ router.get("/dashboard", async (req, res) => {
           key: "outlook_email",
           name: "Outlook Email",
           connected: false,
-          error: "Email not found for your account",
+          summary: { status: "Could not find your email address. Please contact an administrator." },
         });
         services.push({
           key: "outlook_calendar",
           name: "Outlook Calendar",
           connected: false,
-          error: "Email not found for your account",
+          summary: { status: "Could not find your email address. Please contact an administrator." },
         });
       }
     } else {
