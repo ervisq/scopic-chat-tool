@@ -154,7 +154,6 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
 
     const oauthEndpoints: Record<string, string> = {
       jira: `${baseUrl}/api/jira/auth-url`,
-      microsoft: `${baseUrl}/api/microsoft/auth-url`,
       zoho: `${baseUrl}/api/zoho/auth-url`,
     };
     const authUrlEndpoint = oauthEndpoints[provider.key] || `${baseUrl}/api/${provider.key}/auth-url`;
@@ -342,7 +341,7 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
                             <button
                               onClick={() => handleOAuthConnect(provider)}
                               disabled={oauthLoading === provider.key}
-                              className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-white disabled:opacity-50 transition-colors text-sm font-medium ${provider.key === "microsoft" ? "bg-sky-500 hover:bg-sky-600" : provider.key === "jira" ? "bg-blue-500 hover:bg-blue-600" : "bg-amber-500 hover:bg-amber-600"}`}
+                              className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-white disabled:opacity-50 transition-colors text-sm font-medium ${provider.key === "jira" ? "bg-blue-500 hover:bg-blue-600" : "bg-amber-500 hover:bg-amber-600"}`}
                             >
                               {oauthLoading === provider.key ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -388,20 +387,6 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
                             </div>
                           )}
 
-                          {connected && provider.key === "microsoft" && (
-                            <div className="space-y-2">
-                              <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                                Connected! Use <span className="font-mono font-semibold">@Outlook</span> in chat to query emails, calendar events, and contacts.
-                              </p>
-                              <button
-                                onClick={() => handleOAuthConnect(provider)}
-                                disabled={oauthLoading === provider.key}
-                                className="text-xs px-2 py-1 rounded bg-sky-500 text-white hover:bg-sky-600 disabled:opacity-50 transition-colors font-medium"
-                              >
-                                {oauthLoading === provider.key ? "..." : "Reconnect"}
-                              </button>
-                            </div>
-                          )}
                         </>
                       ) : (
                         <>
