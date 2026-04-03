@@ -1,11 +1,10 @@
-import { getUserCredentials } from "../lib/credential-store";
-import { getMicrosoftAccessToken } from "./microsoftTokenManager";
+import { getGraphClient, isGraphConfigured } from "./microsoftGraphClient";
 import { queryOutlookMail, formatMailResult } from "./outlookMailService";
 import { queryOutlookCalendar, formatCalendarResult } from "./outlookCalendarService";
 import { queryOutlookContacts, formatContactsResult } from "./outlookContactsService";
-
-const MS_CLIENT_ID = process.env.MICROSOFT_CLIENT_ID || "";
-const MS_CLIENT_SECRET = process.env.MICROSOFT_CLIENT_SECRET || "";
+import { db } from "@workspace/db";
+import { users } from "@workspace/db/schema";
+import { eq } from "drizzle-orm";
 
 type OutlookCategory = "mail" | "calendar" | "contacts";
 
@@ -42,49 +41,53 @@ function detectCategory(query: string): OutlookCategory {
   return "mail";
 }
 
+async function getUserEmail(userId: number): Promise<string | null> {
+  const [user] = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).limit(1);
+  return user?.email || null;
+}
+
 export async function queryOutlookDirect(
   query: string,
   userId: number,
 ): Promise<{ reply: string }> {
-  if (!MS_CLIENT_ID || !MS_CLIENT_SECRET) {
-    return { reply: "Microsoft Outlook integration is not configured on this server. Server admin needs to set MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET." };
+  if (!isGraphConfigured()) {
+    return { reply: "Microsoft Outlook integration is not configured on this server. Server admin needs to set MICROSOFT_TENANT_ID, MICROSOFT_CLIENT_ID, and MICROSOFT_CLIENT_SECRET." };
   }
 
-  const stored = await getUserCredentials(userId, "microsoft");
-  if (!stored) {
-    return { reply: "You haven't connected your Microsoft account yet. Go to Connected Services to link it." };
-  }
-
-  const { refreshToken } = stored.credentials;
-  if (!refreshToken) {
-    return { reply: "Microsoft credentials are incomplete. Please disconnect and reconnect Microsoft in Connected Services." };
+  const userEmail = await getUserEmail(userId);
+  if (!userEmail) {
+    return { reply: "Could not determine your email address. Please contact an administrator." };
   }
 
   try {
-    const accessToken = await getMicrosoftAccessToken(MS_CLIENT_ID, MS_CLIENT_SECRET, refreshToken);
+    const client = getGraphClient();
     const category = detectCategory(query);
 
     switch (category) {
       case "calendar": {
-        const result = await queryOutlookCalendar(accessToken, query);
+        const result = await queryOutlookCalendar(client, userEmail, query);
         return { reply: formatCalendarResult(result, query) };
       }
       case "contacts": {
-        const result = await queryOutlookContacts(accessToken, query);
+        const result = await queryOutlookContacts(client, userEmail, query);
         return { reply: formatContactsResult(result, query) };
       }
       case "mail":
       default: {
-        const result = await queryOutlookMail(accessToken, query);
+        const result = await queryOutlookMail(client, userEmail, query);
         return { reply: formatMailResult(result, query) };
       }
     }
   } catch (err: any) {
-    const status = err?.response?.status;
-    const msg = err?.response?.data?.error?.message || err?.message || String(err);
+    const status = err?.statusCode || err?.response?.status;
+    const msg = err?.message || String(err);
 
-    if (status === 401 || msg.includes("expired") || msg.includes("invalid_grant")) {
-      return { reply: "Microsoft authorization has expired. Please disconnect and reconnect Microsoft in Connected Services." };
+    if (status === 404) {
+      return { reply: `Microsoft Outlook could not find a mailbox for ${userEmail}. Make sure this email has an active Microsoft 365 mailbox.` };
+    }
+
+    if (status === 403) {
+      return { reply: "Microsoft Outlook access denied. Your organization's admin may need to grant the app permission to read your mailbox." };
     }
 
     console.error("Outlook query error:", msg);

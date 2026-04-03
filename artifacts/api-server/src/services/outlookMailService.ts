@@ -1,6 +1,4 @@
-import axios from "axios";
-
-const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
+import type { Client } from "@microsoft/microsoft-graph-client";
 
 interface MailMessage {
   subject: string;
@@ -122,47 +120,47 @@ function buildSearchFilter(query: string): { filter?: string; search?: string; t
 }
 
 export async function queryOutlookMail(
-  accessToken: string,
+  client: Client,
+  userEmail: string,
   query: string,
 ): Promise<OutlookMailResult> {
   const { filter, search, top } = buildSearchFilter(query);
 
-  const params: Record<string, string> = {
-    $top: String(top),
-    $select: "subject,from,receivedDateTime,bodyPreview,isRead,hasAttachments",
-  };
-
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${accessToken}`,
-  };
+  let request = client
+    .api(`/users/${userEmail}/messages`)
+    .top(top)
+    .select("subject,from,receivedDateTime,bodyPreview,isRead,hasAttachments");
 
   if (filter) {
-    params.$filter = filter;
-    params.$orderby = "receivedDateTime desc";
+    request = request.filter(filter);
   }
 
   if (search) {
-    params.$search = search;
-    headers["ConsistencyLevel"] = "eventual";
+    request = request.search(search).header("ConsistencyLevel", "eventual");
   }
 
   if (!search) {
-    params.$orderby = "receivedDateTime desc";
+    request = request.orderby("receivedDateTime desc");
   }
 
-  const url = `${GRAPH_BASE}/me/messages`;
-
   try {
-    const response = await axios.get(url, { headers, params });
-    const messages = (response.data.value || []).map(mapMessage);
+    const response = await request.get();
+    const messages = (response.value || []).map(mapMessage);
     return { type: "emails", messages, total: messages.length, source: "live" };
   } catch (err: any) {
-    if (err?.response?.status === 400 && search) {
-      delete params.$search;
-      delete headers["ConsistencyLevel"];
-      params.$orderby = "receivedDateTime desc";
-      const fallbackResponse = await axios.get(url, { headers, params });
-      const messages = (fallbackResponse.data.value || []).map(mapMessage);
+    if (err?.statusCode === 400 && search) {
+      const fallbackRequest = client
+        .api(`/users/${userEmail}/messages`)
+        .top(top)
+        .select("subject,from,receivedDateTime,bodyPreview,isRead,hasAttachments")
+        .orderby("receivedDateTime desc");
+
+      if (filter) {
+        fallbackRequest.filter(filter);
+      }
+
+      const fallbackResponse = await fallbackRequest.get();
+      const messages = (fallbackResponse.value || []).map(mapMessage);
       return { type: "emails", messages, total: messages.length, source: "live" };
     }
     throw err;

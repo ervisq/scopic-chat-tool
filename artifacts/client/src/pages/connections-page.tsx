@@ -68,15 +68,6 @@ const PROVIDERS: ProviderConfig[] = [
       { key: "apiToken", label: "API Token", type: "password", placeholder: "Your Teamwork API token" },
     ],
   },
-  {
-    name: "Microsoft Outlook",
-    key: "microsoft",
-    color: "bg-sky-500",
-    description: "Connect your Microsoft 365 account to read emails, view calendar events, and look up contacts. Use @Outlook in chat after connecting.",
-    hasInstanceUrl: false,
-    oauth: true,
-    fields: [],
-  },
 ];
 
 export default function ConnectionsPage({ token }: ConnectionsPageProps) {
@@ -130,22 +121,6 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
       window.history.replaceState({}, "", window.location.pathname);
     }
 
-    if (params.get("microsoft_success") === "true") {
-      setMessage({ type: "success", text: "Microsoft connected successfully! Use @Outlook in chat to query emails, calendar, and contacts." });
-      setExpandedProvider("microsoft");
-      window.history.replaceState({}, "", window.location.pathname);
-    } else if (params.get("microsoft_error")) {
-      const errorMap: Record<string, string> = {
-        missing_params: "Microsoft authorization was incomplete. Please try again.",
-        invalid_state: "Session expired. Please log in again and retry.",
-        no_refresh_token: "Microsoft did not grant offline access. Please try again and make sure to accept all permissions.",
-        token_exchange_failed: "Failed to complete Microsoft authorization. Please try again.",
-        access_denied: "Microsoft authorization was denied. Please try again and accept the required permissions.",
-      };
-      const errCode = params.get("microsoft_error") || "";
-      setMessage({ type: "error", text: errorMap[errCode] || `Microsoft connection failed: ${errCode}` });
-      window.history.replaceState({}, "", window.location.pathname);
-    }
 
     fetchConnections();
   }, []);

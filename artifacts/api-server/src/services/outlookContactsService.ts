@@ -1,6 +1,4 @@
-import axios from "axios";
-
-const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
+import type { Client } from "@microsoft/microsoft-graph-client";
 
 interface OutlookContact {
   displayName: string;
@@ -41,7 +39,8 @@ function mapContact(c: any): OutlookContact {
 }
 
 export async function queryOutlookContacts(
-  accessToken: string,
+  client: Client,
+  userEmail: string,
   query: string,
 ): Promise<OutlookContactsResult> {
   const lower = query.toLowerCase();
@@ -50,34 +49,33 @@ export async function queryOutlookContacts(
     .replace(/\s*(contacts?|people|persons?)\s*/gi, "")
     .trim();
 
-  const params: Record<string, string> = {
-    $top: "50",
-    $select: "displayName,givenName,surname,emailAddresses,businessPhones,homePhones,mobilePhone,companyName,jobTitle,department",
-    $orderby: "displayName",
-  };
-
+  const selectFields = "displayName,givenName,surname,emailAddresses,businessPhones,homePhones,mobilePhone,companyName,jobTitle,department";
   const escaped = escapeOData(cleanQuery);
-  if (cleanQuery.length > 2 && !lower.match(/^(all|list|show|my)\s*(contacts?)?$/)) {
-    params.$filter = `startsWith(displayName,'${escaped}') or startsWith(givenName,'${escaped}') or startsWith(surname,'${escaped}')`;
-  }
-
-  const url = `${GRAPH_BASE}/me/contacts`;
+  const needsFilter = cleanQuery.length > 2 && !lower.match(/^(all|list|show|my)\s*(contacts?)?$/);
 
   try {
-    const response = await axios.get(url, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      params,
-    });
+    let request = client
+      .api(`/users/${userEmail}/contacts`)
+      .top(50)
+      .select(selectFields)
+      .orderby("displayName");
 
-    let contacts = (response.data.value || []).map(mapContact);
+    if (needsFilter) {
+      request = request.filter(`startsWith(displayName,'${escaped}') or startsWith(givenName,'${escaped}') or startsWith(surname,'${escaped}')`);
+    }
 
-    if (cleanQuery.length > 2 && contacts.length === 0) {
-      delete params.$filter;
-      const fallbackResponse = await axios.get(url, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        params,
-      });
-      contacts = (fallbackResponse.data.value || []).map(mapContact);
+    const response = await request.get();
+    let contacts = (response.value || []).map(mapContact);
+
+    if (needsFilter && contacts.length === 0) {
+      const fallbackRequest = client
+        .api(`/users/${userEmail}/contacts`)
+        .top(50)
+        .select(selectFields)
+        .orderby("displayName");
+
+      const fallbackResponse = await fallbackRequest.get();
+      contacts = (fallbackResponse.value || []).map(mapContact);
       contacts = contacts.filter((c) => {
         const searchable = `${c.displayName} ${c.email} ${c.company} ${c.jobTitle}`.toLowerCase();
         return searchable.includes(cleanQuery.toLowerCase());
@@ -86,13 +84,15 @@ export async function queryOutlookContacts(
 
     return { type: "contacts", contacts, total: contacts.length, source: "live" };
   } catch (err: any) {
-    if (err?.response?.status === 400 && params.$filter) {
-      delete params.$filter;
-      const response = await axios.get(url, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        params,
-      });
-      let contacts = (response.data.value || []).map(mapContact);
+    if (err?.statusCode === 400 && needsFilter) {
+      const request = client
+        .api(`/users/${userEmail}/contacts`)
+        .top(50)
+        .select(selectFields)
+        .orderby("displayName");
+
+      const response = await request.get();
+      let contacts = (response.value || []).map(mapContact);
       if (cleanQuery.length > 2) {
         contacts = contacts.filter((c) => {
           const searchable = `${c.displayName} ${c.email} ${c.company} ${c.jobTitle}`.toLowerCase();
@@ -111,7 +111,7 @@ export function formatContactsResult(result: OutlookContactsResult, query: strin
   if (result.contacts.length === 0) return `No contacts found.${q}`;
 
   const lines = result.contacts.map((c) => {
-    const parts = [`• ${c.displayName}`];
+    const parts = [`\u2022 ${c.displayName}`];
     if (c.email) parts.push(`Email: ${c.email}`);
     if (c.phone) parts.push(`Phone: ${c.phone}`);
     if (c.jobTitle) parts.push(`Title: ${c.jobTitle}`);

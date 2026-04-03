@@ -1,6 +1,4 @@
-import axios from "axios";
-
-const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
+import type { Client } from "@microsoft/microsoft-graph-client";
 
 interface CalendarEvent {
   subject: string;
@@ -180,27 +178,22 @@ function getDateRange(query: string): { startDateTime: string; endDateTime: stri
 }
 
 export async function queryOutlookCalendar(
-  accessToken: string,
+  client: Client,
+  userEmail: string,
   query: string,
 ): Promise<OutlookCalendarResult> {
   const { startDateTime, endDateTime } = getDateRange(query);
 
-  const url = `${GRAPH_BASE}/me/calendarView`;
-  const response = await axios.get(url, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Prefer: 'outlook.timezone="UTC"',
-    },
-    params: {
-      startDateTime,
-      endDateTime,
-      $top: "50",
-      $orderby: "start/dateTime",
-      $select: "subject,start,end,location,attendees,isAllDay,organizer,showAs",
-    },
-  });
+  const response = await client
+    .api(`/users/${userEmail}/calendarView`)
+    .query({ startDateTime, endDateTime })
+    .top(50)
+    .orderby("start/dateTime")
+    .select("subject,start,end,location,attendees,isAllDay,organizer,showAs")
+    .header("Prefer", 'outlook.timezone="UTC"')
+    .get();
 
-  const events = (response.data.value || []).map(mapEvent);
+  const events = (response.value || []).map(mapEvent);
 
   if (isFreeTimeQuery(query)) {
     const freeSlots = computeFreeSlots(
