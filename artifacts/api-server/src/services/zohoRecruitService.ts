@@ -45,7 +45,7 @@ export interface RecruitInterview {
   jobOpeningName: string;
 }
 
-export type RecruitResultType = "candidates" | "job_openings" | "interviews";
+export type RecruitResultType = "candidates" | "job_openings" | "interviews" | "pipeline";
 
 export interface ZohoRecruitResult {
   type: RecruitResultType;
@@ -121,6 +121,7 @@ function mapInterview(r: Record<string, unknown>): RecruitInterview {
 function detectRecruitModule(query: string): RecruitResultType {
   const lower = query.toLowerCase();
 
+  if (lower.includes("pipeline") || lower.includes("hiring overview") || lower.includes("recruitment summary")) return "pipeline";
   if (lower.includes("interview") || lower.includes("schedule")) return "interviews";
   if (lower.includes("job") || lower.includes("opening") || lower.includes("position") || lower.includes("vacancy") || lower.includes("posting") || lower.includes("hiring for")) return "job_openings";
   return "candidates";
@@ -151,6 +152,13 @@ export async function queryZohoRecruit(
   const moduleType = detectRecruitModule(query);
 
   switch (moduleType) {
+    case "pipeline": {
+      const [candidates, jobOpenings] = await Promise.all([
+        fetchRecruitModule(accessToken, "Candidates", mapCandidate),
+        fetchRecruitModule(accessToken, "Job_Openings", mapJobOpening),
+      ]);
+      return { type: "pipeline", candidates, jobOpenings, total: candidates.length + jobOpenings.length, source: "live" };
+    }
     case "candidates": {
       const candidates = await fetchRecruitModule(accessToken, "Candidates", mapCandidate);
       return { type: "candidates", candidates, total: candidates.length, source: "live" };
@@ -168,6 +176,30 @@ export async function queryZohoRecruit(
 
 export function formatRecruitResult(result: ZohoRecruitResult, query: string): string {
   const q = `\n\nQuery: "${query}"`;
+
+  if (result.type === "pipeline" && result.candidates && result.jobOpenings) {
+    const sections: string[] = [];
+
+    if (result.jobOpenings.length > 0) {
+      const jobLines = result.jobOpenings.map(
+        (j) => `  • ${j.postingTitle} — ${j.department || "N/A"} [${j.jobStatus}] Positions: ${j.numberOfPositions || "1"}${j.assignedRecruiter ? ` | Recruiter: ${j.assignedRecruiter}` : ""}`,
+      );
+      sections.push(`Open Positions (${result.jobOpenings.length}):\n${jobLines.join("\n")}`);
+    }
+
+    if (result.candidates.length > 0) {
+      const statusCounts: Record<string, number> = {};
+      for (const c of result.candidates) {
+        const status = c.candidateStatus || "Unknown";
+        statusCounts[status] = (statusCounts[status] || 0) + 1;
+      }
+      const statusLines = Object.entries(statusCounts).map(([s, n]) => `  • ${s}: ${n}`);
+      sections.push(`Candidates (${result.candidates.length} total) by Status:\n${statusLines.join("\n")}`);
+    }
+
+    if (sections.length === 0) return `No hiring pipeline data found.${q}`;
+    return `Zoho Recruit — Hiring Pipeline:\n\n${sections.join("\n\n")}${q}`;
+  }
 
   if (result.type === "candidates" && result.candidates) {
     if (result.candidates.length === 0) return `No candidates found.${q}`;

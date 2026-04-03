@@ -45,7 +45,7 @@ const PROVIDERS: ProviderConfig[] = [
     name: "Zoho",
     key: "zoho",
     color: "bg-amber-500",
-    description: "Connect your Zoho account to access People (HR) and CRM (Sales) data. Use @ZohoPeople and @ZohoCRM commands in chat after connecting.",
+    description: "Connect your Zoho account to access People (HR), CRM (Sales), Recruit (Hiring), and Contracts data. Use @ZohoPeople, @ZohoCRM, @ZohoRecruit, and @ZohoContracts commands in chat.",
     hasInstanceUrl: false,
     oauth: true,
     fields: [],
@@ -89,7 +89,7 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("zoho_success") === "true") {
-      setMessage({ type: "success", text: "Zoho connected successfully! Use @ZohoPeople and @ZohoCRM in chat." });
+      setMessage({ type: "success", text: "Zoho connected successfully! Use @ZohoPeople, @ZohoCRM, @ZohoRecruit, and @ZohoContracts in chat." });
       setExpandedProvider("zoho");
       window.history.replaceState({}, "", window.location.pathname);
     } else if (params.get("zoho_error")) {
@@ -328,7 +328,7 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
 
                           {connected && (
                             <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                              Connected! Use <span className="font-mono font-semibold">@ZohoPeople</span> for HR data and <span className="font-mono font-semibold">@ZohoCRM</span> for sales data in chat.
+                              Connected! Use <span className="font-mono font-semibold">@ZohoPeople</span>, <span className="font-mono font-semibold">@ZohoCRM</span>, <span className="font-mono font-semibold">@ZohoRecruit</span>, and <span className="font-mono font-semibold">@ZohoContracts</span> in chat.
                             </p>
                           )}
                         </>
