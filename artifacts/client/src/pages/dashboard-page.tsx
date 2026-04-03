@@ -625,13 +625,6 @@ function CompactServiceCard({
   }
 
   const summaryText = getSummaryText();
-  const hasDetailData = service.connected && !service.error && (
-    (service.key === "jira" && (service.summary?.tickets?.length ?? 0) > 0) ||
-    (service.key === "teamwork" && (service.summary?.tasks?.length ?? 0) > 0) ||
-    (service.key === "zoho_people" && service.summary?.status) ||
-    (service.key === "zoho_crm" && service.summary?.status)
-  );
-
   return (
     <div className={`rounded-2xl border ${style.borderColor} bg-card overflow-hidden transition-all hover:shadow-md`}>
       <div className="p-4">
@@ -670,24 +663,21 @@ function CompactServiceCard({
             )}
 
             <div className="flex gap-2">
-              {hasDetailData && (
-                <button
-                  onClick={onViewMore}
-                  className={`flex items-center justify-center gap-1.5 flex-1 py-2 rounded-xl text-xs font-medium transition-colors ${style.bgColor} ${style.textColor} hover:opacity-80`}
-                >
-                  <Eye className="w-3.5 h-3.5" />
-                  View more
-                </button>
-              )}
+              <button
+                onClick={onViewMore}
+                className={`flex items-center justify-center gap-1.5 flex-1 py-2 rounded-xl text-xs font-medium transition-colors ${style.bgColor} ${style.textColor} hover:opacity-80`}
+              >
+                <Eye className="w-3.5 h-3.5" />
+                View more
+              </button>
               {EXTERNAL_URLS[service.key] && (
                 <a
                   href={EXTERNAL_URLS[service.key]!(service.instanceUrl)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`flex items-center justify-center gap-1.5 ${hasDetailData ? "px-3" : "flex-1"} py-2 rounded-xl text-xs font-medium transition-colors ${style.bgColor} ${style.textColor} hover:opacity-80`}
+                  className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors ${style.bgColor} ${style.textColor} hover:opacity-80`}
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
-                  {!hasDetailData && `Open ${service.name}`}
                 </a>
               )}
             </div>
@@ -781,11 +771,17 @@ function ServiceDrawer({
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          {service.key === "jira" && service.summary?.tickets && (
+          {service.error && (
+            <div className="rounded-lg bg-muted/30 px-4 py-3">
+              <p className="text-xs text-muted-foreground italic">{service.error}</p>
+            </div>
+          )}
+
+          {service.key === "jira" && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Your Tasks</p>
-                {service.summary.openTickets !== undefined && (
+                {service.summary?.openTickets !== undefined && (
                   <span className={`text-xs font-semibold ${style.textColor}`}>{service.summary.openTickets} open</span>
                 )}
               </div>
@@ -809,14 +805,17 @@ function ServiceDrawer({
                   )}
                 </>
               )}
+              <p className="text-[11px] text-muted-foreground">
+                Use <span className="font-mono font-semibold">@JIRA</span> in chat for more
+              </p>
             </div>
           )}
 
-          {service.key === "teamwork" && service.summary?.tasks && (
+          {service.key === "teamwork" && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Your Tasks</p>
-                {service.summary.activeTasks !== undefined && (
+                {service.summary?.activeTasks !== undefined && (
                   <span className={`text-xs font-semibold ${style.textColor}`}>{service.summary.activeTasks} active</span>
                 )}
               </div>
@@ -840,13 +839,18 @@ function ServiceDrawer({
                   )}
                 </>
               )}
+              <p className="text-[11px] text-muted-foreground">
+                Use <span className="font-mono font-semibold">@Teamwork</span> in chat for more
+              </p>
             </div>
           )}
 
-          {(service.key === "zoho_people" || service.key === "zoho_crm") && service.summary?.status && (
-            <div className={`rounded-lg ${style.bgColor} px-4 py-3`}>
-              <p className={`text-sm font-medium ${style.textColor}`}>{service.summary.status}</p>
-              <p className="text-xs text-muted-foreground mt-1">
+          {(service.key === "zoho_people" || service.key === "zoho_crm") && (
+            <div className="space-y-3">
+              <div className={`rounded-lg ${style.bgColor} px-4 py-3`}>
+                <p className={`text-sm font-medium ${style.textColor}`}>{service.summary?.status || "Connected"}</p>
+              </div>
+              <p className="text-xs text-muted-foreground">
                 Use <span className="font-mono font-semibold">@{service.key === "zoho_people" ? "ZohoPeople" : "ZohoCRM"}</span> in chat to query data
               </p>
             </div>
