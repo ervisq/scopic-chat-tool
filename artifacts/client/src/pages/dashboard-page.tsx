@@ -719,11 +719,15 @@ function ServiceDrawer({
 
   useEffect(() => {
     if (!service) return;
+    document.body.style.overflow = "hidden";
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
     }
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = "";
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [service, onClose]);
 
   if (!service) return null;
@@ -738,8 +742,6 @@ function ServiceDrawer({
   const teamworkProjects = service.key === "teamwork" && service.summary?.tasks
     ? [...new Set(service.summary.tasks.map((t) => t.projectName).filter(Boolean))].sort()
     : [];
-
-  const availableProjects = jiraProjects.length > 0 ? jiraProjects : teamworkProjects;
 
   const filteredJiraTickets = service.summary?.tickets
     ? (projectFilter ? service.summary.tickets.filter((t) => t.project === projectFilter) : service.summary.tickets)
