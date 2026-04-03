@@ -34,12 +34,10 @@ const PROVIDERS: ProviderConfig[] = [
     name: "JIRA",
     key: "jira",
     color: "bg-blue-500",
-    description: "Connect your Atlassian Jira account to query tickets, track issues, and manage projects.",
-    hasInstanceUrl: true,
-    fields: [
-      { key: "email", label: "Email", type: "email", placeholder: "you@company.com" },
-      { key: "apiToken", label: "API Token", type: "password", placeholder: "Your Jira API token" },
-    ],
+    description: "Connect your Atlassian Jira account to query tickets, track issues, and manage projects. Use @JIRA in chat after connecting.",
+    hasInstanceUrl: false,
+    oauth: true,
+    fields: [],
   },
   {
     name: "Zoho",
@@ -97,6 +95,24 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+
+    if (params.get("jira_success") === "true") {
+      setMessage({ type: "success", text: "Jira connected successfully! Use @JIRA in chat to query tickets and issues." });
+      setExpandedProvider("jira");
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (params.get("jira_error")) {
+      const errorMap: Record<string, string> = {
+        missing_params: "Jira authorization was incomplete. Please try again.",
+        invalid_state: "Session expired. Please log in again and retry.",
+        no_refresh_token: "Jira did not grant offline access. Please try again and make sure to accept all permissions.",
+        no_jira_site: "No Jira sites found for your Atlassian account. Make sure you have access to at least one Jira project.",
+        token_exchange_failed: "Failed to complete Jira authorization. Please try again.",
+        access_denied: "Jira authorization was denied. Please try again and accept the required permissions.",
+      };
+      const errCode = params.get("jira_error") || "";
+      setMessage({ type: "error", text: errorMap[errCode] || `Jira connection failed: ${errCode}` });
+      window.history.replaceState({}, "", window.location.pathname);
+    }
 
     if (params.get("zoho_success") === "true") {
       setMessage({ type: "success", text: "Zoho connected successfully! Use @ZohoPeople, @ZohoCRM, @ZohoRecruit, and @ZohoContracts in chat." });
@@ -161,9 +177,12 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
     setOauthLoading(provider.key);
     setMessage(null);
 
-    const authUrlEndpoint = provider.key === "microsoft"
-      ? `${baseUrl}/api/microsoft/auth-url`
-      : `${baseUrl}/api/zoho/auth-url`;
+    const oauthEndpoints: Record<string, string> = {
+      jira: `${baseUrl}/api/jira/auth-url`,
+      microsoft: `${baseUrl}/api/microsoft/auth-url`,
+      zoho: `${baseUrl}/api/zoho/auth-url`,
+    };
+    const authUrlEndpoint = oauthEndpoints[provider.key] || `${baseUrl}/api/${provider.key}/auth-url`;
 
     try {
       const res = await fetch(authUrlEndpoint, {
@@ -348,7 +367,7 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
                             <button
                               onClick={() => handleOAuthConnect(provider)}
                               disabled={oauthLoading === provider.key}
-                              className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-white disabled:opacity-50 transition-colors text-sm font-medium ${provider.key === "microsoft" ? "bg-sky-500 hover:bg-sky-600" : "bg-amber-500 hover:bg-amber-600"}`}
+                              className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-white disabled:opacity-50 transition-colors text-sm font-medium ${provider.key === "microsoft" ? "bg-sky-500 hover:bg-sky-600" : provider.key === "jira" ? "bg-blue-500 hover:bg-blue-600" : "bg-amber-500 hover:bg-amber-600"}`}
                             >
                               {oauthLoading === provider.key ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -357,6 +376,21 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
                               )}
                               Connect with {provider.name}
                             </button>
+                          )}
+
+                          {connected && provider.key === "jira" && (
+                            <div className="space-y-2">
+                              <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                                Connected! Use <span className="font-mono font-semibold">@JIRA</span> in chat to query tickets, track issues, and manage projects.
+                              </p>
+                              <button
+                                onClick={() => handleOAuthConnect(provider)}
+                                disabled={oauthLoading === provider.key}
+                                className="text-xs px-2 py-1 rounded bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 transition-colors font-medium"
+                              >
+                                {oauthLoading === provider.key ? "..." : "Reconnect"}
+                              </button>
+                            </div>
                           )}
 
                           {connected && provider.key === "zoho" && (

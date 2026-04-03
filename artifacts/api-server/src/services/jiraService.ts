@@ -1,5 +1,6 @@
 import axios from "axios";
-import { getUserCredentials } from "../lib/credential-store";
+import { getUserCredentials, saveUserCredentials } from "../lib/credential-store";
+import { getJiraAccessToken } from "./jiraTokenManager";
 
 export interface JiraTicket {
   id: string;
@@ -41,7 +42,59 @@ function isValidJiraUrl(url: string): boolean {
   }
 }
 
-async function queryJiraLive(query: string, instanceUrl: string, email: string, apiToken: string): Promise<JiraServiceResult> {
+function parseIssues(issues: any[]): JiraTicket[] {
+  return issues.map((issue: any) => ({
+    id: issue.key,
+    title: issue.fields?.summary || "No title",
+    status: mapStatus(issue.fields?.status),
+    assignee: mapAssignee(issue.fields?.assignee),
+    priority: mapPriority(issue.fields?.priority),
+  }));
+}
+
+async function queryJiraOAuth(query: string, cloudId: string, refreshToken: string, userId: number): Promise<JiraServiceResult> {
+  const clientId = process.env.JIRA_CLIENT_ID || "";
+  const clientSecret = process.env.JIRA_CLIENT_SECRET || "";
+
+  if (!clientId || !clientSecret) {
+    throw new Error("Jira OAuth is not configured on this server");
+  }
+
+  const tokenResult = await getJiraAccessToken(clientId, clientSecret, refreshToken);
+
+  if (tokenResult.newRefreshToken) {
+    await saveUserCredentials(userId, "jira", {
+      refreshToken: tokenResult.newRefreshToken,
+      cloudId,
+      authType: "oauth",
+    });
+  }
+
+  const accessToken = tokenResult.accessToken;
+  const jql = buildJql(query);
+
+  const response = await axios.post(
+    `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql`,
+    {
+      jql,
+      maxResults: 20,
+      fields: ["summary", "status", "assignee", "priority", "issuetype"],
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+    },
+  );
+
+  const issues = response.data?.issues || [];
+  const tickets = parseIssues(issues);
+  return { tickets, total: tickets.length, source: "live" };
+}
+
+async function queryJiraBasicAuth(query: string, instanceUrl: string, email: string, apiToken: string): Promise<JiraServiceResult> {
   if (!isValidJiraUrl(instanceUrl)) {
     throw new Error("Invalid Jira instance URL");
   }
@@ -68,15 +121,7 @@ async function queryJiraLive(query: string, instanceUrl: string, email: string, 
   );
 
   const issues = response.data?.issues || [];
-
-  const tickets: JiraTicket[] = issues.map((issue: any) => ({
-    id: issue.key,
-    title: issue.fields?.summary || "No title",
-    status: mapStatus(issue.fields?.status),
-    assignee: mapAssignee(issue.fields?.assignee),
-    priority: mapPriority(issue.fields?.priority),
-  }));
-
+  const tickets = parseIssues(issues);
   return { tickets, total: tickets.length, source: "live" };
 }
 
@@ -102,16 +147,6 @@ function buildJql(query: string): string {
   return `text ~ "${query.replace(/"/g, '\\"')}" ORDER BY updated DESC`;
 }
 
-function getMockTickets(): JiraTicket[] {
-  return [
-    { id: "JIRA-101", title: "Fix login bug", status: "In Progress", assignee: "Alice", priority: "High" },
-    { id: "JIRA-102", title: "Update dashboard UI", status: "To Do", assignee: "Bob", priority: "Medium" },
-    { id: "JIRA-103", title: "API rate limiting", status: "Done", assignee: "Carol", priority: "High" },
-    { id: "JIRA-104", title: "Add unit tests for auth module", status: "To Do", assignee: "Alice", priority: "Low" },
-    { id: "JIRA-105", title: "Database migration script", status: "In Progress", assignee: "Dave", priority: "Medium" },
-  ];
-}
-
 export async function queryJira(query: string, userId?: number): Promise<JiraServiceResult> {
   if (!userId) {
     return { tickets: [], total: 0, source: "not_connected" };
@@ -122,18 +157,29 @@ export async function queryJira(query: string, userId?: number): Promise<JiraSer
     return { tickets: [], total: 0, source: "not_connected" };
   }
 
-  const { email, apiToken } = cred.credentials;
-  if (!email || !apiToken || !cred.instanceUrl) {
-    return { tickets: [], total: 0, source: "not_connected" };
+  const { refreshToken, cloudId, authType, email, apiToken } = cred.credentials;
+
+  if (authType === "oauth" && refreshToken && cloudId) {
+    try {
+      return await queryJiraOAuth(query, cloudId, refreshToken, userId);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error("Jira OAuth API error:", msg);
+      return { tickets: [], total: 0, source: "error" };
+    }
   }
 
-  try {
-    return await queryJiraLive(query, cred.instanceUrl, email, apiToken);
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : String(error);
-    console.error("Jira API error:", msg);
-    return { tickets: [], total: 0, source: "error" };
+  if (email && apiToken && cred.instanceUrl) {
+    try {
+      return await queryJiraBasicAuth(query, cred.instanceUrl, email, apiToken);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error("Jira Basic Auth API error:", msg);
+      return { tickets: [], total: 0, source: "error" };
+    }
   }
+
+  return { tickets: [], total: 0, source: "not_connected" };
 }
 
 export function formatJiraResult(result: JiraServiceResult, query: string): string {
