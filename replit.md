@@ -56,7 +56,7 @@ The project is structured as a pnpm monorepo using TypeScript, Node.js 24, and p
     - **STS (Scopic Time System):** REST API at `https://time.scopicsoftware.com/stsapi`
     - **Jira:** Jira REST API v3
     - **Zoho:** Zoho People API, Zoho CRM API, Zoho Recruit API, Zoho Contracts API (OAuth 2.0 for authentication)
-    - **Microsoft Outlook:** Microsoft Graph API — Mail, Calendar, Contacts (OAuth 2.0 via Azure AD)
+    - **Microsoft Outlook:** Microsoft Graph API — Mail, Calendar, Contacts (App-level SDK with `ClientSecretCredential` + `@microsoft/microsoft-graph-client`; no per-user OAuth needed, uses `/users/{email}/` endpoints)
     - **Teamwork:** Teamwork API v3
 - **Build Tools:** esbuild, Vite
 - **Package Management:** pnpm
