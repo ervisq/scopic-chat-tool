@@ -32,20 +32,7 @@ export interface StsWeekResult {
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 const STS_DEFAULT_API = "https://time.scopicsoftware.com/stsapi";
-const STS_FALLBACK_API = "https://api-tt.scopicsoftware.com/stsapi";
 const STS_ALLOWED_HOSTS = ["time.scopicsoftware.com", "api-tt.scopicsoftware.com"];
-
-function resolveInstanceBase(instanceUrl?: string | null): string {
-  if (!instanceUrl) return "https://time.scopicsoftware.com";
-  try {
-    const parsed = new URL(instanceUrl);
-    if (parsed.protocol !== "https:") return "https://time.scopicsoftware.com";
-    if (!STS_ALLOWED_HOSTS.includes(parsed.hostname)) return "https://time.scopicsoftware.com";
-    return `${parsed.protocol}//${parsed.hostname}`;
-  } catch {
-    return "https://time.scopicsoftware.com";
-  }
-}
 
 function resolveStsApiUrl(instanceUrl?: string | null): string {
   if (!instanceUrl) return STS_DEFAULT_API;
@@ -80,47 +67,21 @@ function getWeekRange(weekOffset: number = 0): { startISO: string; endISO: strin
   return { startISO: fmt(monday), endISO: fmt(sunday) };
 }
 
-async function establishStsSession(instanceUrl: string, token: string): Promise<string> {
-  const pageUrl = `${instanceUrl}/time?token%5Btoken_id%5D=${encodeURIComponent(token)}`;
-  console.log("[STS] Establishing session via:", pageUrl.replace(token, "***TOKEN***"));
-
-  const response = await axios.get(pageUrl, {
-    timeout: 15000,
-    maxRedirects: 5,
-    validateStatus: (status) => status < 400,
-    headers: {
-      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      "User-Agent": "Mozilla/5.0 (compatible; WorkHub/1.0)",
-    },
-  });
-
-  const setCookieHeaders = response.headers["set-cookie"];
-  if (!setCookieHeaders || setCookieHeaders.length === 0) {
-    throw new Error("No session cookies returned from STS");
-  }
-
-  const cookies = setCookieHeaders
-    .map((c: string) => c.split(";")[0])
-    .join("; ");
-
-  console.log("[STS] Session established, cookies obtained:", cookies.substring(0, 80) + "...");
-  return cookies;
-}
-
 async function stsApiGet(
   apiUrl: string,
   endpoint: string,
-  cookies: string,
+  tokenId: string,
   params: Record<string, string | number> = {},
-): Promise<any> {
+): Promise<unknown> {
   const url = `${apiUrl}${endpoint}`;
   const queryParams: Record<string, string | number> = {
     ...params,
+    token_id: tokenId,
     limit: params.limit ?? 0,
     offset: params.offset ?? 0,
   };
 
-  console.log("[STS] API request:", url, "params:", JSON.stringify(queryParams));
+  console.log("[STS] API request:", url, "params:", JSON.stringify({ ...queryParams, token_id: "***" }));
 
   try {
     const response = await axios.get(url, {
@@ -128,15 +89,15 @@ async function stsApiGet(
       timeout: 15000,
       headers: {
         Accept: "application/json",
-        Cookie: cookies,
       },
     });
     console.log("[STS] Response status:", response.status, "data type:", typeof response.data, Array.isArray(response.data) ? `array(${response.data.length})` : "");
     return response.data;
-  } catch (error: any) {
-    console.error("[STS] Request failed:", error?.response?.status, error?.response?.statusText);
-    if (error?.response?.data) {
-      console.error("[STS] Response body:", JSON.stringify(error.response.data).substring(0, 500));
+  } catch (error: unknown) {
+    const axErr = error as { response?: { status?: number; statusText?: string; data?: unknown }; message?: string };
+    console.error("[STS] Request failed:", axErr.response?.status, axErr.response?.statusText);
+    if (axErr.response?.data) {
+      console.error("[STS] Response body:", JSON.stringify(axErr.response.data).substring(0, 500));
     }
     throw error;
   }
@@ -171,103 +132,88 @@ export async function querySts(query: string, userId?: number): Promise<StsWeekR
     return { ...emptyResult, source: "error", errorMessage: "STS token not configured. Please update your STS connection with your token." };
   }
 
-  const instanceBase = resolveInstanceBase(cred.instanceUrl);
-  const primaryApi = resolveStsApiUrl(cred.instanceUrl);
+  const apiUrl = resolveStsApiUrl(cred.instanceUrl);
   const weekOffset = parseWeekOffset(query);
   const { startISO, endISO } = getWeekRange(weekOffset);
 
-  const attempts = [{ base: instanceBase, api: primaryApi }];
-  if (primaryApi !== STS_FALLBACK_API) {
-    attempts.push({ base: "https://api-tt.scopicsoftware.com", api: STS_FALLBACK_API });
-  }
+  try {
+    const timeData = await stsApiGet(apiUrl, "/time", tokenId, {
+      startDate: startISO,
+      endDate: endISO,
+    });
 
-  for (const { base, api: apiUrl } of attempts) {
-    try {
-      const cookies = await establishStsSession(base, tokenId);
-      const timeData = await stsApiGet(apiUrl, "/time", cookies, {
-        startDate: startISO,
-        endDate: endISO,
-      });
+    const rawEntries: any[] = Array.isArray(timeData) ? timeData : ((timeData as any)?.data || (timeData as any)?.items || (timeData as any)?.results || []);
 
-      const rawEntries: any[] = Array.isArray(timeData) ? timeData : (timeData?.data || timeData?.items || timeData?.results || []);
+    const entries: StsTimeEntry[] = rawEntries.map((e: any) => ({
+      id: e.id || e.Id || 0,
+      date: e.date || e.Date || e.workDate || "",
+      hours: parseFloat(e.hours || e.Hours || e.duration || e.totalHours || "0"),
+      projectName: e.projectName || e.ProjectName || e.project?.name || e.project || "Unknown",
+      projectId: e.projectId || e.ProjectId || e.project?.id || 0,
+      taskName: e.taskName || e.TaskName || e.task?.name || e.task || undefined,
+      workType: e.workTypeName || e.WorkTypeName || e.workType || undefined,
+      description: e.description || e.Description || e.notes || undefined,
+    }));
 
-      const entries: StsTimeEntry[] = rawEntries.map((e: any) => ({
-        id: e.id || e.Id || 0,
-        date: e.date || e.Date || e.workDate || "",
-        hours: parseFloat(e.hours || e.Hours || e.duration || e.totalHours || "0"),
-        projectName: e.projectName || e.ProjectName || e.project?.name || e.project || "Unknown",
-        projectId: e.projectId || e.ProjectId || e.project?.id || 0,
-        taskName: e.taskName || e.TaskName || e.task?.name || e.task || undefined,
-        workType: e.workTypeName || e.WorkTypeName || e.workType || undefined,
-        description: e.description || e.Description || e.notes || undefined,
-      }));
+    const totalHours = entries.reduce((sum, e) => sum + e.hours, 0);
 
-      const totalHours = entries.reduce((sum, e) => sum + e.hours, 0);
-
-      const dayMap = new Map<string, number>();
-      for (const entry of entries) {
-        const dateStr = entry.date.split("T")[0];
-        dayMap.set(dateStr, (dayMap.get(dateStr) || 0) + entry.hours);
-      }
-
-      const byDay: StsDaySummary[] = [];
-      const start = new Date(startISO);
-      for (let i = 0; i < 7; i++) {
-        const d = new Date(start);
-        d.setDate(start.getDate() + i);
-        const dateStr = d.toISOString().split("T")[0];
-        byDay.push({
-          date: dateStr,
-          dayName: DAY_NAMES[d.getDay()],
-          hours: dayMap.get(dateStr) || 0,
-        });
-      }
-
-      const projectMap = new Map<string, number>();
-      for (const entry of entries) {
-        projectMap.set(entry.projectName, (projectMap.get(entry.projectName) || 0) + entry.hours);
-      }
-      const byProject = Array.from(projectMap.entries())
-        .map(([projectName, hours]) => ({ projectName, hours }))
-        .sort((a, b) => b.hours - a.hours);
-
-      return {
-        entries,
-        totalHours: Math.round(totalHours * 100) / 100,
-        byDay,
-        byProject,
-        weekStart: startISO,
-        weekEnd: endISO,
-        source: "live" as const,
-      };
-    } catch (error: any) {
-      const status = error?.response?.status;
-      const isConnectionError = error.code === "ECONNREFUSED" || error.code === "ENOTFOUND" || (status && status >= 500);
-
-      if (isConnectionError && apiUrl !== attempts[attempts.length - 1].api) {
-        console.warn(`STS primary API (${apiUrl}) failed, trying fallback...`);
-        continue;
-      }
-
-      let errorMessage = "Failed to fetch STS data. Please check your token and try again.";
-      const errMsg = (error?.message || "").toLowerCase();
-      if (status === 401 || status === 403) {
-        errorMessage = "STS token expired or invalid. Please update your token in Connected Services.";
-      } else if (errMsg.includes("redirect") || errMsg.includes("maximum number of redirects")) {
-        errorMessage = "STS token appears expired or invalid (login redirect loop). Please update your token in Connected Services.";
-      } else if (status === 404) {
-        errorMessage = "STS API endpoint not found. Please verify your instance URL in Connected Services.";
-      } else if (error.code === "ECONNREFUSED" || error.code === "ENOTFOUND") {
-        errorMessage = "Cannot reach STS server. Please verify your instance URL in Connected Services.";
-      } else if (error.code === "ETIMEDOUT" || error.code === "ECONNABORTED" || errMsg.includes("timeout")) {
-        errorMessage = "STS server timed out. Please try again later.";
-      }
-      console.error("STS API error:", error?.message || error);
-      return { ...emptyResult, source: "error" as const, errorMessage };
+    const dayMap = new Map<string, number>();
+    for (const entry of entries) {
+      const dateStr = entry.date.split("T")[0];
+      dayMap.set(dateStr, (dayMap.get(dateStr) || 0) + entry.hours);
     }
-  }
 
-  return { ...emptyResult, source: "error" as const, errorMessage: "Failed to connect to STS. Please try again later." };
+    const byDay: StsDaySummary[] = [];
+    const start = new Date(startISO);
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      const dateStr = d.toISOString().split("T")[0];
+      byDay.push({
+        date: dateStr,
+        dayName: DAY_NAMES[d.getDay()],
+        hours: dayMap.get(dateStr) || 0,
+      });
+    }
+
+    const projectMap = new Map<string, number>();
+    for (const entry of entries) {
+      projectMap.set(entry.projectName, (projectMap.get(entry.projectName) || 0) + entry.hours);
+    }
+    const byProject = Array.from(projectMap.entries())
+      .map(([projectName, hours]) => ({ projectName, hours }))
+      .sort((a, b) => b.hours - a.hours);
+
+    return {
+      entries,
+      totalHours: Math.round(totalHours * 100) / 100,
+      byDay,
+      byProject,
+      weekStart: startISO,
+      weekEnd: endISO,
+      source: "live" as const,
+    };
+  } catch (error: unknown) {
+    const axErr = error as { response?: { status?: number; data?: { message?: string } }; code?: string; message?: string };
+    const status = axErr.response?.status;
+    const errMsg = (axErr.message || "").toLowerCase();
+    const apiMessage = axErr.response?.data?.message || "";
+
+    let errorMessage = "Failed to fetch STS data. Please check your token and try again.";
+    if (status === 401 || status === 403) {
+      errorMessage = apiMessage.toLowerCase().includes("invalid token")
+        ? "STS token is invalid. Please update your token in Connected Services."
+        : "STS token expired or unauthorized. Please update your token in Connected Services.";
+    } else if (status === 404) {
+      errorMessage = "STS API endpoint not found. Please verify your instance URL in Connected Services.";
+    } else if (axErr.code === "ECONNREFUSED" || axErr.code === "ENOTFOUND") {
+      errorMessage = "Cannot reach STS server. Please verify your instance URL in Connected Services.";
+    } else if (axErr.code === "ETIMEDOUT" || axErr.code === "ECONNABORTED" || errMsg.includes("timeout")) {
+      errorMessage = "STS server timed out. Please try again later.";
+    }
+    console.error("[STS] API error:", axErr.message || error);
+    return { ...emptyResult, source: "error" as const, errorMessage };
+  }
 }
 
 export function formatStsResult(result: StsWeekResult, query: string): string {
