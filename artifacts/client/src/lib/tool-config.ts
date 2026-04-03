@@ -64,6 +64,14 @@ export const TOOLS: ToolConfig[] = [
     textColor: "text-purple-600 dark:text-purple-400",
     borderColor: "border-purple-500/30",
   },
+  {
+    name: "Outlook",
+    label: "Outlook",
+    description: "Email, calendar events, contacts from Microsoft 365",
+    bgColor: "bg-sky-500/15",
+    textColor: "text-sky-600 dark:text-sky-400",
+    borderColor: "border-sky-500/30",
+  },
 ];
 
 export function getToolConfig(toolName: string): ToolConfig | undefined {

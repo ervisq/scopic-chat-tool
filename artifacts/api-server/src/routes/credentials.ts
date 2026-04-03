@@ -7,7 +7,7 @@ import {
 } from "../lib/credential-store";
 import { getAuthUser } from "../middlewares/auth";
 
-const VALID_PROVIDERS = ["jira", "zoho", "sts", "teamwork"];
+const VALID_PROVIDERS = ["jira", "zoho", "sts", "teamwork", "microsoft"];
 
 const router: IRouter = Router();
 

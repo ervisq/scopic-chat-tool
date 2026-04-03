@@ -70,6 +70,15 @@ const PROVIDERS: ProviderConfig[] = [
       { key: "apiToken", label: "API Token", type: "password", placeholder: "Your Teamwork API token" },
     ],
   },
+  {
+    name: "Microsoft Outlook",
+    key: "microsoft",
+    color: "bg-sky-500",
+    description: "Connect your Microsoft 365 account to read emails, view calendar events, and look up contacts. Use @Outlook in chat after connecting.",
+    hasInstanceUrl: false,
+    oauth: true,
+    fields: [],
+  },
 ];
 
 export default function ConnectionsPage({ token }: ConnectionsPageProps) {
@@ -88,6 +97,7 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+
     if (params.get("zoho_success") === "true") {
       setMessage({ type: "success", text: "Zoho connected successfully! Use @ZohoPeople, @ZohoCRM, @ZohoRecruit, and @ZohoContracts in chat." });
       setExpandedProvider("zoho");
@@ -103,6 +113,24 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
       setMessage({ type: "error", text: errorMap[errCode] || `Zoho connection failed: ${errCode}` });
       window.history.replaceState({}, "", window.location.pathname);
     }
+
+    if (params.get("microsoft_success") === "true") {
+      setMessage({ type: "success", text: "Microsoft connected successfully! Use @Outlook in chat to query emails, calendar, and contacts." });
+      setExpandedProvider("microsoft");
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (params.get("microsoft_error")) {
+      const errorMap: Record<string, string> = {
+        missing_params: "Microsoft authorization was incomplete. Please try again.",
+        invalid_state: "Session expired. Please log in again and retry.",
+        no_refresh_token: "Microsoft did not grant offline access. Please try again and make sure to accept all permissions.",
+        token_exchange_failed: "Failed to complete Microsoft authorization. Please try again.",
+        access_denied: "Microsoft authorization was denied. Please try again and accept the required permissions.",
+      };
+      const errCode = params.get("microsoft_error") || "";
+      setMessage({ type: "error", text: errorMap[errCode] || `Microsoft connection failed: ${errCode}` });
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+
     fetchConnections();
   }, []);
 
@@ -132,8 +160,13 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
   async function handleOAuthConnect(provider: ProviderConfig) {
     setOauthLoading(provider.key);
     setMessage(null);
+
+    const authUrlEndpoint = provider.key === "microsoft"
+      ? `${baseUrl}/api/microsoft/auth-url`
+      : `${baseUrl}/api/zoho/auth-url`;
+
     try {
-      const res = await fetch(`${baseUrl}/api/zoho/auth-url`, {
+      const res = await fetch(authUrlEndpoint, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -141,7 +174,7 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
         window.location.href = data.authUrl;
       } else {
         const err = await res.json();
-        setMessage({ type: "error", text: err.message || "Failed to start Zoho authorization" });
+        setMessage({ type: "error", text: err.message || `Failed to start ${provider.name} authorization` });
         setOauthLoading(null);
       }
     } catch {
@@ -315,18 +348,18 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
                             <button
                               onClick={() => handleOAuthConnect(provider)}
                               disabled={oauthLoading === provider.key}
-                              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 transition-colors text-sm font-medium"
+                              className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-white disabled:opacity-50 transition-colors text-sm font-medium ${provider.key === "microsoft" ? "bg-sky-500 hover:bg-sky-600" : "bg-amber-500 hover:bg-amber-600"}`}
                             >
                               {oauthLoading === provider.key ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
                               ) : (
                                 <ExternalLink className="w-4 h-4" />
                               )}
-                              Connect with Zoho
+                              Connect with {provider.name}
                             </button>
                           )}
 
-                          {connected && (
+                          {connected && provider.key === "zoho" && (
                             <div className="space-y-2">
                               <p className="text-xs text-emerald-600 dark:text-emerald-400">
                                 Connected! Use <span className="font-mono font-semibold">@ZohoPeople</span>, <span className="font-mono font-semibold">@ZohoCRM</span>, <span className="font-mono font-semibold">@ZohoRecruit</span>, and <span className="font-mono font-semibold">@ZohoContracts</span> in chat.
@@ -343,6 +376,21 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
                                   {oauthLoading === provider.key ? "..." : "Reconnect"}
                                 </button>
                               </div>
+                            </div>
+                          )}
+
+                          {connected && provider.key === "microsoft" && (
+                            <div className="space-y-2">
+                              <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                                Connected! Use <span className="font-mono font-semibold">@Outlook</span> in chat to query emails, calendar events, and contacts.
+                              </p>
+                              <button
+                                onClick={() => handleOAuthConnect(provider)}
+                                disabled={oauthLoading === provider.key}
+                                className="text-xs px-2 py-1 rounded bg-sky-500 text-white hover:bg-sky-600 disabled:opacity-50 transition-colors font-medium"
+                              >
+                                {oauthLoading === provider.key ? "..." : "Reconnect"}
+                              </button>
                             </div>
                           )}
                         </>
