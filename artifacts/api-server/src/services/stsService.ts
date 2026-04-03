@@ -126,7 +126,8 @@ export async function querySts(query: string, userId?: number): Promise<StsWeekR
   const cred = await getUserCredentials(userId, "sts");
   if (!cred) return emptyResult;
 
-  const tokenId = cred.credentials.tokenId || cred.credentials.apiKey;
+  const rawToken = cred.credentials.tokenId || cred.credentials.apiKey || cred.credentials.token || "";
+  const tokenId = typeof rawToken === "string" ? rawToken.trim() : String(rawToken).trim();
 
   if (!tokenId) {
     return { ...emptyResult, source: "error", errorMessage: "STS token not configured. Please update your STS connection with your token." };
