@@ -327,9 +327,23 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
                           )}
 
                           {connected && (
-                            <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                              Connected! Use <span className="font-mono font-semibold">@ZohoPeople</span>, <span className="font-mono font-semibold">@ZohoCRM</span>, <span className="font-mono font-semibold">@ZohoRecruit</span>, and <span className="font-mono font-semibold">@ZohoContracts</span> in chat.
-                            </p>
+                            <div className="space-y-2">
+                              <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                                Connected! Use <span className="font-mono font-semibold">@ZohoPeople</span>, <span className="font-mono font-semibold">@ZohoCRM</span>, <span className="font-mono font-semibold">@ZohoRecruit</span>, and <span className="font-mono font-semibold">@ZohoContracts</span> in chat.
+                              </p>
+                              <div className="flex items-start gap-2 p-2 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                                <p className="text-xs text-amber-700 dark:text-amber-300">
+                                  If Recruit or Contracts commands return errors, reconnect Zoho to grant updated permissions.
+                                </p>
+                                <button
+                                  onClick={() => handleOAuthConnect(provider)}
+                                  disabled={oauthLoading === provider.key}
+                                  className="shrink-0 text-xs px-2 py-1 rounded bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 transition-colors font-medium"
+                                >
+                                  {oauthLoading === provider.key ? "..." : "Reconnect"}
+                                </button>
+                              </div>
+                            </div>
                           )}
                         </>
                       ) : (
