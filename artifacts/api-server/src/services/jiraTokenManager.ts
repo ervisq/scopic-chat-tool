@@ -107,15 +107,22 @@ export async function getJiraAccessToken(
 
   const expiresInMs = (expires_in || 3600) * 1000;
 
-  const newCacheKey = rotatedRefreshToken ? deriveCacheKey(clientId, rotatedRefreshToken) : cacheKey;
+  const isRotated = rotatedRefreshToken && rotatedRefreshToken !== refreshToken;
+  const newCacheKey = isRotated ? deriveCacheKey(clientId, rotatedRefreshToken) : cacheKey;
 
   await setCachedToken(newCacheKey, {
     accessToken: access_token,
     expiresAt: Date.now() + expiresInMs,
   });
 
+  if (isRotated) {
+    await db.execute(
+      sql`DELETE FROM zoho_token_cache WHERE cache_key = ${cacheKey}`
+    ).catch(() => {});
+  }
+
   return {
     accessToken: access_token,
-    newRefreshToken: rotatedRefreshToken && rotatedRefreshToken !== refreshToken ? rotatedRefreshToken : undefined,
+    newRefreshToken: isRotated ? rotatedRefreshToken : undefined,
   };
 }

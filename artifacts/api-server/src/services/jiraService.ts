@@ -52,7 +52,7 @@ function parseIssues(issues: any[]): JiraTicket[] {
   }));
 }
 
-async function queryJiraOAuth(query: string, cloudId: string, refreshToken: string, userId: number): Promise<JiraServiceResult> {
+async function queryJiraOAuth(query: string, cloudId: string, refreshToken: string, userId: number, instanceUrl: string | null): Promise<JiraServiceResult> {
   const clientId = process.env.JIRA_CLIENT_ID || "";
   const clientSecret = process.env.JIRA_CLIENT_SECRET || "";
 
@@ -67,7 +67,7 @@ async function queryJiraOAuth(query: string, cloudId: string, refreshToken: stri
       refreshToken: tokenResult.newRefreshToken,
       cloudId,
       authType: "oauth",
-    });
+    }, instanceUrl);
   }
 
   const accessToken = tokenResult.accessToken;
@@ -161,7 +161,7 @@ export async function queryJira(query: string, userId?: number): Promise<JiraSer
 
   if (authType === "oauth" && refreshToken && cloudId) {
     try {
-      return await queryJiraOAuth(query, cloudId, refreshToken, userId);
+      return await queryJiraOAuth(query, cloudId, refreshToken, userId, cred.instanceUrl);
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       console.error("Jira OAuth API error:", msg);
