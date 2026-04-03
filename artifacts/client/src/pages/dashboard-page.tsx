@@ -249,6 +249,8 @@ function ServiceCard({
   const style = SERVICE_STYLES[service.key] || SERVICE_STYLES.jira;
   const externalUrl = EXTERNAL_URLS[service.key]?.(service.instanceUrl) || "#";
   const [projectFilter, setProjectFilter] = useState("");
+  const [expanded, setExpanded] = useState(false);
+  const DISPLAY_LIMIT = 5;
 
   const jiraProjects = useMemo(() =>
     service.key === "jira" && service.summary?.tickets
@@ -360,21 +362,31 @@ function ServiceCard({
                     {projectFilter ? "No tasks in this project" : "No tasks found"}
                   </p>
                 ) : (
-                  filteredJiraTickets.map((t) => (
-                    <div
-                      key={t.id}
-                      className="flex items-center gap-2 py-1.5 px-2 rounded-lg bg-muted/30"
-                    >
-                      <PriorityDot priority={t.priority} />
-                      <span className="text-xs font-mono text-muted-foreground shrink-0">
-                        {t.id}
-                      </span>
-                      <span className="text-xs text-foreground truncate flex-1">
-                        {t.title}
-                      </span>
-                      <StatusBadge status={t.status} />
-                    </div>
-                  ))
+                  <>
+                    {(expanded ? filteredJiraTickets : filteredJiraTickets.slice(0, DISPLAY_LIMIT)).map((t) => (
+                      <div
+                        key={t.id}
+                        className="flex items-center gap-2 py-1.5 px-2 rounded-lg bg-muted/30"
+                      >
+                        <PriorityDot priority={t.priority} />
+                        <span className="text-xs font-mono text-muted-foreground shrink-0">
+                          {t.id}
+                        </span>
+                        <span className="text-xs text-foreground truncate flex-1">
+                          {t.title}
+                        </span>
+                        <StatusBadge status={t.status} />
+                      </div>
+                    ))}
+                    {filteredJiraTickets.length > DISPLAY_LIMIT && (
+                      <button
+                        onClick={() => setExpanded(!expanded)}
+                        className={`text-[11px] font-medium ${style.textColor} hover:underline`}
+                      >
+                        {expanded ? "Show less" : `Show all ${filteredJiraTickets.length} tasks`}
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -402,21 +414,31 @@ function ServiceCard({
                     {projectFilter ? "No tasks in this project" : "No tasks found"}
                   </p>
                 ) : (
-                  filteredTeamworkTasks.map((t) => (
-                    <div
-                      key={t.id}
-                      className="flex items-center gap-2 py-1.5 px-2 rounded-lg bg-muted/30"
-                    >
-                      <PriorityDot priority={t.priority} />
-                      <span className="text-xs font-mono text-muted-foreground shrink-0">
-                        #{t.id}
-                      </span>
-                      <span className="text-xs text-foreground truncate flex-1">
-                        {t.title}
-                      </span>
-                      <StatusBadge status={t.status} />
-                    </div>
-                  ))
+                  <>
+                    {(expanded ? filteredTeamworkTasks : filteredTeamworkTasks.slice(0, DISPLAY_LIMIT)).map((t) => (
+                      <div
+                        key={t.id}
+                        className="flex items-center gap-2 py-1.5 px-2 rounded-lg bg-muted/30"
+                      >
+                        <PriorityDot priority={t.priority} />
+                        <span className="text-xs font-mono text-muted-foreground shrink-0">
+                          #{t.id}
+                        </span>
+                        <span className="text-xs text-foreground truncate flex-1">
+                          {t.title}
+                        </span>
+                        <StatusBadge status={t.status} />
+                      </div>
+                    ))}
+                    {filteredTeamworkTasks.length > DISPLAY_LIMIT && (
+                      <button
+                        onClick={() => setExpanded(!expanded)}
+                        className={`text-[11px] font-medium ${style.textColor} hover:underline`}
+                      >
+                        {expanded ? "Show less" : `Show all ${filteredTeamworkTasks.length} tasks`}
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             )}

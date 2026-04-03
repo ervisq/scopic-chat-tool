@@ -68,7 +68,7 @@ router.get("/dashboard", async (req, res) => {
                 summary: {
                   totalTickets: result.total,
                   openTickets: openTickets.length,
-                  tickets: result.tickets.slice(0, 5).map((t) => ({
+                  tickets: result.tickets.map((t) => ({
                     id: t.id,
                     title: t.title,
                     status: t.status,
@@ -206,7 +206,7 @@ router.get("/dashboard", async (req, res) => {
                   weekStart: result.weekStart,
                   weekEnd: result.weekEnd,
                   daysSummary: daysSummary || "No hours logged yet",
-                  byProject: result.byProject.slice(0, 3).map((p) => ({
+                  byProject: result.byProject.map((p) => ({
                     name: p.projectName,
                     hours: p.hours,
                   })),
@@ -257,7 +257,7 @@ router.get("/dashboard", async (req, res) => {
                   totalTasks: result.total,
                   activeTasks: activeTasks.length,
                   status: `${activeTasks.length} active task${activeTasks.length !== 1 ? "s" : ""}`,
-                  tasks: tasks.slice(0, 5).map((t) => ({
+                  tasks: tasks.map((t) => ({
                     id: t.id,
                     title: t.name,
                     status: t.status,
