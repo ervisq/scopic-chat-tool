@@ -9,25 +9,17 @@ export type Message = {
   toolName?: string;
 };
 
-function parseToolFromMessage(message: string): string | undefined {
-  const match = message.trim().match(/^@([a-zA-Z0-9_-]+)\s+/);
-  return match ? match[1] : undefined;
-}
-
 export function useChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const sendMessageMutation = useSendMessage();
 
   const sendMessage = useCallback(
     (text: string) => {
-      const toolName = parseToolFromMessage(text);
-
       const userMessage: Message = {
         id: crypto.randomUUID(),
         text,
         sender: "user",
         timestamp: new Date(),
-        toolName,
       };
 
       setMessages((prev) => [...prev, userMessage]);
@@ -38,7 +30,7 @@ export function useChat() {
         },
         {
           onSuccess: (response) => {
-            const botToolName = response.toolCommand?.tool || toolName;
+            const botToolName = response.toolCommand?.tool;
             const botMessage: Message = {
               id: crypto.randomUUID(),
               text: response.reply,
@@ -49,6 +41,14 @@ export function useChat() {
               toolName: botToolName,
             };
             setMessages((prev) => [...prev, botMessage]);
+
+            if (botToolName) {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === userMessage.id ? { ...m, toolName: botToolName } : m,
+                ),
+              );
+            }
           },
           onError: (error) => {
             console.error("Failed to send message:", error);
