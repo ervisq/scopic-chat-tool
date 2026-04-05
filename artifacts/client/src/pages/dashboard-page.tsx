@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import {
   MessageSquare,
   ExternalLink,
@@ -12,8 +12,6 @@ import {
   Paperclip,
   MapPin,
   Filter,
-  ChevronLeft,
-  ChevronRight,
   X,
   Clock,
   Eye,
