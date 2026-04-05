@@ -8,7 +8,8 @@
     "build": "tsx ./build.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "migrate:roles": "tsx ./src/scripts/migrate-roles.ts",
-    "seed:test-users": "NODE_ENV=development tsx ./src/scripts/seed-test-users.ts"
+    "seed:test-users": "NODE_ENV=development tsx ./src/scripts/seed-test-users.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "@azure/identity": "^4.13.1",
