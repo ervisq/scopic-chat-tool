@@ -625,6 +625,12 @@ function CompactServiceCard({
   }
 
   const summaryText = getSummaryText();
+  const PREVIEW_LIMIT = 5;
+  const previewTickets = service.key === "jira" ? (service.summary?.tickets || []).slice(0, PREVIEW_LIMIT) : [];
+  const previewTasks = service.key === "teamwork" ? (service.summary?.tasks || []).slice(0, PREVIEW_LIMIT) : [];
+  const totalTickets = service.summary?.tickets?.length || 0;
+  const totalTasks = service.summary?.tasks?.length || 0;
+
   return (
     <div className={`rounded-2xl border ${style.borderColor} bg-card overflow-hidden transition-all hover:shadow-md`}>
       <div className="p-4">
@@ -659,6 +665,38 @@ function CompactServiceCard({
                 <p className={`text-xs font-medium ${service.error ? "text-muted-foreground italic" : style.textColor}`}>
                   {summaryText}
                 </p>
+              </div>
+            )}
+
+            {previewTickets.length > 0 && (
+              <div className="space-y-1">
+                {previewTickets.map((t) => (
+                  <div key={t.id} className="flex items-center gap-1.5 py-1 px-2 rounded-lg bg-muted/30">
+                    <PriorityDot priority={t.priority} />
+                    <span className="text-[10px] font-mono text-muted-foreground shrink-0">{t.id}</span>
+                    <span className="text-[10px] text-foreground truncate flex-1">{t.title}</span>
+                    <StatusBadge status={t.status} />
+                  </div>
+                ))}
+                {totalTickets > PREVIEW_LIMIT && (
+                  <p className="text-[10px] text-muted-foreground text-center">+{totalTickets - PREVIEW_LIMIT} more</p>
+                )}
+              </div>
+            )}
+
+            {previewTasks.length > 0 && (
+              <div className="space-y-1">
+                {previewTasks.map((t) => (
+                  <div key={t.id} className="flex items-center gap-1.5 py-1 px-2 rounded-lg bg-muted/30">
+                    <PriorityDot priority={t.priority} />
+                    <span className="text-[10px] font-mono text-muted-foreground shrink-0">#{t.id}</span>
+                    <span className="text-[10px] text-foreground truncate flex-1">{t.title}</span>
+                    <StatusBadge status={t.status} />
+                  </div>
+                ))}
+                {totalTasks > PREVIEW_LIMIT && (
+                  <p className="text-[10px] text-muted-foreground text-center">+{totalTasks - PREVIEW_LIMIT} more</p>
+                )}
               </div>
             )}
 
