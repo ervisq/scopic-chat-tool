@@ -62,7 +62,9 @@ export async function getAIResponse(
   if (toolContext) {
     messages.push({
       role: "user",
-      content: `The user used the @${toolContext.tool} tool with the query: "${toolContext.query}"
+      content: `The user said: "${userMessage}"
+
+The system resolved this to the @${toolContext.tool} tool with the query: "${toolContext.query}"
 
 Here is the data retrieved from ${toolContext.tool}:
 ${toolContext.data}

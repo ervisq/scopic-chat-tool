@@ -7,6 +7,29 @@ import type { ChatHistoryEntry } from "../services/aiService";
 import { trackUsage } from "../lib/usage-tracker";
 import { getAuthUser } from "../middlewares/auth";
 
+const TOOL_NAMES_LOWER = new Set([
+  "jira", "zohopeople", "zohocrm", "zohorecruit", "zohocontracts",
+  "sts", "teamwork", "outlook",
+]);
+
+function isLikelyToolConfirmation(message: string): boolean {
+  const stripped = message.trim().replace(/[.,!?]/g, "").toLowerCase();
+  const words = stripped.split(/\s+/).filter(Boolean);
+  if (words.length > 4) return false;
+
+  if (words.length <= 2 && TOOL_NAMES_LOWER.has(words.join(""))) return true;
+
+  const prefixes = ["use", "try", "check", "in", "from", "go with", "let's use", "via"];
+  for (const prefix of prefixes) {
+    if (stripped.startsWith(prefix + " ")) {
+      const rest = stripped.slice(prefix.length + 1).trim();
+      if (TOOL_NAMES_LOWER.has(rest.replace(/\s+/g, ""))) return true;
+    }
+  }
+
+  return false;
+}
+
 const router: IRouter = Router();
 
 router.post("/chat", async (req, res) => {
@@ -20,14 +43,25 @@ router.post("/chat", async (req, res) => {
 
     let toolCommand = parseToolCommand(parsed.message);
 
-    if (!toolCommand && history.length > 0) {
-      try {
-        const resolved = await resolveToolFromHistory(parsed.message, history);
-        if (resolved) {
-          toolCommand = { tool: resolved.tool, query: resolved.query };
+    if (history.length > 0) {
+      if (!toolCommand) {
+        try {
+          const resolved = await resolveToolFromHistory(parsed.message, history);
+          if (resolved) {
+            toolCommand = { tool: resolved.tool, query: resolved.query };
+          }
+        } catch (err) {
+          console.error("Tool resolution from history failed:", err);
         }
-      } catch (err) {
-        console.error("Tool resolution from history failed:", err);
+      } else if (isLikelyToolConfirmation(parsed.message)) {
+        try {
+          const resolved = await resolveToolFromHistory(parsed.message, history);
+          if (resolved) {
+            toolCommand = { tool: resolved.tool, query: resolved.query };
+          }
+        } catch (err) {
+          console.error("Tool resolution from history (confirmation) failed:", err);
+        }
       }
     }
 
