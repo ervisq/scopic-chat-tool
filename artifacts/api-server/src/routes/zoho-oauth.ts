@@ -11,6 +11,22 @@ const ZOHO_CLIENT_SECRET = process.env.ZOHO_CLIENT_SECRET || "";
 const ZOHO_ACCOUNTS_URL = "https://accounts.zoho.com";
 const ZOHO_SCOPES = "ZohoPeople.forms.ALL,ZohoCRM.modules.ALL,ZohoCRM.settings.ALL,ZohoRecruit.modules.ALL,ZohoRecruit.settings.ALL,ZohoContracts.contracts.ALL";
 
+const API_DOMAIN_TO_ACCOUNTS: Record<string, string> = {
+  "https://www.zohoapis.com": "https://accounts.zoho.com",
+  "https://www.zohoapis.in": "https://accounts.zoho.in",
+  "https://www.zohoapis.eu": "https://accounts.zoho.eu",
+  "https://www.zohoapis.com.au": "https://accounts.zoho.com.au",
+  "https://www.zohoapis.jp": "https://accounts.zoho.jp",
+  "https://www.zohoapis.com.cn": "https://accounts.zoho.com.cn",
+  "https://www.zohoapis.ca": "https://accounts.zohocloud.ca",
+};
+
+function deriveAccountsDomain(apiDomain?: string): string {
+  if (!apiDomain) return ZOHO_ACCOUNTS_URL;
+  const normalized = apiDomain.replace(/\/$/, "").toLowerCase();
+  return API_DOMAIN_TO_ACCOUNTS[normalized] || ZOHO_ACCOUNTS_URL;
+}
+
 const pendingStates = new Map<string, { userId: number; expiresAt: number }>();
 const STATE_TTL_MS = 10 * 60 * 1000;
 
@@ -109,7 +125,7 @@ router.get("/zoho/callback", async (req, res) => {
       { headers: { "Content-Type": "application/x-www-form-urlencoded" } },
     );
 
-    const { access_token, refresh_token } = tokenResponse.data;
+    const { access_token, refresh_token, api_domain } = tokenResponse.data;
 
     if (!refresh_token) {
       console.error("Zoho OAuth: no refresh token received", tokenResponse.data);
@@ -117,10 +133,13 @@ router.get("/zoho/callback", async (req, res) => {
       return;
     }
 
+    const accountsDomain = deriveAccountsDomain(api_domain);
+
     await saveUserCredentials(userId, "zoho", {
       refreshToken: refresh_token,
       modules: "people,crm,recruit,contracts",
-      accountsDomain: ZOHO_ACCOUNTS_URL,
+      accountsDomain,
+      apiDomain: api_domain || "https://www.zohoapis.com",
     });
 
     res.redirect(`${frontendUrl}?zoho_success=true`);

@@ -1,5 +1,6 @@
 import axios from "axios";
 import { getZohoAccessToken, ZohoPermissionError } from "./zohoTokenManager";
+import { getContractsBaseUrl } from "./zohoDomainUtils";
 
 export interface ZohoContract {
   id: string;
@@ -21,7 +22,6 @@ export interface ZohoContractResult {
   source: "live" | "error";
 }
 
-const CONTRACTS_BASE = "https://contracts.zoho.com/api/v1";
 const DEFAULT_LIMIT = 200;
 
 function str(val: unknown): string {
@@ -55,9 +55,10 @@ export async function queryZohoContracts(
   domain?: string,
 ): Promise<ZohoContractResult> {
   const accessToken = await getZohoAccessToken(clientId, clientSecret, refreshToken, domain);
+  const contractsBase = getContractsBaseUrl(domain || "https://accounts.zoho.com");
 
   try {
-    const response = await axios.get(`${CONTRACTS_BASE}/contracts`, {
+    const response = await axios.get(`${contractsBase}/contracts`, {
       params: { limit: DEFAULT_LIMIT },
       headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
     });

@@ -1,5 +1,6 @@
 import axios from "axios";
 import { getZohoAccessToken, ZohoPermissionError } from "./zohoTokenManager";
+import { getRecruitBaseUrl } from "./zohoDomainUtils";
 
 export interface RecruitCandidate {
   id: string;
@@ -56,7 +57,6 @@ export interface ZohoRecruitResult {
   source: "live" | "error";
 }
 
-const RECRUIT_BASE = "https://recruit.zoho.com/recruit/v2";
 const DEFAULT_LIMIT = 200;
 
 function str(val: unknown): string {
@@ -131,9 +131,10 @@ async function fetchRecruitModule<T>(
   accessToken: string,
   module: string,
   mapper: (record: Record<string, unknown>) => T,
+  recruitBase: string,
 ): Promise<T[]> {
   try {
-    const response = await axios.get(`${RECRUIT_BASE}/${module}`, {
+    const response = await axios.get(`${recruitBase}/${module}`, {
       params: { per_page: DEFAULT_LIMIT },
       headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
     });
@@ -159,26 +160,27 @@ export async function queryZohoRecruit(
   domain?: string,
 ): Promise<ZohoRecruitResult> {
   const accessToken = await getZohoAccessToken(clientId, clientSecret, refreshToken, domain);
+  const recruitBase = getRecruitBaseUrl(domain || "https://accounts.zoho.com");
   const moduleType = detectRecruitModule(query);
 
   switch (moduleType) {
     case "pipeline": {
       const [candidates, jobOpenings] = await Promise.all([
-        fetchRecruitModule(accessToken, "Candidates", mapCandidate),
-        fetchRecruitModule(accessToken, "Job_Openings", mapJobOpening),
+        fetchRecruitModule(accessToken, "Candidates", mapCandidate, recruitBase),
+        fetchRecruitModule(accessToken, "Job_Openings", mapJobOpening, recruitBase),
       ]);
       return { type: "pipeline", candidates, jobOpenings, total: candidates.length + jobOpenings.length, source: "live" };
     }
     case "candidates": {
-      const candidates = await fetchRecruitModule(accessToken, "Candidates", mapCandidate);
+      const candidates = await fetchRecruitModule(accessToken, "Candidates", mapCandidate, recruitBase);
       return { type: "candidates", candidates, total: candidates.length, source: "live" };
     }
     case "job_openings": {
-      const jobOpenings = await fetchRecruitModule(accessToken, "Job_Openings", mapJobOpening);
+      const jobOpenings = await fetchRecruitModule(accessToken, "Job_Openings", mapJobOpening, recruitBase);
       return { type: "job_openings", jobOpenings, total: jobOpenings.length, source: "live" };
     }
     case "interviews": {
-      const interviews = await fetchRecruitModule(accessToken, "Interviews", mapInterview);
+      const interviews = await fetchRecruitModule(accessToken, "Interviews", mapInterview, recruitBase);
       return { type: "interviews", interviews, total: interviews.length, source: "live" };
     }
   }
