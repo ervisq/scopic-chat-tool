@@ -3,6 +3,7 @@ import { queryZohoPeople, formatPeopleResult } from "./zohoPeopleService";
 import { queryZohoCrm, formatCrmResult } from "./zohoCrmService";
 import { queryZohoRecruit, formatRecruitResult } from "./zohoRecruitService";
 import { queryZohoContracts, formatContractsResult } from "./zohoContractsService";
+import { clearTokenCache } from "./zohoTokenManager";
 
 export interface ZohoDirectResult {
   reply: string;
@@ -116,6 +117,15 @@ export async function queryZohoRecruitDirect(query: string, userId?: number): Pr
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("Zoho Recruit API error:", msg);
+
+    if (msg.includes("access denied") || msg.includes("401") || msg.includes("403") || msg.includes("400")) {
+      await clearTokenCache(clientId, refreshToken);
+      return {
+        reply: "Zoho Recruit access denied — your Zoho connection needs updated permissions. Please go to Connected Services, click 'Update' on the Zoho card, then click 'Reconnect' to grant Recruit access.",
+        source: "error",
+      };
+    }
+
     return {
       reply: `Error querying Zoho Recruit: ${msg}. Please check your connection in Connected Services.`,
       source: "error",
@@ -142,6 +152,15 @@ export async function queryZohoContractsDirect(query: string, userId?: number): 
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("Zoho Contracts API error:", msg);
+
+    if (msg.includes("access denied") || msg.includes("401") || msg.includes("403") || msg.includes("400")) {
+      await clearTokenCache(clientId, refreshToken);
+      return {
+        reply: "Zoho Contracts access denied — your Zoho connection needs updated permissions. Please go to Connected Services, click 'Update' on the Zoho card, then click 'Reconnect' to grant Contracts access.",
+        source: "error",
+      };
+    }
+
     return {
       reply: `Error querying Zoho Contracts: ${msg}. Please check your connection in Connected Services.`,
       source: "error",

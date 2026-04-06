@@ -100,6 +100,12 @@ export async function queryZohoContracts(
     if (axios.isAxiosError(err) && err.response?.status === 404) {
       return { contracts: [], total: 0, source: "live" };
     }
+    if (axios.isAxiosError(err) && [400, 401, 403].includes(err.response?.status || 0)) {
+      throw new Error(
+        "Zoho Contracts access denied — your Zoho connection may not include Contracts permissions. " +
+        "Please go to Connected Services, click 'Update' on the Zoho card, and click 'Reconnect' to grant updated permissions."
+      );
+    }
     throw err;
   }
 }

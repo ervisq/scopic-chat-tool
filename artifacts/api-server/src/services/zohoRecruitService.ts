@@ -132,13 +132,23 @@ async function fetchRecruitModule<T>(
   module: string,
   mapper: (record: Record<string, unknown>) => T,
 ): Promise<T[]> {
-  const response = await axios.get(`${RECRUIT_BASE}/${module}`, {
-    params: { per_page: DEFAULT_LIMIT },
-    headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
-  });
+  try {
+    const response = await axios.get(`${RECRUIT_BASE}/${module}`, {
+      params: { per_page: DEFAULT_LIMIT },
+      headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+    });
 
-  const records = response.data?.data || [];
-  return records.map(mapper);
+    const records = response.data?.data || [];
+    return records.map(mapper);
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err) && [400, 401, 403].includes(err.response?.status || 0)) {
+      throw new Error(
+        "Zoho Recruit access denied — your Zoho connection may not include Recruit permissions. " +
+        "Please go to Connected Services, click 'Update' on the Zoho card, and click 'Reconnect' to grant updated permissions."
+      );
+    }
+    throw err;
+  }
 }
 
 export async function queryZohoRecruit(
