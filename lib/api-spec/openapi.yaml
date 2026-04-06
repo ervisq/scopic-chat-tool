@@ -257,8 +257,25 @@ components:
       properties:
         message:
           type: string
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatHistoryEntry"
       required:
         - message
+    ChatHistoryEntry:
+      type: object
+      properties:
+        role:
+          type: string
+          enum:
+            - user
+            - assistant
+        content:
+          type: string
+      required:
+        - role
+        - content
     ToolCommand:
       type: object
       properties:

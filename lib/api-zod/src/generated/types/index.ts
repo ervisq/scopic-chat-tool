@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./chatHistoryEntry";
+export * from "./chatHistoryEntryRole";
 export * from "./chatRequest";
 export * from "./chatResponse";
 export * from "./connectionInfo";

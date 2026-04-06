@@ -2,7 +2,8 @@ import { Router, type IRouter } from "express";
 import { SendMessageBody, SendMessageResponse } from "@workspace/api-zod";
 import { parseToolCommand } from "../lib/parse-tool-command";
 import { routeToolCommand } from "../lib/tool-handlers";
-import { getAIResponse } from "../services/aiService";
+import { getAIResponse, resolveToolFromHistory } from "../services/aiService";
+import type { ChatHistoryEntry } from "../services/aiService";
 import { trackUsage } from "../lib/usage-tracker";
 import { getAuthUser } from "../middlewares/auth";
 
@@ -11,8 +12,24 @@ const router: IRouter = Router();
 router.post("/chat", async (req, res) => {
   try {
     const parsed = SendMessageBody.parse(req.body);
-    const toolCommand = parseToolCommand(parsed.message);
     const authUser = getAuthUser(req);
+
+    const history: ChatHistoryEntry[] = (parsed.history || [])
+      .slice(-20)
+      .map((h) => ({ role: h.role as "user" | "assistant", content: h.content }));
+
+    let toolCommand = parseToolCommand(parsed.message);
+
+    if (!toolCommand && history.length > 0) {
+      try {
+        const resolved = await resolveToolFromHistory(parsed.message, history);
+        if (resolved) {
+          toolCommand = { tool: resolved.tool, query: resolved.query };
+        }
+      } catch (err) {
+        console.error("Tool resolution from history failed:", err);
+      }
+    }
 
     trackUsage(authUser.email, toolCommand?.tool || null, parsed.message);
 
@@ -24,12 +41,12 @@ router.post("/chat", async (req, res) => {
           tool: toolCommand.tool,
           query: toolCommand.query,
           data: toolResult.reply,
-        });
+        }, history);
       } catch {
         reply = toolResult.reply;
       }
     } else {
-      reply = await getAIResponse(parsed.message);
+      reply = await getAIResponse(parsed.message, undefined, history);
     }
 
     const data = SendMessageResponse.parse({

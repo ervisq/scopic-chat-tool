@@ -57,6 +57,14 @@ export const GetMeResponse = zod.object({
  */
 export const SendMessageBody = zod.object({
   message: zod.string(),
+  history: zod
+    .array(
+      zod.object({
+        role: zod.enum(["user", "assistant"]),
+        content: zod.string(),
+      }),
+    )
+    .optional(),
 });
 
 export const SendMessageResponse = zod.object({

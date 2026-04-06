@@ -34,8 +34,22 @@ export interface ErrorResponse {
   message: string;
 }
 
+export type ChatHistoryEntryRole =
+  (typeof ChatHistoryEntryRole)[keyof typeof ChatHistoryEntryRole];
+
+export const ChatHistoryEntryRole = {
+  user: "user",
+  assistant: "assistant",
+} as const;
+
+export interface ChatHistoryEntry {
+  role: ChatHistoryEntryRole;
+  content: string;
+}
+
 export interface ChatRequest {
   message: string;
+  history?: ChatHistoryEntry[];
 }
 
 export interface ToolCommand {

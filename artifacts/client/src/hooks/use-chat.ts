@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useSendMessage } from "@workspace/api-client-react";
 
 export type Message = {
@@ -9,9 +9,14 @@ export type Message = {
   toolName?: string;
 };
 
+const MAX_HISTORY = 20;
+
 export function useChat() {
   const [messages, setMessages] = useState<Message[]>([]);
+  const messagesRef = useRef<Message[]>([]);
   const sendMessageMutation = useSendMessage();
+
+  messagesRef.current = messages;
 
   const sendMessage = useCallback(
     (text: string) => {
@@ -24,9 +29,16 @@ export function useChat() {
 
       setMessages((prev) => [...prev, userMessage]);
 
+      const history = messagesRef.current
+        .slice(-MAX_HISTORY)
+        .map((m) => ({
+          role: m.sender === "user" ? ("user" as const) : ("assistant" as const),
+          content: m.text,
+        }));
+
       sendMessageMutation.mutate(
         {
-          data: { message: text },
+          data: { message: text, history },
         },
         {
           onSuccess: (response) => {
