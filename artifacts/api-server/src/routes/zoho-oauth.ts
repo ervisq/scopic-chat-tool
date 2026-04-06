@@ -120,6 +120,7 @@ router.get("/zoho/callback", async (req, res) => {
     await saveUserCredentials(userId, "zoho", {
       refreshToken: refresh_token,
       modules: "people,crm,recruit,contracts",
+      accountsDomain: ZOHO_ACCOUNTS_URL,
     });
 
     res.redirect(`${frontendUrl}?zoho_success=true`);

@@ -3,6 +3,15 @@ import crypto from "crypto";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 
+export class ZohoPermissionError extends Error {
+  public readonly httpStatus: number;
+  constructor(message: string, httpStatus: number) {
+    super(message);
+    this.name = "ZohoPermissionError";
+    this.httpStatus = httpStatus;
+  }
+}
+
 interface CachedToken {
   accessToken: string;
   expiresAt: number;

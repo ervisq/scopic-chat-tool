@@ -1,5 +1,5 @@
 import axios from "axios";
-import { getZohoAccessToken } from "./zohoTokenManager";
+import { getZohoAccessToken, ZohoPermissionError } from "./zohoTokenManager";
 
 export interface RecruitCandidate {
   id: string;
@@ -141,10 +141,10 @@ async function fetchRecruitModule<T>(
     const records = response.data?.data || [];
     return records.map(mapper);
   } catch (err: unknown) {
-    if (axios.isAxiosError(err) && [400, 401, 403].includes(err.response?.status || 0)) {
-      throw new Error(
-        "Zoho Recruit access denied — your Zoho connection may not include Recruit permissions. " +
-        "Please go to Connected Services, click 'Update' on the Zoho card, and click 'Reconnect' to grant updated permissions."
+    if (axios.isAxiosError(err) && [401, 403].includes(err.response?.status || 0)) {
+      throw new ZohoPermissionError(
+        "Zoho Recruit access denied — your Zoho connection may not include Recruit permissions.",
+        err.response?.status || 401,
       );
     }
     throw err;

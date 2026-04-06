@@ -1,5 +1,5 @@
 import axios from "axios";
-import { getZohoAccessToken } from "./zohoTokenManager";
+import { getZohoAccessToken, ZohoPermissionError } from "./zohoTokenManager";
 
 export interface ZohoContract {
   id: string;
@@ -101,9 +101,9 @@ export async function queryZohoContracts(
       return { contracts: [], total: 0, source: "live" };
     }
     if (axios.isAxiosError(err) && [400, 401, 403].includes(err.response?.status || 0)) {
-      throw new Error(
-        "Zoho Contracts access denied — your Zoho connection may not include Contracts permissions. " +
-        "Please go to Connected Services, click 'Update' on the Zoho card, and click 'Reconnect' to grant updated permissions."
+      throw new ZohoPermissionError(
+        "Zoho Contracts access denied — your Zoho connection may not include Contracts permissions.",
+        err.response?.status || 401,
       );
     }
     throw err;
