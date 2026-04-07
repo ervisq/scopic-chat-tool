@@ -286,8 +286,15 @@ function extractProjectFilter(query: string): string | undefined {
   const onMatch = query.match(/\bon\s+([A-Z][A-Za-z0-9 _-]+?)(?:\s+(?:this|last|next|in|from|during|today|yesterday|week|month|year|january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec|\d{4})|$)/i);
   if (onMatch) {
     const candidate = onMatch[1].trim();
-    const skipWords = new Set(["my", "the", "a", "this", "last", "next", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]);
-    if (candidate.length > 1 && !skipWords.has(candidate.toLowerCase())) {
+    const skipWords = new Set([
+      "my", "the", "a", "this", "last", "next",
+      "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+      "january", "february", "march", "april", "may", "june",
+      "july", "august", "september", "october", "november", "december",
+      "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct", "nov", "dec",
+    ]);
+    const firstWord = candidate.split(/\s+/)[0].toLowerCase();
+    if (candidate.length > 1 && !skipWords.has(candidate.toLowerCase()) && !skipWords.has(firstWord)) {
       return candidate;
     }
   }
@@ -514,16 +521,19 @@ export function formatStsResult(result: StsWeekResult, query: string): string {
   lines.push("");
 
   if (daySpan > 60) {
-    const monthMap = new Map<string, number>();
+    const monthMap = new Map<string, { sortKey: string; hours: number }>();
     for (const entry of result.entries) {
       const d = new Date(entry.date.split("T")[0]);
-      const key = `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
-      monthMap.set(key, (monthMap.get(key) || 0) + entry.hours);
+      const label = `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+      const sortKey = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, "0")}`;
+      const existing = monthMap.get(label);
+      monthMap.set(label, { sortKey, hours: (existing?.hours || 0) + entry.hours });
     }
 
     if (monthMap.size > 0) {
+      const sortedMonths = Array.from(monthMap.entries()).sort((a, b) => a[1].sortKey.localeCompare(b[1].sortKey));
       lines.push("Monthly Breakdown:");
-      for (const [month, hours] of monthMap) {
+      for (const [month, { hours }] of sortedMonths) {
         const bar = hours > 0 ? ` (${"█".repeat(Math.min(Math.round(hours / 10), 20))})` : "";
         lines.push(`  ${month.padEnd(18)} ${hours.toFixed(1)}h${bar}`);
       }
