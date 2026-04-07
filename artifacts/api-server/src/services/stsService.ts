@@ -74,14 +74,9 @@ async function stsApiGet(
   params: Record<string, string | number> = {},
 ): Promise<unknown> {
   const url = `${apiUrl}${endpoint}`;
-  const queryParams: Record<string, string | number> = {
-    ...params,
-    token_id: tokenId,
-    limit: params.limit ?? 0,
-    offset: params.offset ?? 0,
-  };
+  const queryParams: Record<string, string | number> = { ...params };
 
-  console.log("[STS] API request:", url, "params:", JSON.stringify({ ...queryParams, token_id: "***" }));
+  console.log("[STS] API request:", url, "params:", JSON.stringify(queryParams));
 
   try {
     const response = await axios.get(url, {
@@ -89,6 +84,7 @@ async function stsApiGet(
       timeout: 15000,
       headers: {
         Accept: "application/json",
+        Authorization: `Basic ${Buffer.from(`${tokenId}:x`).toString("base64")}`,
       },
     });
     console.log("[STS] Response status:", response.status, "data type:", typeof response.data, Array.isArray(response.data) ? `array(${response.data.length})` : "");
@@ -138,10 +134,7 @@ export async function querySts(query: string, userId?: number): Promise<StsWeekR
   const { startISO, endISO } = getWeekRange(weekOffset);
 
   try {
-    const timeData = await stsApiGet(apiUrl, "/time", tokenId, {
-      startDate: startISO,
-      endDate: endISO,
-    });
+    const timeData = await stsApiGet(apiUrl, "/time", tokenId);
 
     const td = timeData as any;
     if (td && typeof td === "object" && !Array.isArray(td) && (td.code === 401 || td.status === "Unauthorized" || (td.message && String(td.message).toLowerCase().includes("invalid token")))) {
