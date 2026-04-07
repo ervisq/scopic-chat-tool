@@ -216,8 +216,19 @@ function parseDateRange(query: string): DateRange {
 
   for (const [name, idx] of Object.entries(MONTH_MAP)) {
     if (name.length < 3) continue;
-    const monthOnlyMatch = lower.match(new RegExp("\\bin\\s+" + name + "\\b"));
-    if (monthOnlyMatch) {
+    const namedDateMatch = lower.match(new RegExp("\\b" + name + "\\s+(\\d{1,2})\\b(?!\\s*(?:to|through|until|-))"));
+    if (namedDateMatch) {
+      const day = parseInt(namedDateMatch[1], 10);
+      const y = idx < now.getMonth() || (idx === now.getMonth() && day <= now.getDate()) ? now.getFullYear() : now.getFullYear() - 1;
+      const d = new Date(y, idx, day);
+      return { startISO: fmt(d), endISO: fmt(d) };
+    }
+  }
+
+  for (const [name, idx] of Object.entries(MONTH_MAP)) {
+    if (name.length < 3) continue;
+    const bareMonthMatch = lower.match(new RegExp("\\b(?:in\\s+)?" + name + "\\b(?!\\s+\\d)"));
+    if (bareMonthMatch) {
       const y = idx <= now.getMonth() ? now.getFullYear() : now.getFullYear() - 1;
       const s = new Date(y, idx, 1);
       const e = new Date(y, idx + 1, 0);
