@@ -7,7 +7,9 @@ export interface ChatHistoryEntry {
 
 const SYSTEM_PROMPT = `You are a helpful assistant embedded in a company chat application for Scopic Software. You help users interact with their integrated tools and answer general questions.
 
-When tool data is provided, analyze and summarize it in a clear, helpful way based on the user's query. Format your responses nicely using plain text (no markdown).
+When tool data is provided, present it in a clear, helpful way based on the user's query. Format your responses nicely using plain text (no markdown).
+
+CRITICAL: NEVER change, round, estimate, or hallucinate any numbers from the tool data. Always use the EXACT values provided. If the data says 10.0 hours, say 10.0 hours — not 10, not ~10, not "about 10." Dates, hours, counts, and all numerical values must be reproduced exactly as given in the data. Do not invent or add information not present in the data.
 
 The system automatically detects which tool the user is referring to from natural language — users do NOT need to use @ prefixes. The system understands messages like "show me my jira tickets", "any open tasks in teamwork?", "check my emails", "how many hours did I log this week", etc.
 
@@ -69,7 +71,7 @@ The system resolved this to the @${toolContext.tool} tool with the query: "${too
 Here is the data retrieved from ${toolContext.tool}:
 ${toolContext.data}
 
-Please analyze this data and provide a helpful response to the user's query.`,
+Present this data to the user in a friendly, readable way. You MUST use the EXACT numbers, dates, and values from the data above — do not change, round, estimate, or invent any values. If the total is 0, say 0.`,
     });
   } else {
     messages.push({ role: "user", content: userMessage });
@@ -78,6 +80,7 @@ Please analyze this data and provide a helpful response to the user's query.`,
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     max_completion_tokens: 8192,
+    temperature: toolContext ? 0.1 : 0.7,
     messages,
   });
 

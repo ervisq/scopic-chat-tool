@@ -386,9 +386,7 @@ export async function querySts(query: string, userId?: number): Promise<StsWeekR
       : (fd?.time || fd?.data || fd?.items || fd?.results || []);
     totalCount = parseInt(fd?.listcount || "0", 10);
 
-    console.log("[STS] Page 1: got", rawEntries.length, "entries out of", totalCount, "total");
-    console.log("[STS] Date range filter:", startISO, "to", endISO);
-    console.log("[STS] Page 1 entries:", rawEntries.map((e: any) => `${e.dateiso}|${e.time}h|${e.project}`).join(" ; "));
+    console.log("[STS] Page 1: got", rawEntries.length, "entries out of", totalCount, "total. Range:", startISO, "to", endISO);
 
     if (totalCount > rawEntries.length && rawEntries.length > 0) {
       let page = 2;
