@@ -328,6 +328,10 @@ async function stsApiGet(
       },
     });
     console.log("[STS] Response status:", response.status, "data type:", typeof response.data, Array.isArray(response.data) ? `array(${response.data.length})` : "");
+    if (response.data && typeof response.data === "object" && !Array.isArray(response.data)) {
+      console.log("[STS] Response keys:", Object.keys(response.data).join(", "));
+      console.log("[STS] Response body (first 1000 chars):", JSON.stringify(response.data).substring(0, 1000));
+    }
     return response.data;
   } catch (error: unknown) {
     const axErr = error as { response?: { status?: number; statusText?: string; data?: unknown }; message?: string };
@@ -374,16 +378,20 @@ export async function querySts(query: string, userId?: number): Promise<StsWeekR
       return { ...emptyResult, source: "error" as const, errorMessage: "STS token is invalid. Please update your token in Connected Services." };
     }
 
-    const rawEntries: any[] = Array.isArray(timeData) ? timeData : (td?.data || td?.items || td?.results || []);
+    const rawEntries: any[] = Array.isArray(timeData)
+      ? timeData
+      : (td?.time || td?.data || td?.items || td?.results || []);
+
+    console.log("[STS] Parsed", rawEntries.length, "raw entries");
 
     let entries: StsTimeEntry[] = rawEntries.map((e: any) => ({
-      id: e.id || e.Id || 0,
-      date: e.date || e.Date || e.workDate || "",
-      hours: parseFloat(e.hours || e.Hours || e.duration || e.totalHours || "0"),
-      projectName: e.projectName || e.ProjectName || e.project?.name || e.project || "Unknown",
-      projectId: e.projectId || e.ProjectId || e.project?.id || 0,
-      taskName: e.taskName || e.TaskName || e.task?.name || e.task || undefined,
-      workType: e.workTypeName || e.WorkTypeName || e.workType || undefined,
+      id: parseInt(e.id || e.Id || "0", 10) || 0,
+      date: e.dateiso || e.date || e.Date || e.workDate || "",
+      hours: parseFloat(e.time || e.hours || e.Hours || e.duration || e.totalHours || "0"),
+      projectName: e.project || e.projectName || e.ProjectName || e.project?.name || "Unknown",
+      projectId: parseInt(e.projectid || e.projectId || e.ProjectId || e.project?.id || "0", 10) || 0,
+      taskName: e.task || e.taskName || e.TaskName || e.task?.name || undefined,
+      workType: e.worktype || e.workTypeName || e.WorkTypeName || undefined,
       description: e.description || e.Description || e.notes || undefined,
     }));
 
