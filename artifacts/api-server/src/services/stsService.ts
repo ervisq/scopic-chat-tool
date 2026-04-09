@@ -328,10 +328,6 @@ async function stsApiGet(
       },
     });
     console.log("[STS] Response status:", response.status, "data type:", typeof response.data, Array.isArray(response.data) ? `array(${response.data.length})` : "");
-    if (response.data && typeof response.data === "object" && !Array.isArray(response.data)) {
-      console.log("[STS] Response keys:", Object.keys(response.data).join(", "));
-      console.log("[STS] Response body (first 1000 chars):", JSON.stringify(response.data).substring(0, 1000));
-    }
     return response.data;
   } catch (error: unknown) {
     const axErr = error as { response?: { status?: number; statusText?: string; data?: unknown }; message?: string };
@@ -371,18 +367,56 @@ export async function querySts(query: string, userId?: number): Promise<StsWeekR
   const projectFilter = extractProjectFilter(query);
 
   try {
-    const timeData = await stsApiGet(apiUrl, "/time", tokenId);
+    let rawEntries: any[] = [];
+    let totalCount = 0;
 
-    const td = timeData as any;
-    if (td && typeof td === "object" && !Array.isArray(td) && (td.code === 401 || td.status === "Unauthorized" || (td.message && String(td.message).toLowerCase().includes("invalid token")))) {
+    const firstData = await stsApiGet(apiUrl, "/time", tokenId);
+    const fd = firstData as any;
+
+    if (fd && typeof fd === "object" && !Array.isArray(fd) && (fd.code === 401 || fd.status === "Unauthorized" || (fd.message && String(fd.message).toLowerCase().includes("invalid token")))) {
       return { ...emptyResult, source: "error" as const, errorMessage: "STS token is invalid. Please update your token in Connected Services." };
     }
 
-    const rawEntries: any[] = Array.isArray(timeData)
-      ? timeData
-      : (td?.time || td?.data || td?.items || td?.results || []);
+    if (fd && typeof fd === "object" && !Array.isArray(fd) && fd.code === 400) {
+      return { ...emptyResult, source: "error" as const, errorMessage: "STS API request failed. Please check your connection settings." };
+    }
 
-    console.log("[STS] Parsed", rawEntries.length, "raw entries");
+    rawEntries = Array.isArray(firstData)
+      ? firstData
+      : (fd?.time || fd?.data || fd?.items || fd?.results || []);
+    totalCount = parseInt(fd?.listcount || "0", 10);
+
+    console.log("[STS] Page 1: got", rawEntries.length, "entries out of", totalCount, "total");
+
+    if (totalCount > rawEntries.length && rawEntries.length > 0) {
+      let page = 2;
+      let reachedPastRange = false;
+      while (rawEntries.length < totalCount && page <= 100 && !reachedPastRange) {
+        try {
+          const moreData = await stsApiGet(apiUrl, "/time", tokenId, { page });
+          const md = moreData as any;
+          const moreEntries: any[] = Array.isArray(moreData)
+            ? moreData
+            : (md?.time || md?.data || md?.items || md?.results || []);
+          if (moreEntries.length === 0) break;
+          rawEntries = rawEntries.concat(moreEntries);
+
+          const oldestDate = moreEntries.reduce((oldest: string, e: any) => {
+            const d = e.dateiso || e.date || "";
+            return d < oldest ? d : oldest;
+          }, "9999-12-31");
+          if (oldestDate < startISO) {
+            reachedPastRange = true;
+            console.log("[STS] Reached past range at page", page, "(oldest:", oldestDate, "< start:", startISO, "), stopping pagination. Total entries:", rawEntries.length);
+          }
+
+          page++;
+        } catch (pageErr: any) {
+          console.log("[STS] Pagination stopped at page", page, ":", pageErr?.response?.status || pageErr?.message);
+          break;
+        }
+      }
+    }
 
     let entries: StsTimeEntry[] = rawEntries.map((e: any) => ({
       id: parseInt(e.id || e.Id || "0", 10) || 0,
