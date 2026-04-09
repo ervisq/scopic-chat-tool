@@ -387,6 +387,8 @@ export async function querySts(query: string, userId?: number): Promise<StsWeekR
     totalCount = parseInt(fd?.listcount || "0", 10);
 
     console.log("[STS] Page 1: got", rawEntries.length, "entries out of", totalCount, "total");
+    console.log("[STS] Date range filter:", startISO, "to", endISO);
+    console.log("[STS] Page 1 entries:", rawEntries.map((e: any) => `${e.dateiso}|${e.time}h|${e.project}`).join(" ; "));
 
     if (totalCount > rawEntries.length && rawEntries.length > 0) {
       let page = 2;
