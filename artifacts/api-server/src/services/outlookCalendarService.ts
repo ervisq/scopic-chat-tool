@@ -1,6 +1,7 @@
 import type { Client } from "@microsoft/microsoft-graph-client";
 
 export interface CalendarEvent {
+  id: string;
   subject: string;
   startTime: string;
   endTime: string;
@@ -29,6 +30,7 @@ interface OutlookCalendarResult {
 
 function mapEvent(e: any): CalendarEvent {
   return {
+    id: e.id || "",
     subject: e.subject || "(No Title)",
     startTime: e.start?.dateTime || "",
     endTime: e.end?.dateTime || "",
@@ -189,7 +191,7 @@ export async function queryOutlookCalendar(
     .query({ startDateTime, endDateTime })
     .top(50)
     .orderby("start/dateTime")
-    .select("subject,start,end,location,attendees,isAllDay,organizer,showAs")
+    .select("id,subject,start,end,location,attendees,isAllDay,organizer,showAs")
     .header("Prefer", 'outlook.timezone="UTC"')
     .get();
 
@@ -224,7 +226,7 @@ export async function getUpcomingEvents(
     })
     .top(count)
     .orderby("start/dateTime")
-    .select("subject,start,end,location,isAllDay,organizer,showAs")
+    .select("id,subject,start,end,location,isAllDay,organizer,showAs")
     .header("Prefer", 'outlook.timezone="UTC"')
     .get();
 

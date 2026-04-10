@@ -13,8 +13,12 @@ import {
   MapPin,
   Filter,
   X,
-  Clock,
   Eye,
+  ChevronRight,
+  User,
+  FolderOpen,
+  CalendarClock,
+  BarChart3,
 } from "lucide-react";
 import { JiraIcon, TeamworkIcon, OutlookIcon, ZohoIcon, StsIcon } from "../components/chat/tool-icons";
 
@@ -31,6 +35,7 @@ interface JiraTicketSummary {
   status: string;
   priority: string;
   project: string;
+  assignee?: string;
 }
 
 interface StsProjectSummary {
@@ -39,19 +44,23 @@ interface StsProjectSummary {
 }
 
 interface OutlookEmailSummary {
+  id?: string;
   subject: string;
   from: string;
   receivedAt: string;
   isRead: boolean;
   hasAttachments: boolean;
+  preview?: string;
 }
 
 interface OutlookEventSummary {
+  id?: string;
   subject: string;
   startTime: string;
   endTime: string;
   location: string;
   isAllDay: boolean;
+  organizer?: string;
 }
 
 interface TeamworkTaskSummary {
@@ -60,6 +69,10 @@ interface TeamworkTaskSummary {
   status: string;
   priority: string;
   projectName: string;
+  assignee?: string;
+  dueDate?: string;
+  taskListName?: string;
+  progress?: number;
 }
 
 interface ServiceData {
@@ -214,6 +227,22 @@ function formatEventDate(dateStr: string): string {
   return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) + " (All Day)";
 }
 
+function formatDueDate(dateStr: string): string {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function safeExternalUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === "https:" || parsed.protocol === "http:") return url;
+    return "";
+  } catch {
+    return "";
+  }
+}
+
 function ProjectFilter({
   projects,
   selected,
@@ -242,6 +271,235 @@ function ProjectFilter({
           </option>
         ))}
       </select>
+    </div>
+  );
+}
+
+function ExpandableJiraRow({
+  ticket,
+  instanceUrl,
+}: {
+  ticket: JiraTicketSummary;
+  instanceUrl?: string | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const jiraBase = instanceUrl ? safeExternalUrl(instanceUrl) : "";
+  const ticketUrl = jiraBase ? `${jiraBase}/browse/${ticket.id}` : "";
+
+  return (
+    <div className="rounded-lg bg-muted/30 overflow-hidden">
+      <button
+        type="button"
+        className="flex items-center gap-2 py-2 px-3 w-full text-left cursor-pointer"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
+        <PriorityDot priority={ticket.priority} />
+        <span className="text-xs font-mono text-muted-foreground shrink-0">{ticket.id}</span>
+        <span className="text-xs text-foreground truncate flex-1 text-left">{ticket.title}</span>
+        <StatusBadge status={ticket.status} />
+      </button>
+      {open && (
+        <div className="px-3 pb-2.5 pt-0.5 ml-6 space-y-1.5 border-t border-border/30">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <User className="w-3 h-3 shrink-0" />
+            <span>{ticket.assignee || "Unassigned"}</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <FolderOpen className="w-3 h-3 shrink-0" />
+            <span>{ticket.project || "—"}</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="font-medium">Priority:</span>
+            <span>{ticket.priority}</span>
+          </div>
+          {ticketUrl && (
+            <a
+              href={ticketUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:underline mt-1"
+            >
+              Open in Jira <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ExpandableTeamworkRow({
+  task,
+  instanceUrl,
+}: {
+  task: TeamworkTaskSummary;
+  instanceUrl?: string | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const twBase = instanceUrl ? safeExternalUrl(instanceUrl) : "";
+  const taskUrl = twBase ? `${twBase}/app/tasks/${task.id}` : "";
+
+  return (
+    <div className="rounded-lg bg-muted/30 overflow-hidden">
+      <button
+        type="button"
+        className="flex items-center gap-2 py-2 px-3 w-full text-left cursor-pointer"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
+        <PriorityDot priority={task.priority} />
+        <span className="text-xs font-mono text-muted-foreground shrink-0">#{task.id}</span>
+        <span className="text-xs text-foreground truncate flex-1 text-left">{task.title}</span>
+        <StatusBadge status={task.status} />
+      </button>
+      {open && (
+        <div className="px-3 pb-2.5 pt-0.5 ml-6 space-y-1.5 border-t border-border/30">
+          {task.assignee && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <User className="w-3 h-3 shrink-0" />
+              <span>{task.assignee}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <FolderOpen className="w-3 h-3 shrink-0" />
+            <span>{task.projectName || "—"}{task.taskListName ? ` / ${task.taskListName}` : ""}</span>
+          </div>
+          {task.dueDate && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <CalendarClock className="w-3 h-3 shrink-0" />
+              <span>Due: {formatDueDate(task.dueDate)}</span>
+            </div>
+          )}
+          {task.progress !== undefined && task.progress > 0 && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <BarChart3 className="w-3 h-3 shrink-0" />
+              <span>Progress: {task.progress}%</span>
+            </div>
+          )}
+          {taskUrl && (
+            <a
+              href={taskUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-purple-600 dark:text-purple-400 hover:underline mt-1"
+            >
+              Open in Teamwork <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ExpandableEmailRow({ email }: { email: OutlookEmailSummary }) {
+  const [open, setOpen] = useState(false);
+  const emailUrl = email.id
+    ? `https://outlook.office.com/mail/inbox/id/${encodeURIComponent(email.id)}`
+    : "";
+
+  return (
+    <div className={`rounded-lg bg-muted/30 overflow-hidden ${!email.isRead ? "border-l-2 border-sky-500" : ""}`}>
+      <button
+        type="button"
+        className="flex items-center gap-2 py-2 px-3 w-full text-left cursor-pointer"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
+        {!email.isRead && <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" />}
+        <span className={`text-sm truncate flex-1 text-left ${!email.isRead ? "font-semibold text-foreground" : "text-foreground"}`}>
+          {email.subject}
+        </span>
+        {email.hasAttachments && <Paperclip className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+      </button>
+      {open && (
+        <div className="px-3 pb-2.5 pt-0.5 ml-6 space-y-1.5 border-t border-border/30">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <User className="w-3 h-3 shrink-0" />
+            <span className="truncate">{email.from}</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Calendar className="w-3 h-3 shrink-0" />
+            <span>{email.receivedAt ? formatRelativeTime(email.receivedAt) : "Unknown"}</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Mail className="w-3 h-3 shrink-0" />
+            <span>{email.isRead ? "Read" : "Unread"}{email.hasAttachments ? " · Has attachments" : ""}</span>
+          </div>
+          {email.preview && (
+            <p className="text-xs text-muted-foreground/80 italic line-clamp-3 mt-1">{email.preview}</p>
+          )}
+          {emailUrl && (
+            <a
+              href={emailUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-600 dark:text-sky-400 hover:underline mt-1"
+            >
+              Open in Outlook <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ExpandableEventRow({ event }: { event: OutlookEventSummary }) {
+  const [open, setOpen] = useState(false);
+  const eventUrl = event.id
+    ? `https://outlook.office.com/calendar/item/${encodeURIComponent(event.id)}`
+    : "";
+
+  return (
+    <div className="rounded-lg bg-muted/30 overflow-hidden">
+      <button
+        type="button"
+        className="flex items-center gap-2 py-2 px-3 w-full text-left cursor-pointer"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
+        <span className="text-sm font-medium text-foreground truncate flex-1 text-left">{event.subject}</span>
+      </button>
+      {open && (
+        <div className="px-3 pb-2.5 pt-0.5 ml-6 space-y-1.5 border-t border-border/30">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Calendar className="w-3 h-3 shrink-0" />
+            <span>
+              {event.isAllDay
+                ? formatEventDate(event.startTime)
+                : `${formatEventDateTime(event.startTime)} – ${formatEventTime(event.endTime)}`}
+            </span>
+          </div>
+          {event.location && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <MapPin className="w-3 h-3 shrink-0" />
+              <span className="truncate">{event.location}</span>
+            </div>
+          )}
+          {event.organizer && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <User className="w-3 h-3 shrink-0" />
+              <span>Organizer: {event.organizer}</span>
+            </div>
+          )}
+          {eventUrl && (
+            <a
+              href={eventUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-indigo-600 dark:text-indigo-400 hover:underline mt-1"
+            >
+              Open in Outlook <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -343,9 +601,11 @@ function WeeklyHoursPanel({ service }: { service: ServiceData | undefined }) {
 function OutlookPanel({
   calendarService,
   emailService,
+  onViewMore,
 }: {
   calendarService: ServiceData | undefined;
   emailService: ServiceData | undefined;
+  onViewMore: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<"emails" | "events">("emails");
 
@@ -431,9 +691,20 @@ function OutlookPanel({
                       >
                         <div className="flex items-center gap-2">
                           {!email.isRead && <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" />}
-                          <span className={`text-sm truncate flex-1 ${!email.isRead ? "font-semibold text-foreground" : "text-foreground"}`}>
-                            {email.subject}
-                          </span>
+                          {email.id ? (
+                            <a
+                              href={`https://outlook.office.com/mail/inbox/id/${encodeURIComponent(email.id)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`text-sm truncate flex-1 hover:underline hover:text-sky-600 dark:hover:text-sky-400 ${!email.isRead ? "font-semibold text-foreground" : "text-foreground"}`}
+                            >
+                              {email.subject}
+                            </a>
+                          ) : (
+                            <span className={`text-sm truncate flex-1 ${!email.isRead ? "font-semibold text-foreground" : "text-foreground"}`}>
+                              {email.subject}
+                            </span>
+                          )}
                           {email.hasAttachments && <Paperclip className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
                         </div>
                         <div className="flex items-center justify-between mt-1">
@@ -461,7 +732,18 @@ function OutlookPanel({
                   <div className="space-y-2 max-h-[300px] overflow-y-auto">
                     {events.map((event, idx) => (
                       <div key={idx} className="py-2 px-3 rounded-lg bg-muted/30">
-                        <span className="text-sm font-medium text-foreground truncate block">{event.subject}</span>
+                        {event.id ? (
+                          <a
+                            href={`https://outlook.office.com/calendar/item/${encodeURIComponent(event.id)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm font-medium text-foreground truncate block hover:underline hover:text-indigo-600 dark:hover:text-indigo-400"
+                          >
+                            {event.subject}
+                          </a>
+                        ) : (
+                          <span className="text-sm font-medium text-foreground truncate block">{event.subject}</span>
+                        )}
                         <div className="flex items-center gap-2 mt-1">
                           <Calendar className="w-3 h-3 text-muted-foreground shrink-0" />
                           <span className="text-xs text-muted-foreground">
@@ -487,15 +769,25 @@ function OutlookPanel({
           </>
         )}
 
-        <a
-          href="https://outlook.office.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-center gap-2 w-full mt-4 py-2.5 rounded-xl text-sm font-medium transition-colors bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:opacity-80"
-        >
-          Open Outlook
-          <ExternalLink className="w-3.5 h-3.5" />
-        </a>
+        <div className="flex gap-2 mt-4">
+          {isConnected && (
+            <button
+              onClick={onViewMore}
+              className="flex items-center justify-center gap-2 flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:opacity-80"
+            >
+              <Eye className="w-4 h-4" />
+              View more
+            </button>
+          )}
+          <a
+            href="https://outlook.office.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`flex items-center justify-center gap-2 ${isConnected ? "px-4" : "flex-1"} py-2.5 rounded-xl text-sm font-medium transition-colors bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:opacity-80`}
+          >
+            {isConnected ? <ExternalLink className="w-4 h-4" /> : <>Open Outlook <ExternalLink className="w-3.5 h-3.5" /></>}
+          </a>
+        </div>
       </div>
     </div>
   );
@@ -583,7 +875,18 @@ function ServiceCard({
                   <div key={t.id} className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-muted/30">
                     <PriorityDot priority={t.priority} />
                     <span className="text-xs font-mono text-muted-foreground shrink-0">{t.id}</span>
-                    <span className="text-sm text-foreground truncate flex-1">{t.title}</span>
+                    {service.instanceUrl ? (
+                      <a
+                        href={`${service.instanceUrl}/browse/${t.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-foreground truncate flex-1 hover:underline hover:text-blue-600 dark:hover:text-blue-400"
+                      >
+                        {t.title}
+                      </a>
+                    ) : (
+                      <span className="text-sm text-foreground truncate flex-1">{t.title}</span>
+                    )}
                     <StatusBadge status={t.status} />
                   </div>
                 ))}
@@ -599,7 +902,18 @@ function ServiceCard({
                   <div key={t.id} className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-muted/30">
                     <PriorityDot priority={t.priority} />
                     <span className="text-xs font-mono text-muted-foreground shrink-0">#{t.id}</span>
-                    <span className="text-sm text-foreground truncate flex-1">{t.title}</span>
+                    {service.instanceUrl ? (
+                      <a
+                        href={`${service.instanceUrl}/app/tasks/${t.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-foreground truncate flex-1 hover:underline hover:text-purple-600 dark:hover:text-purple-400"
+                      >
+                        {t.title}
+                      </a>
+                    ) : (
+                      <span className="text-sm text-foreground truncate flex-1">{t.title}</span>
+                    )}
                     <StatusBadge status={t.status} />
                   </div>
                 ))}
@@ -657,11 +971,13 @@ function ServiceDrawer({
 }) {
   const [projectFilter, setProjectFilter] = useState("");
   const [expanded, setExpanded] = useState(false);
+  const [activeTab, setActiveTab] = useState<"emails" | "events">("emails");
   const DISPLAY_LIMIT = 10;
 
   useEffect(() => {
     setProjectFilter("");
     setExpanded(false);
+    setActiveTab("emails");
   }, [service?.key]);
 
   useEffect(() => {
@@ -680,7 +996,11 @@ function ServiceDrawer({
   if (!service) return null;
 
   const style = SERVICE_STYLES[service.key] || SERVICE_STYLES.jira;
-  const externalUrl = EXTERNAL_URLS[service.key]?.(service.instanceUrl) || "#";
+  const externalUrl = EXTERNAL_URLS[service.key]?.(service.instanceUrl) || (
+    service.key === "outlook_email" || service.key === "outlook_calendar" ? "https://outlook.office.com" : "#"
+  );
+
+  const isOutlook = service.key === "outlook_email" || service.key === "outlook_calendar";
 
   const jiraProjects = service.key === "jira" && service.summary?.tickets
     ? [...new Set(service.summary.tickets.map((t) => t.project).filter(Boolean))].sort()
@@ -698,6 +1018,9 @@ function ServiceDrawer({
     ? (projectFilter ? service.summary.tasks.filter((t) => t.projectName === projectFilter) : service.summary.tasks)
     : [];
 
+  const emails = service.summary?.emails || [];
+  const events = service.summary?.events || [];
+
   return (
     <>
       <div className="fixed inset-0 bg-black/30 z-40 transition-opacity" onClick={onClose} aria-hidden="true" />
@@ -709,8 +1032,8 @@ function ServiceDrawer({
       >
         <div className="h-14 shrink-0 flex items-center justify-between px-5 border-b border-border/50">
           <div className="flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-xl ${style.color} flex items-center justify-center shadow-sm`}>
-              <span className="text-white text-xs font-bold tracking-wider">{style.icon}</span>
+            <div className="w-9 h-9 rounded-xl bg-card flex items-center justify-center shadow-sm border border-border/50">
+              <style.Icon className="w-5 h-5" />
             </div>
             <h2 className="font-semibold text-foreground text-base">{service.name}</h2>
           </div>
@@ -740,12 +1063,7 @@ function ServiceDrawer({
               ) : (
                 <>
                   {(expanded ? filteredJiraTickets : filteredJiraTickets.slice(0, DISPLAY_LIMIT)).map((t) => (
-                    <div key={t.id} className="flex items-center gap-2 py-2 px-3 rounded-lg bg-muted/30">
-                      <PriorityDot priority={t.priority} />
-                      <span className="text-xs font-mono text-muted-foreground shrink-0">{t.id}</span>
-                      <span className="text-xs text-foreground truncate flex-1">{t.title}</span>
-                      <StatusBadge status={t.status} />
-                    </div>
+                    <ExpandableJiraRow key={t.id} ticket={t} instanceUrl={service.instanceUrl} />
                   ))}
                   {filteredJiraTickets.length > DISPLAY_LIMIT && (
                     <button onClick={() => setExpanded(!expanded)} className={`text-[11px] font-medium ${style.textColor} hover:underline`}>
@@ -774,12 +1092,7 @@ function ServiceDrawer({
               ) : (
                 <>
                   {(expanded ? filteredTeamworkTasks : filteredTeamworkTasks.slice(0, DISPLAY_LIMIT)).map((t) => (
-                    <div key={t.id} className="flex items-center gap-2 py-2 px-3 rounded-lg bg-muted/30">
-                      <PriorityDot priority={t.priority} />
-                      <span className="text-xs font-mono text-muted-foreground shrink-0">#{t.id}</span>
-                      <span className="text-xs text-foreground truncate flex-1">{t.title}</span>
-                      <StatusBadge status={t.status} />
-                    </div>
+                    <ExpandableTeamworkRow key={t.id} task={t} instanceUrl={service.instanceUrl} />
                   ))}
                   {filteredTeamworkTasks.length > DISPLAY_LIMIT && (
                     <button onClick={() => setExpanded(!expanded)} className={`text-[11px] font-medium ${style.textColor} hover:underline`}>
@@ -790,6 +1103,65 @@ function ServiceDrawer({
               )}
               <p className="text-[11px] text-muted-foreground">
                 Use <span className="font-mono font-semibold">@Teamwork</span> in chat for more
+              </p>
+            </div>
+          )}
+
+          {isOutlook && (
+            <div className="space-y-3">
+              <div className="flex rounded-xl bg-muted/50 p-1 mb-2">
+                <button
+                  onClick={() => setActiveTab("emails")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    activeTab === "emails"
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  Emails
+                </button>
+                <button
+                  onClick={() => setActiveTab("events")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    activeTab === "events"
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  Events
+                </button>
+              </div>
+
+              {activeTab === "emails" && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Recent Emails</p>
+                  {emails.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No recent emails</p>
+                  ) : (
+                    emails.map((email, idx) => (
+                      <ExpandableEmailRow key={idx} email={email} />
+                    ))
+                  )}
+                </div>
+              )}
+
+              {activeTab === "events" && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Upcoming Events</p>
+                  {events.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No upcoming events</p>
+                  ) : (
+                    events.map((event, idx) => (
+                      <ExpandableEventRow key={idx} event={event} />
+                    ))
+                  )}
+                </div>
+              )}
+
+              <p className="text-[11px] text-muted-foreground">
+                Use <span className="font-mono font-semibold">@Outlook</span> in chat for more
               </p>
             </div>
           )}
@@ -868,6 +1240,22 @@ export default function DashboardPage({
     }
   }
 
+  function openOutlookDrawer() {
+    const emailSvc = services.find((s) => s.key === "outlook_email");
+    const calSvc = services.find((s) => s.key === "outlook_calendar");
+    const merged: ServiceData = {
+      key: "outlook_email",
+      name: "Outlook",
+      connected: (emailSvc?.connected ?? false) || (calSvc?.connected ?? false),
+      summary: {
+        emails: emailSvc?.summary?.emails,
+        events: calSvc?.summary?.events,
+      },
+      error: emailSvc?.error || calSvc?.error,
+    };
+    setDrawerService(merged);
+  }
+
   const stsService = services.find((s) => s.key === "sts");
   const calendarService = services.find((s) => s.key === "outlook_calendar");
   const emailService = services.find((s) => s.key === "outlook_email");
@@ -919,7 +1307,7 @@ export default function DashboardPage({
 
               <div className="w-full lg:w-[340px] shrink-0 space-y-5">
                 <WeeklyHoursPanel service={stsService} />
-                <OutlookPanel calendarService={calendarService} emailService={emailService} />
+                <OutlookPanel calendarService={calendarService} emailService={emailService} onViewMore={openOutlookDrawer} />
               </div>
             </div>
           )}

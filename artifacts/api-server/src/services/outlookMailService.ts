@@ -1,6 +1,7 @@
 import type { Client } from "@microsoft/microsoft-graph-client";
 
 export interface MailMessage {
+  id: string;
   subject: string;
   from: string;
   receivedAt: string;
@@ -18,6 +19,7 @@ interface OutlookMailResult {
 
 function mapMessage(m: any): MailMessage {
   return {
+    id: m.id || "",
     subject: m.subject || "(No Subject)",
     from: m.from?.emailAddress?.name
       ? `${m.from.emailAddress.name} <${m.from.emailAddress.address}>`
@@ -129,7 +131,7 @@ export async function queryOutlookMail(
   let request = client
     .api(`/users/${userEmail}/messages`)
     .top(top)
-    .select("subject,from,receivedDateTime,bodyPreview,isRead,hasAttachments");
+    .select("id,subject,from,receivedDateTime,bodyPreview,isRead,hasAttachments");
 
   if (filter) {
     request = request.filter(filter);
@@ -152,7 +154,7 @@ export async function queryOutlookMail(
       const fallbackRequest = client
         .api(`/users/${userEmail}/messages`)
         .top(top)
-        .select("subject,from,receivedDateTime,bodyPreview,isRead,hasAttachments")
+        .select("id,subject,from,receivedDateTime,bodyPreview,isRead,hasAttachments")
         .orderby("receivedDateTime desc");
 
       const finalRequest = filter ? fallbackRequest.filter(filter) : fallbackRequest;
@@ -173,7 +175,7 @@ export async function getRecentEmails(
   const response = await client
     .api(`/users/${userEmail}/messages`)
     .top(count)
-    .select("subject,from,receivedDateTime,bodyPreview,isRead,hasAttachments")
+    .select("id,subject,from,receivedDateTime,bodyPreview,isRead,hasAttachments")
     .orderby("receivedDateTime desc")
     .get();
   return (response.value || []).map(mapMessage);
