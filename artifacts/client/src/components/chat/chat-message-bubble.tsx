@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { format } from "date-fns";
 import { User, Bot } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, isSafeExternalUrl } from "@/lib/utils";
 import { ToolBadge } from "@/components/chat/tool-badge";
 import { getToolConfig } from "@/lib/tool-config";
 import type { Message } from "@/hooks/use-chat";
@@ -44,15 +44,6 @@ function highlightToolMentions(text: string): (string | JSX.Element)[] {
   return parts;
 }
 
-function isSafeUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === "https:" || parsed.protocol === "http:";
-  } catch {
-    return false;
-  }
-}
-
 function linkifyText(text: string): (string | JSX.Element)[] {
   const urlRegex = /(https?:\/\/[^\s<>"{}|\\^`[\]]+)/g;
   const parts: (string | JSX.Element)[] = [];
@@ -65,7 +56,7 @@ function linkifyText(text: string): (string | JSX.Element)[] {
     }
 
     const url = match[1];
-    if (isSafeUrl(url)) {
+    if (isSafeExternalUrl(url)) {
       parts.push(
         <a
           key={match.index}

@@ -21,6 +21,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import { JiraIcon, TeamworkIcon, OutlookIcon, ZohoIcon, StsIcon } from "../components/chat/tool-icons";
+import { safeExternalUrl } from "@/lib/utils";
 
 interface DashboardPageProps {
   user: { email: string; name: string } | null;
@@ -249,15 +250,6 @@ function formatDueDate(dateStr: string): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
-function safeExternalUrl(url: string): string {
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol === "https:" || parsed.protocol === "http:") return url;
-    return "";
-  } catch {
-    return "";
-  }
-}
 
 function ProjectFilter({
   projects,
