@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ComponentType, type SVGProps } from "react";
 import {
   MessageSquare,
   ExternalLink,
@@ -16,6 +16,7 @@ import {
   Clock,
   Eye,
 } from "lucide-react";
+import { JiraIcon, TeamworkIcon, OutlookIcon, ZohoIcon, StsIcon } from "../components/chat/tool-icons";
 
 interface DashboardPageProps {
   user: { email: string; name: string } | null;
@@ -85,58 +86,60 @@ interface ServiceData {
   error?: string;
 }
 
+type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
+
 const SERVICE_STYLES: Record<
   string,
-  { color: string; bgColor: string; textColor: string; borderColor: string; icon: string }
+  { color: string; bgColor: string; textColor: string; borderColor: string; Icon: IconComponent }
 > = {
   jira: {
     color: "bg-blue-500",
     bgColor: "bg-blue-500/10",
     textColor: "text-blue-600 dark:text-blue-400",
     borderColor: "border-blue-500/20",
-    icon: "JI",
+    Icon: JiraIcon,
   },
   zoho_people: {
     color: "bg-amber-500",
     bgColor: "bg-amber-500/10",
     textColor: "text-amber-600 dark:text-amber-400",
     borderColor: "border-amber-500/20",
-    icon: "ZP",
+    Icon: ZohoIcon,
   },
   zoho_crm: {
     color: "bg-orange-500",
     bgColor: "bg-orange-500/10",
     textColor: "text-orange-600 dark:text-orange-400",
     borderColor: "border-orange-500/20",
-    icon: "ZC",
+    Icon: ZohoIcon,
   },
   sts: {
     color: "bg-emerald-500",
     bgColor: "bg-emerald-500/10",
     textColor: "text-emerald-600 dark:text-emerald-400",
     borderColor: "border-emerald-500/20",
-    icon: "ST",
+    Icon: StsIcon,
   },
   teamwork: {
     color: "bg-purple-500",
     bgColor: "bg-purple-500/10",
     textColor: "text-purple-600 dark:text-purple-400",
     borderColor: "border-purple-500/20",
-    icon: "TW",
+    Icon: TeamworkIcon,
   },
   outlook_email: {
     color: "bg-sky-500",
     bgColor: "bg-sky-500/10",
     textColor: "text-sky-600 dark:text-sky-400",
     borderColor: "border-sky-500/20",
-    icon: "OE",
+    Icon: OutlookIcon,
   },
   outlook_calendar: {
     color: "bg-indigo-500",
     bgColor: "bg-indigo-500/10",
     textColor: "text-indigo-600 dark:text-indigo-400",
     borderColor: "border-indigo-500/20",
-    icon: "OC",
+    Icon: OutlookIcon,
   },
 };
 
@@ -263,8 +266,8 @@ function WeeklyHoursPanel({ service }: { service: ServiceData | undefined }) {
       <div className="p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center shadow-sm">
-              <Clock className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-xl bg-card flex items-center justify-center shadow-sm border border-border/50">
+              <StsIcon className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
             </div>
             <div>
               <h3 className="font-semibold text-foreground text-sm">Hours This Week</h3>
@@ -360,8 +363,8 @@ function OutlookPanel({
       <div className="p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500 flex items-center justify-center shadow-sm">
-              <Mail className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-xl bg-card flex items-center justify-center shadow-sm border border-border/50">
+              <OutlookIcon className="w-6 h-6" />
             </div>
             <div>
               <h3 className="font-semibold text-foreground text-sm">Outlook</h3>
@@ -542,8 +545,8 @@ function ServiceCard({
       <div className="p-5">
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className={`w-11 h-11 rounded-xl ${style.color} flex items-center justify-center shadow-sm`}>
-              <span className="text-white text-sm font-bold tracking-wider">{style.icon}</span>
+            <div className="w-11 h-11 rounded-xl bg-card flex items-center justify-center shadow-sm border border-border/50">
+              <style.Icon className="w-7 h-7" />
             </div>
             <div>
               <h3 className="font-semibold text-foreground text-base">{service.name}</h3>
