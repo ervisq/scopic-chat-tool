@@ -1,12 +1,10 @@
 import { Router, type IRouter } from "express";
 import { SendMessageBody, SendMessageResponse } from "@workspace/api-zod";
-import { parseToolCommand } from "../lib/parse-tool-command";
 import { routeToolCommand } from "../lib/tool-handlers";
-import { getAIResponse, resolveToolFromHistory } from "../services/aiService";
+import { routeWithAI, formatToolResponse, getGeneralResponse } from "../services/aiService";
 import type { ChatHistoryEntry } from "../services/aiService";
 import { trackUsage } from "../lib/usage-tracker";
 import { getAuthUser } from "../middlewares/auth";
-import { isLikelyToolConfirmation } from "../lib/tool-confirmation";
 
 const router: IRouter = Router();
 
@@ -16,65 +14,35 @@ router.post("/chat", async (req, res) => {
     const authUser = getAuthUser(req);
 
     console.log("[Chat] Incoming message:", JSON.stringify(parsed.message));
-    console.log("[Chat] History length:", (parsed.history || []).length);
 
     const history: ChatHistoryEntry[] = (parsed.history || [])
       .slice(-20)
       .map((h) => ({ role: h.role as "user" | "assistant", content: h.content }));
 
-    let toolCommand = parseToolCommand(parsed.message);
-    console.log("[Chat] parseToolCommand result:", toolCommand ? JSON.stringify(toolCommand) : "null (no tool detected)");
-
-    if (history.length > 0) {
-      if (!toolCommand) {
-        console.log("[Chat] No tool matched, trying resolveToolFromHistory via OpenAI...");
-        try {
-          const resolved = await resolveToolFromHistory(parsed.message, history);
-          console.log("[Chat] resolveToolFromHistory result:", resolved ? JSON.stringify(resolved) : "null");
-          if (resolved) {
-            toolCommand = { tool: resolved.tool, query: resolved.query };
-          }
-        } catch (err) {
-          console.error("[Chat] Tool resolution from history failed:", err);
-        }
-      } else if (isLikelyToolConfirmation(parsed.message)) {
-        console.log("[Chat] Likely tool confirmation, trying resolveToolFromHistory via OpenAI...");
-        try {
-          const resolved = await resolveToolFromHistory(parsed.message, history);
-          console.log("[Chat] resolveToolFromHistory result:", resolved ? JSON.stringify(resolved) : "null");
-          if (resolved) {
-            toolCommand = { tool: resolved.tool, query: resolved.query };
-          }
-        } catch (err) {
-          console.error("[Chat] Tool resolution from history (confirmation) failed:", err);
-        }
-      }
-    }
-
-    console.log("[Chat] Final tool decision:", toolCommand ? JSON.stringify(toolCommand) : "none (general chat)");
-    trackUsage(authUser.email, toolCommand?.tool || null, parsed.message);
+    const toolCall = await routeWithAI(parsed.message, history);
 
     let reply: string;
-    if (toolCommand) {
-      console.log("[Chat] Routing to tool:", toolCommand.tool, "query:", toolCommand.query);
-      const toolResult = await routeToolCommand(toolCommand.tool, toolCommand.query, authUser.userId);
+    let toolCommand: { tool: string; query: string } | undefined;
+
+    if (toolCall) {
+      console.log("[Chat] AI selected tool:", toolCall.toolName, "with args:", JSON.stringify(toolCall.args));
+      trackUsage(authUser.email, toolCall.toolName, parsed.message);
+
+      toolCommand = { tool: toolCall.toolName, query: parsed.message };
+
+      const toolResult = await routeToolCommand(toolCall.toolName, toolCall.args, authUser.userId);
       console.log("[Chat] Tool result length:", toolResult.reply.length, "chars");
+
       try {
-        console.log("[Chat] Sending tool data to OpenAI for formatting...");
-        reply = await getAIResponse(parsed.message, {
-          tool: toolCommand.tool,
-          query: toolCommand.query,
-          data: toolResult.reply,
-        }, history);
-        console.log("[Chat] OpenAI response received, length:", reply.length, "chars");
+        reply = await formatToolResponse(parsed.message, toolCall.toolName, toolResult.reply, history);
       } catch (aiErr) {
-        console.error("[Chat] OpenAI error:", aiErr instanceof Error ? aiErr.message : aiErr);
+        console.error("[Chat] AI formatting error, falling back to raw data:", aiErr instanceof Error ? aiErr.message : aiErr);
         reply = toolResult.reply;
       }
     } else {
-      console.log("[Chat] No tool, sending to OpenAI as general chat...");
-      reply = await getAIResponse(parsed.message, undefined, history);
-      console.log("[Chat] OpenAI response received, length:", reply.length, "chars");
+      console.log("[Chat] No tool needed — general conversation");
+      trackUsage(authUser.email, null, parsed.message);
+      reply = await getGeneralResponse(parsed.message, history);
     }
 
     const data = SendMessageResponse.parse({

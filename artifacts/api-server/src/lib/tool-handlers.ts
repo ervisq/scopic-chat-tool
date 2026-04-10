@@ -8,69 +8,92 @@ export interface ToolResult {
   reply: string;
 }
 
-type ToolHandler = (query: string, userId: number) => Promise<ToolResult>;
+type ToolHandler = (args: Record<string, unknown>, userId: number) => Promise<ToolResult>;
 
-async function jiraHandler(query: string, userId: number): Promise<ToolResult> {
+async function stsHandler(args: Record<string, unknown>, userId: number): Promise<ToolResult> {
+  const startDate = args.date_range_start as string | undefined;
+  const endDate = args.date_range_end as string | undefined;
+  const projectFilter = args.project_filter as string | undefined;
+
+  let query = "my hours";
+  if (startDate && endDate) {
+    query = `my hours from ${startDate} to ${endDate}`;
+    if (projectFilter) {
+      query += ` on project "${projectFilter}"`;
+    }
+  }
+
+  const result = await querySts(query, userId, { startDate, endDate, projectFilter });
+  return { reply: formatStsResult(result, query) };
+}
+
+async function jiraHandler(args: Record<string, unknown>, userId: number): Promise<ToolResult> {
+  const query = (args.query as string) || "my tickets";
   const result = await queryJira(query, userId);
   return { reply: formatJiraResult(result, query) };
 }
 
-async function zohoPeopleHandler(query: string, userId: number): Promise<ToolResult> {
-  const result = await queryZohoPeopleDirect(query, userId);
-  return { reply: result.reply };
-}
-
-async function zohoCrmHandler(query: string, userId: number): Promise<ToolResult> {
-  const result = await queryZohoCrmDirect(query, userId);
-  return { reply: result.reply };
-}
-
-async function stsHandler(query: string, userId: number): Promise<ToolResult> {
-  const result = await querySts(query, userId);
-  return { reply: formatStsResult(result, query) };
-}
-
-async function teamworkHandler(query: string, userId: number): Promise<ToolResult> {
+async function teamworkHandler(args: Record<string, unknown>, userId: number): Promise<ToolResult> {
+  const query = (args.query as string) || "my tasks";
   const result = await queryTeamwork(query, userId);
   return { reply: formatTeamworkResult(result, query) };
 }
 
-async function zohoRecruitHandler(query: string, userId: number): Promise<ToolResult> {
-  const result = await queryZohoRecruitDirect(query, userId);
-  return { reply: result.reply };
-}
-
-async function zohoContractsHandler(query: string, userId: number): Promise<ToolResult> {
-  const result = await queryZohoContractsDirect(query, userId);
-  return { reply: result.reply };
-}
-
-async function outlookHandler(query: string, userId: number): Promise<ToolResult> {
+async function outlookHandler(args: Record<string, unknown>, userId: number): Promise<ToolResult> {
+  const query = (args.query as string) || "recent emails";
   const result = await queryOutlookDirect(query, userId);
   return { reply: result.reply };
 }
 
+async function zohoPeopleHandler(args: Record<string, unknown>, userId: number): Promise<ToolResult> {
+  const query = (args.query as string) || "employee list";
+  const result = await queryZohoPeopleDirect(query, userId);
+  return { reply: result.reply };
+}
+
+async function zohoCrmHandler(args: Record<string, unknown>, userId: number): Promise<ToolResult> {
+  const query = (args.query as string) || "contacts";
+  const result = await queryZohoCrmDirect(query, userId);
+  return { reply: result.reply };
+}
+
+async function zohoRecruitHandler(args: Record<string, unknown>, userId: number): Promise<ToolResult> {
+  const query = (args.query as string) || "candidates";
+  const result = await queryZohoRecruitDirect(query, userId);
+  return { reply: result.reply };
+}
+
+async function zohoContractsHandler(args: Record<string, unknown>, userId: number): Promise<ToolResult> {
+  const query = (args.query as string) || "active contracts";
+  const result = await queryZohoContractsDirect(query, userId);
+  return { reply: result.reply };
+}
+
 const handlers: Record<string, ToolHandler> = {
+  STS: stsHandler,
   JIRA: jiraHandler,
+  Teamwork: teamworkHandler,
+  Outlook: outlookHandler,
   ZohoPeople: zohoPeopleHandler,
   ZohoCRM: zohoCrmHandler,
   ZohoRecruit: zohoRecruitHandler,
   ZohoContracts: zohoContractsHandler,
-  STS: stsHandler,
-  Teamwork: teamworkHandler,
-  Outlook: outlookHandler,
 };
 
-export async function routeToolCommand(tool: string, query: string, userId: number): Promise<ToolResult> {
+export async function routeToolCommand(
+  toolName: string,
+  args: Record<string, unknown>,
+  userId: number,
+): Promise<ToolResult> {
   const key = Object.keys(handlers).find(
-    (k) => k.toLowerCase() === tool.toLowerCase(),
+    (k) => k.toLowerCase() === toolName.toLowerCase(),
   );
 
   if (key) {
-    return handlers[key](query, userId);
+    return handlers[key](args, userId);
   }
 
   return {
-    reply: `Unknown tool "${tool}". Available tools: ${Object.keys(handlers).join(", ")}`,
+    reply: `Unknown tool "${toolName}". Available tools: ${Object.keys(handlers).join(", ")}`,
   };
 }

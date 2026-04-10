@@ -1,132 +1,163 @@
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { TOOL_DEFINITIONS, TOOL_NAME_MAP } from "../lib/tool-schemas";
 
 export interface ChatHistoryEntry {
   role: "user" | "assistant";
   content: string;
 }
 
-const SYSTEM_PROMPT = `You are a helpful assistant embedded in a company chat application for Scopic Software. You help users interact with their integrated tools and answer general questions.
+export interface ToolCallResult {
+  toolName: string;
+  functionName: string;
+  args: Record<string, unknown>;
+}
+
+const ROUTING_SYSTEM_PROMPT = `You are a tool-routing assistant for Scopic Software's internal chat application. Today's date is __TODAY__.
+
+Your job is to determine if the user's message requires calling one of the available tools, and if so, extract the correct parameters.
+
+When resolving dates, use YYYY-MM-DD format. Week starts on Monday:
+- "this week" = Monday of current week to Sunday of current week
+- "last week" = Monday of PREVIOUS week to Sunday of PREVIOUS week (NOT the last 7 days)
+- "this month" = 1st day to last day of current month
+- "last month" = 1st day to last day of previous month  
+- "today" = today's date for both start and end
+- "yesterday" = yesterday's date for both start and end
+- "last N days" = (today minus N-1 days) to today
+- "March 2026" = 2026-03-01 to 2026-03-31
+- For any named month without a year, assume the most recent occurrence
+
+Example: If today is 2026-04-10 (Thursday):
+- "this week" → 2026-04-06 (Mon) to 2026-04-12 (Sun)
+- "last week" → 2026-03-30 (Mon) to 2026-04-05 (Sun)
+
+If the user's message is general conversation (greetings, thanks, general questions) that doesn't require any tool, do NOT call any function.
+
+IMPORTANT: Use conversation history to understand follow-up messages. If a user says "what about last month?" after asking about hours, use the same tool with updated parameters.`;
+
+const RESPONSE_SYSTEM_PROMPT = `You are a helpful assistant embedded in a company chat application for Scopic Software. You help users interact with their integrated tools and answer general questions.
 
 When tool data is provided, present it in a clear, helpful way based on the user's query. Format your responses nicely using plain text (no markdown).
 
 CRITICAL: NEVER change, round, estimate, or hallucinate any numbers from the tool data. Always use the EXACT values provided. If the data says 10.0 hours, say 10.0 hours — not 10, not ~10, not "about 10." Dates, hours, counts, and all numerical values must be reproduced exactly as given in the data. Do not invent or add information not present in the data.
 
-The system automatically detects which tool the user is referring to from natural language — users do NOT need to use @ prefixes. The system understands messages like "show me my jira tickets", "any open tasks in teamwork?", "check my emails", "how many hours did I log this week", etc.
+If the user asks about something unrelated to tools, answer as a helpful general assistant.`;
 
-Users can still optionally use @ prefixes (e.g. @JIRA, @Teamwork) for explicit tool selection, and these can appear anywhere in the message.
-
-Available tools:
-- JIRA — Query JIRA tickets and project data (tickets, bugs, sprints, epics, stories, backlogs)
-- ZohoPeople — Query Zoho People HR data. Supports: employee list & search (full profiles with personal details, DOB, address, emergency contacts), departments, leave requests, who's off/on leave today, attendance (today/yesterday/this week/this month), timesheets, birthdays (today/this week/this month), work anniversaries, new joiners, headcount, org hierarchy/reporting structure.
-- ZohoCRM — Query Zoho CRM data: leads, contacts, deals, accounts, tasks, events/meetings, calls, products, quotes, invoices, campaigns, vendors
-- ZohoRecruit — Query Zoho Recruit hiring data. Supports: candidates (with skills, experience, status, employer, source), job openings (with department, positions, status, type, salary, recruiter), and interviews (with date, time, interviewers, location, candidate, job opening).
-- ZohoContracts — Query Zoho Contracts data. Supports: listing contracts by status (active, expired, pending, draft, expiring soon), filtering by company or type, viewing contract details (value, dates, owner, parties).
-- STS — Query STS working hours / time tracking data. Supports: hours logged this week (daily breakdown, per-project breakdown), last week's hours, time entries with project names and descriptions.
-- Teamwork — Query Teamwork project management data. Supports: tasks (with assignee/due date/priority/status filtering, includes description, progress, estimates, tags, comments count), projects (with status/activity sorting, includes owner, category, task counts, tags), task lists (with completion counts), milestones (with deadlines and responsible person), time entries (with billable tracking and totals), teams (with member lists), people (with roles, phone, email, admin status), comments/discussions, tags/labels, and recent activity/changelog.
-- Outlook — Query Microsoft Outlook data (read-only). Supports: emails (search inbox, recent messages, filter by sender/subject/date, unread emails, emails with attachments), calendar (today's schedule, meetings this week, upcoming events, tomorrow's meetings, next week), and contacts (search by name, list contacts, find email/phone).
-
-If the user asks about something unrelated to the tools, answer as a helpful general assistant.
-
-IMPORTANT: You have access to the full conversation history. Use it to understand follow-up messages. If a user's message is short or ambiguous (e.g., "teamwork", "yes", "the second one"), look at the previous messages for context to understand what they mean.`;
-
-const TOOL_RESOLUTION_PROMPT = `You are a tool-routing assistant. Given the conversation history and the user's latest message, determine if the user is specifying or confirming which tool to use for a previous request.
-
-Available tools: JIRA, ZohoPeople, ZohoCRM, ZohoRecruit, ZohoContracts, STS, Teamwork, Outlook
-
-Respond with EXACTLY one of these formats:
-- If the user is clearly specifying a tool: TOOL:<ToolName>|QUERY:<the full original query combining context from history>
-- If the user is NOT specifying a tool: NONE
-
-Examples:
-- User previously asked "find my tickets due in April" and now says "teamwork" → TOOL:Teamwork|QUERY:find my tickets due in April
-- User previously asked "show me tasks with high priority" and now says "check in jira" → TOOL:JIRA|QUERY:show me tasks with high priority
-- User says "hello" with no relevant context → NONE
-- User says "thanks" or "ok" → NONE`;
-
-export async function getAIResponse(
+export async function routeWithAI(
   userMessage: string,
-  toolContext?: { tool: string; query: string; data: string },
   history?: ChatHistoryEntry[],
-): Promise<string> {
+): Promise<ToolCallResult | null> {
+  const todayStr = new Date().toISOString().split("T")[0];
+  const systemPrompt = ROUTING_SYSTEM_PROMPT.replace("__TODAY__", todayStr);
   const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
-    { role: "system", content: SYSTEM_PROMPT },
+    { role: "system", content: systemPrompt },
   ];
 
   if (history && history.length > 0) {
     for (const entry of history) {
-      messages.push({
-        role: entry.role,
-        content: entry.content,
-      });
+      messages.push({ role: entry.role, content: entry.content });
     }
-  }
-
-  if (toolContext) {
-    messages.push({
-      role: "user",
-      content: `The user said: "${userMessage}"
-
-The system resolved this to the @${toolContext.tool} tool with the query: "${toolContext.query}"
-
-Here is the data retrieved from ${toolContext.tool}:
-${toolContext.data}
-
-Present this data to the user in a friendly, readable way. You MUST use the EXACT numbers, dates, and values from the data above — do not change, round, estimate, or invent any values. If the total is 0, say 0.`,
-    });
-  } else {
-    messages.push({ role: "user", content: userMessage });
-  }
-
-  console.log("[OpenAI] getAIResponse request — model: gpt-4o-mini, messages:", messages.length, "tool:", toolContext?.tool || "none");
-  console.log("[OpenAI] Messages sent:", JSON.stringify(messages.map(m => ({ role: m.role, contentLength: m.content.length, preview: m.content.substring(0, 200) }))));
-
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    max_completion_tokens: 8192,
-    temperature: toolContext ? 0.1 : 0.7,
-    messages,
-  });
-
-  const reply = response.choices[0]?.message?.content ?? "I couldn't generate a response. Please try again.";
-  console.log("[OpenAI] getAIResponse response — usage:", JSON.stringify(response.usage), "reply preview:", reply.substring(0, 200));
-  return reply;
-}
-
-export async function resolveToolFromHistory(
-  userMessage: string,
-  history: ChatHistoryEntry[],
-): Promise<{ tool: string; query: string } | null> {
-  if (!history || history.length === 0) return null;
-
-  const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
-    { role: "system", content: TOOL_RESOLUTION_PROMPT },
-  ];
-
-  for (const entry of history) {
-    messages.push({ role: entry.role, content: entry.content });
   }
 
   messages.push({ role: "user", content: userMessage });
 
-  console.log("[OpenAI] resolveToolFromHistory request — messages:", messages.length);
+  console.log("[AI Router] Sending message to OpenAI for tool routing...");
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
-    max_completion_tokens: 256,
     temperature: 0,
+    max_completion_tokens: 512,
+    messages,
+    tools: TOOL_DEFINITIONS,
+    tool_choice: "auto",
+  });
+
+  const choice = response.choices[0];
+  const toolCalls = choice?.message?.tool_calls;
+
+  if (!toolCalls || toolCalls.length === 0) {
+    console.log("[AI Router] No tool call — general conversation");
+    return null;
+  }
+
+  const tc = toolCalls[0];
+  const functionName = tc.function.name;
+  const displayName = TOOL_NAME_MAP[functionName] || functionName;
+  let args: Record<string, unknown> = {};
+
+  try {
+    args = JSON.parse(tc.function.arguments);
+  } catch {
+    console.error("[AI Router] Failed to parse tool arguments:", tc.function.arguments);
+  }
+
+  console.log("[AI Router] Tool selected:", displayName, "args:", JSON.stringify(args));
+
+  return {
+    toolName: displayName,
+    functionName,
+    args,
+  };
+}
+
+export async function formatToolResponse(
+  userMessage: string,
+  toolName: string,
+  toolData: string,
+  history?: ChatHistoryEntry[],
+): Promise<string> {
+  const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+    { role: "system", content: RESPONSE_SYSTEM_PROMPT },
+  ];
+
+  if (history && history.length > 0) {
+    for (const entry of history) {
+      messages.push({ role: entry.role, content: entry.content });
+    }
+  }
+
+  messages.push({
+    role: "user",
+    content: `The user said: "${userMessage}"
+
+Here is the data retrieved from ${toolName}:
+${toolData}
+
+Present this data to the user in a friendly, readable way. You MUST use the EXACT numbers, dates, and values from the data above — do not change, round, estimate, or invent any values. If the total is 0, say 0.`,
+  });
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    max_completion_tokens: 8192,
+    temperature: 0.1,
     messages,
   });
 
-  const result = response.choices[0]?.message?.content?.trim();
-  console.log("[OpenAI] resolveToolFromHistory response:", JSON.stringify(result));
-  if (!result || result === "NONE") return null;
+  return response.choices[0]?.message?.content ?? "I couldn't generate a response. Please try again.";
+}
 
-  const toolMatch = result.match(/^TOOL:(\w+)\|QUERY:(.+)$/s);
-  if (!toolMatch) return null;
+export async function getGeneralResponse(
+  userMessage: string,
+  history?: ChatHistoryEntry[],
+): Promise<string> {
+  const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+    { role: "system", content: RESPONSE_SYSTEM_PROMPT },
+  ];
 
-  const validTools = ["JIRA", "ZohoPeople", "ZohoCRM", "ZohoRecruit", "ZohoContracts", "STS", "Teamwork", "Outlook"];
-  const toolName = validTools.find(t => t.toLowerCase() === toolMatch[1].toLowerCase());
-  if (!toolName) return null;
+  if (history && history.length > 0) {
+    for (const entry of history) {
+      messages.push({ role: entry.role, content: entry.content });
+    }
+  }
 
-  return { tool: toolName, query: toolMatch[2].trim() };
+  messages.push({ role: "user", content: userMessage });
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    max_completion_tokens: 8192,
+    temperature: 0.7,
+    messages,
+  });
+
+  return response.choices[0]?.message?.content ?? "I couldn't generate a response. Please try again.";
 }

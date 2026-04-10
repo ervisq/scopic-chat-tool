@@ -339,7 +339,13 @@ async function stsApiGet(
   }
 }
 
-export async function querySts(query: string, userId?: number): Promise<StsWeekResult> {
+export interface StsStructuredParams {
+  startDate?: string;
+  endDate?: string;
+  projectFilter?: string;
+}
+
+export async function querySts(query: string, userId?: number, structuredParams?: StsStructuredParams): Promise<StsWeekResult> {
   const emptyResult: StsWeekResult = {
     entries: [],
     totalHours: 0,
@@ -363,8 +369,23 @@ export async function querySts(query: string, userId?: number): Promise<StsWeekR
   }
 
   const apiUrl = resolveStsApiUrl(cred.instanceUrl);
-  const { startISO, endISO } = parseDateRange(query);
-  const projectFilter = extractProjectFilter(query);
+
+  let startISO: string;
+  let endISO: string;
+  let projectFilter: string | undefined;
+
+  if (structuredParams?.startDate && structuredParams?.endDate) {
+    startISO = structuredParams.startDate;
+    endISO = structuredParams.endDate;
+    projectFilter = structuredParams.projectFilter;
+    console.log("[STS] Using structured params — date range:", startISO, "to", endISO, projectFilter ? `project: ${projectFilter}` : "");
+  } else {
+    const parsed = parseDateRange(query);
+    startISO = parsed.startISO;
+    endISO = parsed.endISO;
+    projectFilter = extractProjectFilter(query);
+    console.log("[STS] Using query-parsed params — date range:", startISO, "to", endISO, projectFilter ? `project: ${projectFilter}` : "");
+  }
 
   try {
     // Get current user's personid from a minimal API call
