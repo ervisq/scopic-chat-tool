@@ -34,7 +34,7 @@ export function ToolBadge({ toolName, className }: ToolBadgeProps) {
         className,
       )}
     >
-      {Icon && <Icon className="w-3.5 h-3.5 shrink-0" />}
+      {Icon && <Icon className="w-4 h-4 shrink-0" />}
       {config.label}
     </span>
   );

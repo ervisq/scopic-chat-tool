@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react";
+import type { ComponentType, SVGProps } from "react";
 import { TOOL_ICON_MAP } from "@/components/chat/tool-icons";
 
 export interface ToolConfig {
@@ -8,7 +8,7 @@ export interface ToolConfig {
   bgColor: string;
   textColor: string;
   borderColor: string;
-  icon?: (props: ComponentProps<"svg">) => JSX.Element;
+  icon?: ComponentType<SVGProps<SVGSVGElement>>;
 }
 
 export const TOOLS: ToolConfig[] = [

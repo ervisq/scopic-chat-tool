@@ -1,84 +1,71 @@
-import type { ComponentProps } from "react";
+import type { SVGProps } from "react";
 
-type IconProps = ComponentProps<"svg">;
+type IconProps = SVGProps<SVGSVGElement>;
 
 export function JiraIcon(props: IconProps) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" {...props}>
-      <path
-        d="M11.53 2c0 4.97 3.97 9 8.47 9H22v.47C22 16.72 17.78 21 12.53 21 7.28 21 3 16.72 3 11.47V11.2c0-.1.08-.2.19-.2h3.32c4.5 0 8.47-4.03 8.47-9H11.53Z"
-        fill="#2684FF"
-      />
-      <path
-        d="M11.53 2c0 4.97-4 9-8.5 9H.5a.5.5 0 0 0-.5.5C0 16.75 4.25 21 9.5 21h.03C14.78 21 19 16.72 19 11.47V11h-1c-4.5 0-8.47-4.03-8.47-9h2Z"
-        fill="url(#jira-grad)"
-      />
+    <svg viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
       <defs>
-        <linearGradient id="jira-grad" x1="9" y1="21" x2="0" y2="11" gradientUnits="userSpaceOnUse">
+        <linearGradient id="jiraGradBlue1" x1="102.4" y1="142.4" x2="56.6" y2="193.6" gradientUnits="userSpaceOnUse">
           <stop stopColor="#0052CC" />
-          <stop offset="1" stopColor="#2684FF" />
+          <stop offset="0.92" stopColor="#2684FF" />
+        </linearGradient>
+        <linearGradient id="jiraGradBlue2" x1="154.3" y1="113" x2="198.8" y2="63.2" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#0052CC" />
+          <stop offset="0.92" stopColor="#2684FF" />
         </linearGradient>
       </defs>
+      <path d="M244.658 0H121.707a55.502 55.502 0 0 0 55.502 55.502h22.649V77.37c.02 30.625 24.841 55.447 55.466 55.502V10.666C255.324 4.777 250.55 0 244.658 0Z" fill="#2684FF" />
+      <path d="M183.822 61.262H60.872c.019 30.625 24.84 55.447 55.466 55.502h22.648v21.868c.02 30.597 24.798 55.426 55.396 55.502V71.928c0-5.891-4.776-10.666-10.56-10.666Z" fill="url(#jiraGradBlue2)" />
+      <path d="M122.951 122.489H0c0 30.653 24.85 55.502 55.502 55.502h22.72v21.796c.02 30.625 24.824 55.447 55.43 55.502V133.155c0-5.891-4.81-10.666-10.701-10.666Z" fill="url(#jiraGradBlue1)" />
     </svg>
   );
 }
 
 export function TeamworkIcon(props: IconProps) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" {...props}>
-      <circle cx="12" cy="12" r="11" fill="#6B46C1" />
-      <path
-        d="M8 8.5a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Zm5 0a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0ZM7 12.5c0-.28.22-.5.5-.5h2a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1-.5-.5v-4Zm7 0c0-.28.22-.5.5-.5h2a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1-.5-.5v-4Z"
-        fill="#fff"
-      />
+    <svg viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <rect width="256" height="256" rx="48" fill="#6B46C1" />
+      <g fill="#fff">
+        <circle cx="100" cy="80" r="20" />
+        <circle cx="156" cy="80" r="20" />
+        <rect x="80" y="112" width="40" height="72" rx="8" />
+        <rect x="136" y="112" width="40" height="72" rx="8" />
+        <rect x="116" y="128" width="24" height="56" rx="6" />
+      </g>
     </svg>
   );
 }
 
 export function OutlookIcon(props: IconProps) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" {...props}>
-      <path d="M13 2v8h9l-1-4-4-3-4-1Z" fill="#1490DF" />
-      <path d="M22 10h-9v8l9-1V10Z" fill="#28A8EA" />
-      <path d="M13 18v4l9-2v-4l-9 2Z" fill="#0078D4" />
-      <path d="M22 10V6l-9 4v8l9-2V10Z" fill="#0364B8" opacity="0.5" />
-      <rect x="1" y="5" width="12" height="14" rx="1.5" fill="#0078D4" />
-      <ellipse cx="7" cy="12" rx="3.5" ry="4" fill="none" stroke="#fff" strokeWidth="1.5" />
+    <svg viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <path d="M148 28v72h92V52c0-13.2-10.8-24-24-24h-68Z" fill="#1490DF" />
+      <path d="M240 100H148v72h92V100Z" fill="#28A8EA" />
+      <path d="M148 172v56h68c13.2 0 24-10.8 24-24v-32h-92Z" fill="#0078D4" />
+      <path d="M148 100v72h92V100H148Z" fill="#0364B8" fillOpacity="0.2" />
+      <rect x="16" y="48" width="136" height="160" rx="16" fill="#0078D4" />
+      <path d="M84 98c-22.1 0-40 17.9-40 40s17.9 40 40 40 40-17.9 40-40-17.9-40-40-40Zm0 64c-13.3 0-24-10.7-24-24s10.7-24 24-24 24 10.7 24 24-10.7 24-24 24Z" fill="#fff" />
     </svg>
   );
 }
 
 export function ZohoIcon(props: IconProps) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" {...props}>
-      <path
-        d="M2 7.5 7.5 2h3L5 7.5 10.5 13h-3L2 7.5Z"
-        fill="#E8443A"
-      />
-      <path
-        d="M7 12c0-2.76 2.24-5 5-5s5 2.24 5 5-2.24 5-5 5-5-2.24-5-5Z"
-        fill="#F0C021"
-      />
-      <path
-        d="M7 12c0-2.76 2.24-5 5-5s5 2.24 5 5"
-        fill="none"
-        stroke="#E8443A"
-        strokeWidth="0"
-      />
-      <path
-        d="M15 11h6.5l-3 5.5H15l3.5-5.5Z"
-        fill="#2BA44F"
-      />
-      <circle cx="12" cy="12" r="2" fill="#fff" />
+    <svg viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <path d="M20 68h72L20 168h72" stroke="#E8443A" strokeWidth="20" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <ellipse cx="158" cy="128" rx="52" ry="52" fill="#F0C021" />
+      <ellipse cx="158" cy="128" rx="28" ry="28" fill="#fff" />
+      <path d="M200 88h44l-44 80h44" stroke="#2BA44F" strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     </svg>
   );
 }
 
 export function StsIcon(props: IconProps) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" {...props}>
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
       <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
-      <circle cx="12" cy="12" r="7.5" fill="currentColor" fillOpacity="0.1" />
+      <circle cx="12" cy="12" r="7.5" fill="currentColor" fillOpacity="0.08" />
       <path d="M12 7v5l3.5 3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
       <circle cx="12" cy="12" r="1.5" fill="currentColor" />
     </svg>
