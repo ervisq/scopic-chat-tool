@@ -1,11 +1,27 @@
 import type { Client } from "@microsoft/microsoft-graph-client";
 
+export interface CalendarEventLocation {
+  displayName: string;
+  locationType?: string;
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    countryOrRegion?: string;
+    postalCode?: string;
+  };
+  coordinates?: {
+    latitude?: number;
+    longitude?: number;
+  };
+}
+
 export interface CalendarEvent {
   id: string;
   subject: string;
   startTime: string;
   endTime: string;
-  location: string;
+  location: CalendarEventLocation;
   attendees: string[];
   isAllDay: boolean;
   organizer: string;
@@ -34,7 +50,21 @@ function mapEvent(e: any): CalendarEvent {
     subject: e.subject || "(No Title)",
     startTime: e.start?.dateTime || "",
     endTime: e.end?.dateTime || "",
-    location: e.location?.displayName || "",
+    location: {
+      displayName: e.location?.displayName || "",
+      locationType: e.location?.locationType,
+      address: e.location?.address ? {
+        street: e.location.address.street,
+        city: e.location.address.city,
+        state: e.location.address.state,
+        countryOrRegion: e.location.address.countryOrRegion,
+        postalCode: e.location.address.postalCode,
+      } : undefined,
+      coordinates: e.location?.coordinates ? {
+        latitude: e.location.coordinates.latitude,
+        longitude: e.location.coordinates.longitude,
+      } : undefined,
+    },
     attendees: (e.attendees || []).map(
       (a: any) => a.emailAddress?.name || a.emailAddress?.address || "Unknown",
     ),
@@ -259,7 +289,7 @@ export function formatCalendarResult(result: OutlookCalendarResult, query: strin
     const start = e.startTime ? new Date(e.startTime).toLocaleString() : "TBD";
     const end = e.endTime ? new Date(e.endTime).toLocaleString() : "TBD";
     const timeStr = e.isAllDay ? "All Day" : `${start} - ${end}`;
-    const loc = e.location ? ` | Location: ${e.location}` : "";
+    const loc = e.location?.displayName ? ` | Location: ${e.location.displayName}` : "";
     const attn = e.attendees.length > 0 ? ` | Attendees: ${e.attendees.join(", ")}` : "";
     return `\u2022 ${e.subject}\n  ${timeStr}${loc}${attn}`;
   });

@@ -53,12 +53,28 @@ interface OutlookEmailSummary {
   preview?: string;
 }
 
+interface OutlookEventLocation {
+  displayName: string;
+  locationType?: string;
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    countryOrRegion?: string;
+    postalCode?: string;
+  };
+  coordinates?: {
+    latitude?: number;
+    longitude?: number;
+  };
+}
+
 interface OutlookEventSummary {
   id?: string;
   subject: string;
   startTime: string;
   endTime: string;
-  location: string;
+  location: OutlookEventLocation;
   isAllDay: boolean;
   organizer?: string;
 }
@@ -288,18 +304,32 @@ function ExpandableJiraRow({
 
   return (
     <div className="rounded-lg bg-muted/30 overflow-hidden">
-      <button
-        type="button"
-        className="flex items-center gap-2 py-2 px-3 w-full text-left cursor-pointer"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-      >
-        <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
+      <div className="flex items-center gap-2 py-2 px-3">
+        <button
+          type="button"
+          className="shrink-0 p-0 bg-transparent border-none cursor-pointer"
+          aria-expanded={open}
+          aria-label={`${open ? "Collapse" : "Expand"} ${ticket.title}`}
+          onClick={() => setOpen(!open)}
+        >
+          <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
+        </button>
         <PriorityDot priority={ticket.priority} />
         <span className="text-xs font-mono text-muted-foreground shrink-0">{ticket.id}</span>
-        <span className="text-xs text-foreground truncate flex-1 text-left">{ticket.title}</span>
+        {ticketUrl ? (
+          <a
+            href={ticketUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-foreground truncate flex-1 hover:underline hover:text-blue-600 dark:hover:text-blue-400"
+          >
+            {ticket.title}
+          </a>
+        ) : (
+          <span className="text-xs text-foreground truncate flex-1">{ticket.title}</span>
+        )}
         <StatusBadge status={ticket.status} />
-      </button>
+      </div>
       {open && (
         <div className="px-3 pb-2.5 pt-0.5 ml-6 space-y-1.5 border-t border-border/30">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -343,18 +373,32 @@ function ExpandableTeamworkRow({
 
   return (
     <div className="rounded-lg bg-muted/30 overflow-hidden">
-      <button
-        type="button"
-        className="flex items-center gap-2 py-2 px-3 w-full text-left cursor-pointer"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-      >
-        <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
+      <div className="flex items-center gap-2 py-2 px-3">
+        <button
+          type="button"
+          className="shrink-0 p-0 bg-transparent border-none cursor-pointer"
+          aria-expanded={open}
+          aria-label={`${open ? "Collapse" : "Expand"} ${task.title}`}
+          onClick={() => setOpen(!open)}
+        >
+          <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
+        </button>
         <PriorityDot priority={task.priority} />
         <span className="text-xs font-mono text-muted-foreground shrink-0">#{task.id}</span>
-        <span className="text-xs text-foreground truncate flex-1 text-left">{task.title}</span>
+        {taskUrl ? (
+          <a
+            href={taskUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-foreground truncate flex-1 hover:underline hover:text-purple-600 dark:hover:text-purple-400"
+          >
+            {task.title}
+          </a>
+        ) : (
+          <span className="text-xs text-foreground truncate flex-1">{task.title}</span>
+        )}
         <StatusBadge status={task.status} />
-      </button>
+      </div>
       {open && (
         <div className="px-3 pb-2.5 pt-0.5 ml-6 space-y-1.5 border-t border-border/30">
           {task.assignee && (
@@ -403,19 +447,33 @@ function ExpandableEmailRow({ email }: { email: OutlookEmailSummary }) {
 
   return (
     <div className={`rounded-lg bg-muted/30 overflow-hidden ${!email.isRead ? "border-l-2 border-sky-500" : ""}`}>
-      <button
-        type="button"
-        className="flex items-center gap-2 py-2 px-3 w-full text-left cursor-pointer"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-      >
-        <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
+      <div className="flex items-center gap-2 py-2 px-3">
+        <button
+          type="button"
+          className="shrink-0 p-0 bg-transparent border-none cursor-pointer"
+          aria-expanded={open}
+          aria-label={`${open ? "Collapse" : "Expand"} ${email.subject}`}
+          onClick={() => setOpen(!open)}
+        >
+          <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
+        </button>
         {!email.isRead && <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" />}
-        <span className={`text-sm truncate flex-1 text-left ${!email.isRead ? "font-semibold text-foreground" : "text-foreground"}`}>
-          {email.subject}
-        </span>
+        {emailUrl ? (
+          <a
+            href={emailUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`text-sm truncate flex-1 hover:underline hover:text-sky-600 dark:hover:text-sky-400 ${!email.isRead ? "font-semibold text-foreground" : "text-foreground"}`}
+          >
+            {email.subject}
+          </a>
+        ) : (
+          <span className={`text-sm truncate flex-1 ${!email.isRead ? "font-semibold text-foreground" : "text-foreground"}`}>
+            {email.subject}
+          </span>
+        )}
         {email.hasAttachments && <Paperclip className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
-      </button>
+      </div>
       {open && (
         <div className="px-3 pb-2.5 pt-0.5 ml-6 space-y-1.5 border-t border-border/30">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -457,15 +515,29 @@ function ExpandableEventRow({ event }: { event: OutlookEventSummary }) {
 
   return (
     <div className="rounded-lg bg-muted/30 overflow-hidden">
-      <button
-        type="button"
-        className="flex items-center gap-2 py-2 px-3 w-full text-left cursor-pointer"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-      >
-        <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
-        <span className="text-sm font-medium text-foreground truncate flex-1 text-left">{event.subject}</span>
-      </button>
+      <div className="flex items-center gap-2 py-2 px-3">
+        <button
+          type="button"
+          className="shrink-0 p-0 bg-transparent border-none cursor-pointer"
+          aria-expanded={open}
+          aria-label={`${open ? "Collapse" : "Expand"} ${event.subject}`}
+          onClick={() => setOpen(!open)}
+        >
+          <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
+        </button>
+        {eventUrl ? (
+          <a
+            href={eventUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-medium text-foreground truncate flex-1 hover:underline hover:text-indigo-600 dark:hover:text-indigo-400"
+          >
+            {event.subject}
+          </a>
+        ) : (
+          <span className="text-sm font-medium text-foreground truncate flex-1">{event.subject}</span>
+        )}
+      </div>
       {open && (
         <div className="px-3 pb-2.5 pt-0.5 ml-6 space-y-1.5 border-t border-border/30">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -476,10 +548,10 @@ function ExpandableEventRow({ event }: { event: OutlookEventSummary }) {
                 : `${formatEventDateTime(event.startTime)} – ${formatEventTime(event.endTime)}`}
             </span>
           </div>
-          {event.location && (
+          {event.location?.displayName && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <MapPin className="w-3 h-3 shrink-0" />
-              <span className="truncate">{event.location}</span>
+              <span className="truncate">{event.location.displayName}</span>
             </div>
           )}
           {event.organizer && (
@@ -752,10 +824,10 @@ function OutlookPanel({
                               : `${formatEventDateTime(event.startTime)} – ${formatEventTime(event.endTime)}`}
                           </span>
                         </div>
-                        {event.location && (
+                        {event.location?.displayName && (
                           <div className="flex items-center gap-2 mt-0.5">
                             <MapPin className="w-3 h-3 text-muted-foreground shrink-0" />
-                            <span className="text-xs text-muted-foreground truncate">{event.location}</span>
+                            <span className="text-xs text-muted-foreground truncate">{event.location.displayName}</span>
                           </div>
                         )}
                       </div>
