@@ -130,3 +130,12 @@ Test user: `ervis.q@scopicsoftware.com` (super_admin).
 1. `fetchModule()` now catches 400 errors from v7 and retries with v2 endpoint
 2. `searchModule()` now tries v7, falls back to v2, and propagates 401/403 as `ZohoPermissionError`
 3. Both functions now handle 401/403 as `ZohoPermissionError` instead of generic errors
+
+## Open Items / Follow-Up
+
+| Item | Owner | Action Required | Status |
+|------|-------|-----------------|--------|
+| Zoho Recruit scope | Admin (Zoho account owner) | Re-authorize Zoho OAuth to include `ZohoRecruit.modules.ALL` scope | Pending |
+| Zoho Contracts scope | Admin (Zoho account owner) | Re-authorize Zoho OAuth to include `ZohoContracts.modules.ALL` scope | Pending |
+
+These are external configuration issues, not code defects. The error handling code correctly detects the permission denial, clears the cached token, and returns a user-facing message with specific reconnection instructions.
