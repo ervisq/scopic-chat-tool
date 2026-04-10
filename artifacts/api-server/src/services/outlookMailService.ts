@@ -25,7 +25,7 @@ function mapMessage(m: any): MailMessage {
       ? `${m.from.emailAddress.name} <${m.from.emailAddress.address}>`
       : m.from?.emailAddress?.address || "Unknown",
     receivedAt: m.receivedDateTime || "",
-    preview: (m.bodyPreview || "").slice(0, 200),
+    preview: (m.bodyPreview || "").slice(0, 120),
     isRead: !!m.isRead,
     hasAttachments: !!m.hasAttachments,
   };

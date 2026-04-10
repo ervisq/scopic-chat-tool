@@ -417,7 +417,7 @@ function ExpandableTeamworkRow({
               <span>Due: {formatDueDate(task.dueDate)}</span>
             </div>
           )}
-          {task.progress !== undefined && task.progress > 0 && (
+          {task.progress !== undefined && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <BarChart3 className="w-3 h-3 shrink-0" />
               <span>Progress: {task.progress}%</span>
@@ -545,7 +545,7 @@ function ExpandableEventRow({ event }: { event: OutlookEventSummary }) {
             <span>
               {event.isAllDay
                 ? formatEventDate(event.startTime)
-                : `${formatEventDateTime(event.startTime)} – ${formatEventTime(event.endTime)}`}
+                : `${formatEventDateTime(event.startTime)} – ${formatEventDateTime(event.endTime)}`}
             </span>
           </div>
           {event.location?.displayName && (
