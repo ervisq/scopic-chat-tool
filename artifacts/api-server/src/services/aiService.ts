@@ -77,6 +77,9 @@ Present this data to the user in a friendly, readable way. You MUST use the EXAC
     messages.push({ role: "user", content: userMessage });
   }
 
+  console.log("[OpenAI] getAIResponse request — model: gpt-4o-mini, messages:", messages.length, "tool:", toolContext?.tool || "none");
+  console.log("[OpenAI] Messages sent:", JSON.stringify(messages.map(m => ({ role: m.role, contentLength: m.content.length, preview: m.content.substring(0, 200) }))));
+
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     max_completion_tokens: 8192,
@@ -84,7 +87,9 @@ Present this data to the user in a friendly, readable way. You MUST use the EXAC
     messages,
   });
 
-  return response.choices[0]?.message?.content ?? "I couldn't generate a response. Please try again.";
+  const reply = response.choices[0]?.message?.content ?? "I couldn't generate a response. Please try again.";
+  console.log("[OpenAI] getAIResponse response — usage:", JSON.stringify(response.usage), "reply preview:", reply.substring(0, 200));
+  return reply;
 }
 
 export async function resolveToolFromHistory(
@@ -103,6 +108,8 @@ export async function resolveToolFromHistory(
 
   messages.push({ role: "user", content: userMessage });
 
+  console.log("[OpenAI] resolveToolFromHistory request — messages:", messages.length);
+
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     max_completion_tokens: 256,
@@ -111,6 +118,7 @@ export async function resolveToolFromHistory(
   });
 
   const result = response.choices[0]?.message?.content?.trim();
+  console.log("[OpenAI] resolveToolFromHistory response:", JSON.stringify(result));
   if (!result || result === "NONE") return null;
 
   const toolMatch = result.match(/^TOOL:(\w+)\|QUERY:(.+)$/s);

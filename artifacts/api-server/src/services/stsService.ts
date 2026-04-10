@@ -367,16 +367,30 @@ export async function querySts(query: string, userId?: number): Promise<StsWeekR
   const projectFilter = extractProjectFilter(query);
 
   try {
-    let rawEntries: any[] = [];
-    let totalCount = 0;
+    // Get current user's personid from a minimal API call
+    let personId: number | undefined;
+    try {
+      const meData = await stsApiGet(apiUrl, "/time", tokenId, { limit: 1 });
+      const me = meData as any;
+      personId = me?.personid || undefined;
+      console.log("[STS] Current user personid:", personId);
+    } catch {
+      console.log("[STS] Could not determine personid, fetching without filter");
+    }
 
-    const firstData = await stsApiGet(apiUrl, "/time", tokenId);
+    let rawEntries: any[] = [];
+
+    const firstData = await stsApiGet(apiUrl, "/time", tokenId, {
+      datebegin: startISO,
+      dateend: endISO,
+      limit: 200,
+      ...(personId ? { personid: personId } : {}),
+    });
     const fd = firstData as any;
 
     if (fd && typeof fd === "object" && !Array.isArray(fd) && (fd.code === 401 || fd.status === "Unauthorized" || (fd.message && String(fd.message).toLowerCase().includes("invalid token")))) {
       return { ...emptyResult, source: "error" as const, errorMessage: "STS token is invalid. Please update your token in Connected Services." };
     }
-
     if (fd && typeof fd === "object" && !Array.isArray(fd) && fd.code === 400) {
       return { ...emptyResult, source: "error" as const, errorMessage: "STS API request failed. Please check your connection settings." };
     }
@@ -384,35 +398,30 @@ export async function querySts(query: string, userId?: number): Promise<StsWeekR
     rawEntries = Array.isArray(firstData)
       ? firstData
       : (fd?.time || fd?.data || fd?.items || fd?.results || []);
-    totalCount = parseInt(fd?.listcount || "0", 10);
+    const totalCount = parseInt(fd?.listcount || "0", 10);
 
-    console.log("[STS] Page 1: got", rawEntries.length, "entries out of", totalCount, "total. Range:", startISO, "to", endISO);
+    console.log("[STS] Got", rawEntries.length, "of", totalCount, "entries for range", startISO, "to", endISO);
 
+    // Paginate if there are more entries in this date range
     if (totalCount > rawEntries.length && rawEntries.length > 0) {
       let page = 2;
-      let reachedPastRange = false;
-      while (rawEntries.length < totalCount && page <= 100 && !reachedPastRange) {
+      while (rawEntries.length < totalCount && page <= 20) {
         try {
-          const moreData = await stsApiGet(apiUrl, "/time", tokenId, { page });
+          const moreData = await stsApiGet(apiUrl, "/time", tokenId, {
+            datebegin: startISO,
+            dateend: endISO,
+            limit: 200,
+            page,
+            ...(personId ? { personid: personId } : {}),
+          });
           const md = moreData as any;
           const moreEntries: any[] = Array.isArray(moreData)
             ? moreData
             : (md?.time || md?.data || md?.items || md?.results || []);
           if (moreEntries.length === 0) break;
           rawEntries = rawEntries.concat(moreEntries);
-
-          const oldestDate = moreEntries.reduce((oldest: string, e: any) => {
-            const d = e.dateiso || e.date || "";
-            return d < oldest ? d : oldest;
-          }, "9999-12-31");
-          if (oldestDate < startISO) {
-            reachedPastRange = true;
-            console.log("[STS] Reached past range at page", page, "(oldest:", oldestDate, "< start:", startISO, "), stopping pagination. Total entries:", rawEntries.length);
-          }
-
           page++;
-        } catch (pageErr: any) {
-          console.log("[STS] Pagination stopped at page", page, ":", pageErr?.response?.status || pageErr?.message);
+        } catch {
           break;
         }
       }

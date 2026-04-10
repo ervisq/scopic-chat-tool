@@ -300,7 +300,9 @@ router.get("/dashboard", async (req, res) => {
                 connected: true,
                 summary: { emails },
               });
-            } catch {
+            } catch (err: unknown) {
+              const msg = err instanceof Error ? err.message : String(err);
+              console.error("[Dashboard] Outlook email error:", msg);
               services.push({
                 key: "outlook_email",
                 name: "Outlook Email",
@@ -321,7 +323,9 @@ router.get("/dashboard", async (req, res) => {
                 connected: true,
                 summary: { events },
               });
-            } catch {
+            } catch (err: unknown) {
+              const msg = err instanceof Error ? err.message : String(err);
+              console.error("[Dashboard] Outlook calendar error:", msg);
               services.push({
                 key: "outlook_calendar",
                 name: "Outlook Calendar",
