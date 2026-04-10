@@ -730,6 +730,7 @@ export function formatTeamworkResult(result: TeamworkServiceResult, query: strin
         if (p.taskCount > 0) line += ` (${p.taskCount} tasks)`;
         if (p.lastUpdated) line += ` updated: ${p.lastUpdated}`;
         if (p.tags.length > 0) line += ` tags: ${p.tags.join(", ")}`;
+        if (baseUrl) line += ` ${baseUrl}/app/projects/${p.id}`;
         if (p.description) line += `\n  ${p.description.substring(0, 200)}${p.description.length > 200 ? "..." : ""}`;
         return line;
       });

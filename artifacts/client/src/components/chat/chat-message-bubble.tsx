@@ -91,24 +91,42 @@ function linkifyText(text: string): (string | JSX.Element)[] {
   return parts;
 }
 
+const TRUSTED_HOSTS: Array<{ test: (host: string) => boolean; label: (url: URL) => string }> = [
+  {
+    test: (h) => h.endsWith(".atlassian.net"),
+    label: (u) => {
+      const m = u.pathname.match(/\/browse\/(.+)/);
+      return m ? `Open ${m[1]}` : "Open in Jira";
+    },
+  },
+  {
+    test: (h) => h.endsWith(".teamwork.com"),
+    label: (u) => {
+      const m = u.pathname.match(/\/app\/tasks\/(\d+)/);
+      if (m) return `Open #${m[1]}`;
+      const p = u.pathname.match(/\/app\/projects\/(\d+)/);
+      if (p) return `Open project`;
+      return "Open in Teamwork";
+    },
+  },
+  {
+    test: (h) => h === "outlook.office.com",
+    label: (u) => {
+      if (u.pathname.includes("/mail/")) return "Open in Outlook";
+      if (u.pathname.includes("/calendar/")) return "Open in Outlook";
+      return "Open in Outlook";
+    },
+  },
+];
+
 function getUrlLabel(url: string): string {
   try {
     const parsed = new URL(url);
-    const host = parsed.hostname;
-    if (host.includes("atlassian.net") || host.includes("jira")) {
-      const match = parsed.pathname.match(/\/browse\/(.+)/);
-      return match ? `Open ${match[1]}` : "Open in Jira";
+    const host = parsed.hostname.toLowerCase();
+    for (const entry of TRUSTED_HOSTS) {
+      if (entry.test(host)) return entry.label(parsed);
     }
-    if (host.includes("teamwork.com")) {
-      const match = parsed.pathname.match(/\/app\/tasks\/(\d+)/);
-      return match ? `Open #${match[1]}` : "Open in Teamwork";
-    }
-    if (host === "outlook.office.com") {
-      if (parsed.pathname.includes("/mail/")) return "Open in Outlook";
-      if (parsed.pathname.includes("/calendar/")) return "Open in Outlook";
-      return "Open in Outlook";
-    }
-    return "Open link";
+    return `Open link (${host})`;
   } catch {
     return "Open link";
   }
