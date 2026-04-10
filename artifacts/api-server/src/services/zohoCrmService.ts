@@ -212,25 +212,34 @@ async function searchModule<T>(
   mapper: (record: Record<string, unknown>) => T,
 ): Promise<T[]> {
   const headers = { Authorization: `Zoho-oauthtoken ${accessToken}` };
-  try {
-    const response = await axios.get(`${CRM_BASE}/crm/v7/${module}/search`, {
-      params: { criteria, per_page: DEFAULT_LIMIT },
-      headers,
-    });
-    const records = response.data?.data || [];
-    return records.map(mapper);
-  } catch {
+
+  async function trySearch(version: string): Promise<T[] | null> {
     try {
-      const fallback = await axios.get(`${CRM_BASE}/crm/v2/${module}/search`, {
+      const response = await axios.get(`${CRM_BASE}/crm/${version}/${module}/search`, {
         params: { criteria, per_page: DEFAULT_LIMIT },
         headers,
       });
-      const records = fallback.data?.data || [];
+      const records = response.data?.data || [];
       return records.map(mapper);
-    } catch {
-      return [];
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && [401, 403].includes(err.response?.status || 0)) {
+        throw new ZohoPermissionError(
+          "Zoho CRM access denied — your Zoho connection may not include CRM permissions.",
+          err.response?.status || 401,
+        );
+      }
+      console.error(`[ZohoCRM] search ${version} ${module} failed:`, axios.isAxiosError(err) ? err.response?.status : String(err));
+      return null;
     }
   }
+
+  const v7Result = await trySearch("v7");
+  if (v7Result !== null) return v7Result;
+
+  const v2Result = await trySearch("v2");
+  if (v2Result !== null) return v2Result;
+
+  return [];
 }
 
 function str(val: unknown): string {
