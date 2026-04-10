@@ -22,16 +22,19 @@ export function ToolBadge({ toolName, className }: ToolBadgeProps) {
     );
   }
 
+  const Icon = config.icon;
+
   return (
     <span
       className={cn(
-        "inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold border",
+        "inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-semibold border",
         config.bgColor,
         config.textColor,
         config.borderColor,
         className,
       )}
     >
+      {Icon && <Icon className="w-3.5 h-3.5 shrink-0" />}
       {config.label}
     </span>
   );

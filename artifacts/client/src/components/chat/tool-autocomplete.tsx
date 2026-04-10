@@ -63,37 +63,41 @@ export function ToolAutocomplete({
         className="absolute bottom-full left-0 right-0 mb-2 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-20"
         role="listbox"
       >
-        {suggestions.map((tool, i) => (
-          <button
-            key={tool.name}
-            role="option"
-            aria-selected={i === selectedIndex}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              onSelect(tool.name);
-            }}
-            className={cn(
-              "w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors",
-              i === selectedIndex
-                ? "bg-accent"
-                : "hover:bg-accent/50",
-            )}
-          >
-            <span
+        {suggestions.map((tool, i) => {
+          const Icon = tool.icon;
+          return (
+            <button
+              key={tool.name}
+              role="option"
+              aria-selected={i === selectedIndex}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onSelect(tool.name);
+              }}
               className={cn(
-                "inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold border",
-                tool.bgColor,
-                tool.textColor,
-                tool.borderColor,
+                "w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors",
+                i === selectedIndex
+                  ? "bg-accent"
+                  : "hover:bg-accent/50",
               )}
             >
-              {tool.label}
-            </span>
-            <span className="text-sm text-muted-foreground">
-              {tool.description}
-            </span>
-          </button>
-        ))}
+              {Icon && <Icon className="w-5 h-5 shrink-0" />}
+              <span
+                className={cn(
+                  "inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold border",
+                  tool.bgColor,
+                  tool.textColor,
+                  tool.borderColor,
+                )}
+              >
+                {tool.label}
+              </span>
+              <span className="text-sm text-muted-foreground">
+                {tool.description}
+              </span>
+            </button>
+          );
+        })}
       </motion.div>
     </AnimatePresence>
   );
