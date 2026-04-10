@@ -6,33 +6,27 @@ export function JiraIcon(props: IconProps) {
   return (
     <svg viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
       <defs>
-        <linearGradient id="jiraGradBlue1" x1="102.4" y1="142.4" x2="56.6" y2="193.6" gradientUnits="userSpaceOnUse">
+        <linearGradient id="jg1" x1="102.4" y1="142.4" x2="56.6" y2="193.6" gradientUnits="userSpaceOnUse">
           <stop stopColor="#0052CC" />
           <stop offset="0.92" stopColor="#2684FF" />
         </linearGradient>
-        <linearGradient id="jiraGradBlue2" x1="154.3" y1="113" x2="198.8" y2="63.2" gradientUnits="userSpaceOnUse">
+        <linearGradient id="jg2" x1="154.3" y1="113" x2="198.8" y2="63.2" gradientUnits="userSpaceOnUse">
           <stop stopColor="#0052CC" />
           <stop offset="0.92" stopColor="#2684FF" />
         </linearGradient>
       </defs>
       <path d="M244.658 0H121.707a55.502 55.502 0 0 0 55.502 55.502h22.649V77.37c.02 30.625 24.841 55.447 55.466 55.502V10.666C255.324 4.777 250.55 0 244.658 0Z" fill="#2684FF" />
-      <path d="M183.822 61.262H60.872c.019 30.625 24.84 55.447 55.466 55.502h22.648v21.868c.02 30.597 24.798 55.426 55.396 55.502V71.928c0-5.891-4.776-10.666-10.56-10.666Z" fill="url(#jiraGradBlue2)" />
-      <path d="M122.951 122.489H0c0 30.653 24.85 55.502 55.502 55.502h22.72v21.796c.02 30.625 24.824 55.447 55.43 55.502V133.155c0-5.891-4.81-10.666-10.701-10.666Z" fill="url(#jiraGradBlue1)" />
+      <path d="M183.822 61.262H60.872c.019 30.625 24.84 55.447 55.466 55.502h22.648v21.868c.02 30.597 24.798 55.426 55.396 55.502V71.928c0-5.891-4.776-10.666-10.56-10.666Z" fill="url(#jg2)" />
+      <path d="M122.951 122.489H0c0 30.653 24.85 55.502 55.502 55.502h22.72v21.796c.02 30.625 24.824 55.447 55.43 55.502V133.155c0-5.891-4.81-10.666-10.701-10.666Z" fill="url(#jg1)" />
     </svg>
   );
 }
 
 export function TeamworkIcon(props: IconProps) {
   return (
-    <svg viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
-      <rect width="256" height="256" rx="48" fill="#6B46C1" />
-      <g fill="#fff">
-        <circle cx="100" cy="80" r="20" />
-        <circle cx="156" cy="80" r="20" />
-        <rect x="80" y="112" width="40" height="72" rx="8" />
-        <rect x="136" y="112" width="40" height="72" rx="8" />
-        <rect x="116" y="128" width="24" height="56" rx="6" />
-      </g>
+    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <rect width="100" height="100" rx="22" fill="#4461D7" />
+      <path d="M25 30h50v12H56v32H44V42H25V30Z" fill="#fff" />
     </svg>
   );
 }
@@ -52,11 +46,10 @@ export function OutlookIcon(props: IconProps) {
 
 export function ZohoIcon(props: IconProps) {
   return (
-    <svg viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
-      <path d="M20 68h72L20 168h72" stroke="#E8443A" strokeWidth="20" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      <ellipse cx="158" cy="128" rx="52" ry="52" fill="#F0C021" />
-      <ellipse cx="158" cy="128" rx="28" ry="28" fill="#fff" />
-      <path d="M200 88h44l-44 80h44" stroke="#2BA44F" strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <polygon points="5,5 55,5 55,15 20,15" fill="#F60014" />
+      <polygon points="5,5 55,45 55,55 5,15" fill="#F60014" />
+      <polygon points="5,45 40,45 55,55 5,55" fill="#F60014" />
     </svg>
   );
 }
@@ -72,7 +65,7 @@ export function StsIcon(props: IconProps) {
   );
 }
 
-export const TOOL_ICON_MAP: Record<string, (props: IconProps) => JSX.Element> = {
+export const TOOL_ICON_MAP: Record<string, React.ComponentType<IconProps>> = {
   JIRA: JiraIcon,
   ZohoPeople: ZohoIcon,
   ZohoCRM: ZohoIcon,
