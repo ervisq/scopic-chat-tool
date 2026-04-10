@@ -1,5 +1,5 @@
 import axios from "axios";
-import { getZohoAccessToken } from "./zohoTokenManager";
+import { getZohoAccessToken, ZohoPermissionError } from "./zohoTokenManager";
 
 export interface ZohoLead {
   id: string;
@@ -159,13 +159,50 @@ async function fetchModule<T>(
   mapper: (record: Record<string, unknown>) => T,
   params?: Record<string, string>,
 ): Promise<T[]> {
-  const response = await axios.get(`${CRM_BASE}/crm/v7/${module}`, {
-    params: { per_page: DEFAULT_LIMIT, ...params },
-    headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
-  });
+  const headers = { Authorization: `Zoho-oauthtoken ${accessToken}` };
+  const queryParams = { per_page: DEFAULT_LIMIT, ...params };
 
-  const records = response.data?.data || [];
-  return records.map(mapper);
+  try {
+    const response = await axios.get(`${CRM_BASE}/crm/v7/${module}`, {
+      params: queryParams,
+      headers,
+    });
+    const records = response.data?.data || [];
+    return records.map(mapper);
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err)) {
+      const status = err.response?.status || 0;
+      console.error(`[ZohoCRM] v7 ${module} failed (${status}):`, JSON.stringify(err.response?.data || {}).substring(0, 300));
+
+      if ([401, 403].includes(status)) {
+        throw new ZohoPermissionError(
+          "Zoho CRM access denied — your Zoho connection may not include CRM permissions.",
+          status,
+        );
+      }
+
+      if (status === 400) {
+        try {
+          console.log(`[ZohoCRM] Trying v2 fallback for ${module}...`);
+          const fallback = await axios.get(`${CRM_BASE}/crm/v2/${module}`, {
+            params: queryParams,
+            headers,
+          });
+          const records = fallback.data?.data || [];
+          return records.map(mapper);
+        } catch (v2Err: unknown) {
+          if (axios.isAxiosError(v2Err) && [401, 403].includes(v2Err.response?.status || 0)) {
+            throw new ZohoPermissionError(
+              "Zoho CRM access denied — your Zoho connection may not include CRM permissions.",
+              v2Err.response?.status || 401,
+            );
+          }
+          console.error(`[ZohoCRM] v2 fallback also failed:`, axios.isAxiosError(v2Err) ? v2Err.response?.status : String(v2Err));
+        }
+      }
+    }
+    throw err;
+  }
 }
 
 async function searchModule<T>(
@@ -174,15 +211,25 @@ async function searchModule<T>(
   criteria: string,
   mapper: (record: Record<string, unknown>) => T,
 ): Promise<T[]> {
+  const headers = { Authorization: `Zoho-oauthtoken ${accessToken}` };
   try {
     const response = await axios.get(`${CRM_BASE}/crm/v7/${module}/search`, {
       params: { criteria, per_page: DEFAULT_LIMIT },
-      headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+      headers,
     });
     const records = response.data?.data || [];
     return records.map(mapper);
   } catch {
-    return [];
+    try {
+      const fallback = await axios.get(`${CRM_BASE}/crm/v2/${module}/search`, {
+        params: { criteria, per_page: DEFAULT_LIMIT },
+        headers,
+      });
+      const records = fallback.data?.data || [];
+      return records.map(mapper);
+    } catch {
+      return [];
+    }
   }
 }
 
