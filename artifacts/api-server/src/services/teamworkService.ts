@@ -133,6 +133,7 @@ export interface TeamworkServiceResult {
   data: TeamworkData;
   total: number;
   message?: string;
+  instanceUrl?: string | null;
 }
 
 function isValidTeamworkUrl(url: string): boolean {
@@ -641,29 +642,42 @@ export async function queryTeamwork(query: string, userId?: number): Promise<Tea
   const currentUserId = needsMyUserId ? await fetchCurrentUserId(siteUrl, apiToken) : null;
 
   try {
+    let result: TeamworkServiceResult;
     switch (category) {
       case "projects":
-        return await fetchProjects(siteUrl, apiToken, query);
+        result = await fetchProjects(siteUrl, apiToken, query);
+        break;
       case "tasklists":
-        return await fetchTaskLists(siteUrl, apiToken);
+        result = await fetchTaskLists(siteUrl, apiToken);
+        break;
       case "milestones":
-        return await fetchMilestones(siteUrl, apiToken);
+        result = await fetchMilestones(siteUrl, apiToken);
+        break;
       case "time":
-        return await fetchTimeEntries(siteUrl, apiToken, query);
+        result = await fetchTimeEntries(siteUrl, apiToken, query);
+        break;
       case "people":
-        return await fetchPeople(siteUrl, apiToken);
+        result = await fetchPeople(siteUrl, apiToken);
+        break;
       case "teams":
-        return await fetchTeams(siteUrl, apiToken);
+        result = await fetchTeams(siteUrl, apiToken);
+        break;
       case "comments":
-        return await fetchComments(siteUrl, apiToken);
+        result = await fetchComments(siteUrl, apiToken);
+        break;
       case "tags":
-        return await fetchTags(siteUrl, apiToken);
+        result = await fetchTags(siteUrl, apiToken);
+        break;
       case "activity":
-        return await fetchActivity(siteUrl, apiToken);
+        result = await fetchActivity(siteUrl, apiToken);
+        break;
       case "tasks":
       default:
-        return await fetchTasks(siteUrl, apiToken, query, currentUserId);
+        result = await fetchTasks(siteUrl, apiToken, query, currentUserId);
+        break;
     }
+    result.instanceUrl = siteUrl;
+    return result;
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error("Teamwork API error:", msg);
@@ -683,6 +697,8 @@ export function formatTeamworkResult(result: TeamworkServiceResult, query: strin
     return `No Teamwork ${result.type} found for query: "${query}"`;
   }
 
+  const baseUrl = result.instanceUrl ? result.instanceUrl.replace(/\/$/, "") : "";
+
   switch (result.type) {
     case "tasks": {
       const tasks = result.data as TeamworkTask[];
@@ -696,6 +712,7 @@ export function formatTeamworkResult(result: TeamworkServiceResult, query: strin
         if (t.taskListName) line += ` [${t.taskListName}]`;
         if (t.tags.length > 0) line += ` tags: ${t.tags.join(", ")}`;
         if (t.commentCount > 0) line += ` (${t.commentCount} comments)`;
+        if (baseUrl) line += ` ${baseUrl}/app/tasks/${t.id}`;
         if (t.description) line += `\n  Description: ${t.description.substring(0, 200)}${t.description.length > 200 ? "..." : ""}`;
         return line;
       });

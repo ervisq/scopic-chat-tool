@@ -190,7 +190,8 @@ export function formatMailResult(result: OutlookMailResult, query: string): stri
     const date = m.receivedAt ? new Date(m.receivedAt).toLocaleString() : "Unknown date";
     const readFlag = m.isRead ? "" : " [UNREAD]";
     const attachFlag = m.hasAttachments ? " \u{1F4CE}" : "";
-    return `\u2022 ${m.subject}${readFlag}${attachFlag}\n  From: ${m.from} | ${date}\n  ${m.preview}`;
+    const link = m.id ? ` https://outlook.office.com/mail/inbox/id/${encodeURIComponent(m.id)}` : "";
+    return `\u2022 ${m.subject}${readFlag}${attachFlag}\n  From: ${m.from} | ${date}\n  ${m.preview}${link}`;
   });
 
   return `Outlook Emails (${result.total} results):\n\n${lines.join("\n\n")}${q}`;

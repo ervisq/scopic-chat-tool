@@ -15,6 +15,7 @@ export interface JiraServiceResult {
   tickets: JiraTicket[];
   total: number;
   source: "live" | "not_connected" | "error";
+  instanceUrl?: string | null;
 }
 
 function mapPriority(priority: any): string {
@@ -93,7 +94,7 @@ async function queryJiraOAuth(query: string, cloudId: string, refreshToken: stri
 
   const issues = response.data?.issues || [];
   const tickets = parseIssues(issues);
-  return { tickets, total: tickets.length, source: "live" };
+  return { tickets, total: tickets.length, source: "live", instanceUrl };
 }
 
 async function queryJiraBasicAuth(query: string, instanceUrl: string, email: string, apiToken: string): Promise<JiraServiceResult> {
@@ -124,7 +125,7 @@ async function queryJiraBasicAuth(query: string, instanceUrl: string, email: str
 
   const issues = response.data?.issues || [];
   const tickets = parseIssues(issues);
-  return { tickets, total: tickets.length, source: "live" };
+  return { tickets, total: tickets.length, source: "live", instanceUrl };
 }
 
 function buildJql(query: string): string {
@@ -191,8 +192,10 @@ export function formatJiraResult(result: JiraServiceResult, query: string): stri
   if (result.source === "error") {
     return "There was an error connecting to Jira. Please check your credentials in Connected Services and try again.";
   }
-  const lines = result.tickets.map(
-    (t) => `• ${t.id}: ${t.title} (${t.status}) — ${t.assignee} [${t.priority}]`,
-  );
+  const baseUrl = result.instanceUrl ? result.instanceUrl.replace(/\/$/, "") : "";
+  const lines = result.tickets.map((t) => {
+    const link = baseUrl ? ` ${baseUrl}/browse/${t.id}` : "";
+    return `• ${t.id}: ${t.title} (${t.status}) — ${t.assignee} [${t.priority}]${link}`;
+  });
   return `JIRA tickets (${result.total} found):\n${lines.join("\n")}\n\nQuery: "${query}"`;
 }

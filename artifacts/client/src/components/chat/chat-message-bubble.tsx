@@ -44,6 +44,76 @@ function highlightToolMentions(text: string): (string | JSX.Element)[] {
   return parts;
 }
 
+function isSafeUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
+function linkifyText(text: string): (string | JSX.Element)[] {
+  const urlRegex = /(https?:\/\/[^\s<>"{}|\\^`[\]]+)/g;
+  const parts: (string | JSX.Element)[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = urlRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+
+    const url = match[1];
+    if (isSafeUrl(url)) {
+      parts.push(
+        <a
+          key={match.index}
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 dark:text-blue-400 hover:underline break-all"
+        >
+          {getUrlLabel(url)}
+        </a>,
+      );
+    } else {
+      parts.push(url);
+    }
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts;
+}
+
+function getUrlLabel(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname;
+    if (host.includes("atlassian.net") || host.includes("jira")) {
+      const match = parsed.pathname.match(/\/browse\/(.+)/);
+      return match ? `Open ${match[1]}` : "Open in Jira";
+    }
+    if (host.includes("teamwork.com")) {
+      const match = parsed.pathname.match(/\/app\/tasks\/(\d+)/);
+      return match ? `Open #${match[1]}` : "Open in Teamwork";
+    }
+    if (host === "outlook.office.com") {
+      if (parsed.pathname.includes("/mail/")) return "Open in Outlook";
+      if (parsed.pathname.includes("/calendar/")) return "Open in Outlook";
+      return "Open in Outlook";
+    }
+    return "Open link";
+  } catch {
+    return "Open link";
+  }
+}
+
 export function ChatMessageBubble({ message }: ChatMessageBubbleProps) {
   const isUser = message.sender === "user";
 
@@ -86,7 +156,7 @@ export function ChatMessageBubble({ message }: ChatMessageBubbleProps) {
             </span>
           </div>
           <p className="text-[15px] leading-relaxed text-foreground/90 break-words whitespace-pre-wrap">
-            {isUser ? highlightToolMentions(message.text) : message.text}
+            {isUser ? highlightToolMentions(message.text) : linkifyText(message.text)}
           </p>
         </div>
       </div>

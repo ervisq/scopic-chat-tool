@@ -291,7 +291,8 @@ export function formatCalendarResult(result: OutlookCalendarResult, query: strin
     const timeStr = e.isAllDay ? "All Day" : `${start} - ${end}`;
     const loc = e.location?.displayName ? ` | Location: ${e.location.displayName}` : "";
     const attn = e.attendees.length > 0 ? ` | Attendees: ${e.attendees.join(", ")}` : "";
-    return `\u2022 ${e.subject}\n  ${timeStr}${loc}${attn}`;
+    const link = e.id ? ` https://outlook.office.com/calendar/item/${encodeURIComponent(e.id)}` : "";
+    return `\u2022 ${e.subject}\n  ${timeStr}${loc}${attn}${link}`;
   });
 
   return `Outlook Calendar (${result.total} events):\n\n${lines.join("\n\n")}${q}`;

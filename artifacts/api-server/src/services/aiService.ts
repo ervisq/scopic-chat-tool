@@ -41,6 +41,8 @@ When tool data is provided, present it in a clear, helpful way based on the user
 
 CRITICAL: NEVER change, round, estimate, or hallucinate any numbers from the tool data. Always use the EXACT values provided. If the data says 10.0 hours, say 10.0 hours — not 10, not ~10, not "about 10." Dates, hours, counts, and all numerical values must be reproduced exactly as given in the data. Do not invent or add information not present in the data.
 
+IMPORTANT: When the tool data contains URLs (starting with https://), you MUST preserve them EXACTLY as-is in your response. Place each URL on the same line as or directly after the item it belongs to. Never modify, shorten, omit, or reformat URLs. They are used to create clickable links in the chat UI.
+
 If the user asks about something unrelated to tools, answer as a helpful general assistant.`;
 
 export async function routeWithAI(
