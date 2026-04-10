@@ -36,8 +36,8 @@ The project is structured as a pnpm monorepo using TypeScript, Node.js 24, and p
 - **Database:** PostgreSQL with Drizzle ORM manages user data, encrypted credentials, and Zoho token cache.
 - **Credential Management:** Per-user credentials for external services are encrypted with AES-256-GCM using environment variables for keys and salts.
 - **API Design:** RESTful API endpoints for authentication, chat, administration, credentials, dashboard, and account management. Zod is used for schema validation.
-- **Tool Command System:** A parser detects `@ToolName query` patterns in chat messages, routing them to specific service handlers (e.g., Jira, Zoho, STS, Teamwork).
-- **AI Integration:** Utilizes Replit AI Integrations for OpenAI (`gpt-4o-mini`), allowing natural language interaction with integrated tools. Non-tool messages are also processed by OpenAI.
+- **Tool Command System:** Uses OpenAI function calling to route user messages to the correct tool with structured parameters. The AI selects the tool and extracts typed parameters (dates, filters, categories) from natural language. Tool schemas defined in `tool-schemas.ts`. Users can still use `@ToolName` prefixes but it's no longer required — the AI understands natural language queries like "how many hours did I log this week" directly.
+- **AI Integration:** Utilizes Replit AI Integrations for OpenAI (`gpt-4o-mini`). Two-step flow: (1) AI routes message to the correct tool with structured params, (2) AI formats the tool results into a friendly response. Temperature 0 for routing, 0.1 for formatting to ensure consistency.
 - **SSRF Protection:** Implemented for external service integrations (STS, Zoho, Teamwork) to validate instance URLs and prevent access to unauthorized hosts or private IPs.
 - **Role-Based Access Control:** Three roles (`super_admin`, `admin`, `user`) control access to administrative features, defined by JWT payload and enforced by middleware.
 
