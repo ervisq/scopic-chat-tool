@@ -9,6 +9,7 @@ Test user: `ervis.q@scopicsoftware.com` (super_admin).
 |-------------------|-----------------|-----------|--------------------------------------------------|-------------------------------------------------------------------|
 | STS               | query_sts       | PASS      | "how many hours did I log this week?"             | 2.0 hours total, 1 entry on 2026-04-09 (Business Development)    |
 | STS (last week)   | query_sts       | PASS      | "show my hours last week"                         | 0 hours (Mon 2026-03-30 to Sun 2026-04-05), correctly resolved   |
+| STS (project)     | query_sts       | PASS      | "hours on Business Development this week?"        | 2.0 hours, project_filter correctly extracted by AI               |
 | JIRA              | query_jira      | PASS      | "show my open Jira tickets"                       | 6 tickets returned (KAN-1 through KAN-7) via OAuth               |
 | Teamwork          | query_teamwork  | PASS      | "show my Teamwork tasks"                          | 25 tasks returned with project/assignee/priority data             |
 | Outlook Mail      | query_outlook    | PASS      | "show my recent emails"                           | 15 emails with subjects, senders, timestamps                     |
@@ -35,6 +36,14 @@ Test user: `ervis.q@scopicsoftware.com` (super_admin).
 - **API Response**: 0 entries, 0 hours
 - **Formatted Output**: "Total: 0 hours" with daily breakdown Mon-Sun
 - **Verdict**: PASS — correctly resolved "last week" as previous Mon-Sun
+
+### Test 2b: STS (Project Filter)
+- **Query**: "how many hours did I log on Business Development this week?"
+- **AI Routing**: `query_sts` with args `{"date_range_start":"2026-04-06","date_range_end":"2026-04-12","project_filter":"Business Development"}`
+- **Server Log**: `[STS] Using structured params — date range: 2026-04-06 to 2026-04-12 project: Business Development`
+- **API Response**: 1 entry, 2.0 hours on 2026-04-09 (Business Development Operations)
+- **Formatted Output**: Daily breakdown with project name and task description
+- **Verdict**: PASS — AI correctly extracted `project_filter` parameter
 
 ### Test 3: JIRA
 - **Query**: "show my open Jira tickets"
@@ -90,15 +99,17 @@ Test user: `ervis.q@scopicsoftware.com` (super_admin).
 - **Query**: "show open job positions from Zoho Recruit"
 - **AI Routing**: `query_zoho_recruit` with args `{"query":"open job positions"}`
 - **Error**: 401/403 — OAuth token does not include ZohoRecruit.modules.ALL scope
-- **User Message**: "Please go to Connected Services, click 'Update' on the Zoho card, then click 'Reconnect' to grant Recruit access."
-- **Verdict**: PERMISSION ISSUE — requires user to re-authorize Zoho with Recruit scope
+- **Error Handler Chain**: `zohoRecruitService` throws `ZohoPermissionError` → caught by `queryZohoRecruitDirect()` in `zohoService.ts` via `isPermissionError()` → calls `handlePermissionError("Recruit", ...)` → clears token cache → returns user-facing error
+- **User Message**: "Zoho Recruit access denied — your Zoho connection needs updated permissions. Please go to Connected Services, click 'Update' on the Zoho card, then click 'Reconnect' to grant Recruit access."
+- **Verdict**: PERMISSION ISSUE — error handling works correctly, user gets clear actionable instructions
 
 ### Test 9: Zoho Contracts (Permission Issue)
 - **Query**: "show active contracts from Zoho Contracts"
 - **AI Routing**: `query_zoho_contracts` with args `{"query":"active contracts"}`
 - **Error**: 401/403 — OAuth token does not include ZohoContracts scope
-- **User Message**: Same actionable message as Recruit
-- **Verdict**: PERMISSION ISSUE — requires user to re-authorize Zoho with Contracts scope
+- **Error Handler Chain**: Same as Recruit — `ZohoPermissionError` → `isPermissionError()` → `handlePermissionError("Contracts", ...)` → clears token cache → returns user-facing error
+- **User Message**: "Zoho Contracts access denied — your Zoho connection needs updated permissions. Please go to Connected Services, click 'Update' on the Zoho card, then click 'Reconnect' to grant Contracts access."
+- **Verdict**: PERMISSION ISSUE — error handling works correctly, user gets clear actionable instructions
 
 ### Test 10: General Chat (No Tool)
 - **Query**: "hello, how are you?"
