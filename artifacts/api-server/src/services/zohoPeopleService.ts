@@ -1,5 +1,6 @@
 import axios from "axios";
 import { getZohoAccessToken } from "./zohoTokenManager";
+import { getPeopleBaseUrl } from "./zohoDomainUtils";
 
 export interface ZohoEmployee {
   id: string;
@@ -100,7 +101,7 @@ export interface ZohoPeopleResult {
   contextLabel?: string;
 }
 
-const PEOPLE_BASE = "https://people.zoho.com";
+let PEOPLE_BASE = "https://people.zoho.com";
 const DEFAULT_LIMIT = 200;
 
 function s(rec: Record<string, string>, ...keys: string[]): string {
@@ -775,6 +776,8 @@ export async function queryZohoPeople(
   refreshToken: string,
   domain?: string,
 ): Promise<ZohoPeopleResult> {
+  PEOPLE_BASE = getPeopleBaseUrl(domain || "https://accounts.zoho.com");
+  console.log(`[ZohoPeople] Using People base URL: ${PEOPLE_BASE} (accountsDomain: ${domain})`);
   const accessToken = await getZohoAccessToken(clientId, clientSecret, refreshToken, domain);
   const lower = query.toLowerCase();
 

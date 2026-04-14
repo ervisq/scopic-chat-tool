@@ -24,3 +24,15 @@ export function getContractsBaseUrl(accountsDomain: string): string {
   if (suffix === ".ca") return "https://contracts.zohocloud.ca/api/v1";
   return `https://contracts.zoho${suffix}/api/v1`;
 }
+
+export function getCrmBaseUrl(accountsDomain: string): string {
+  const suffix = getDomainSuffix(accountsDomain);
+  if (suffix === ".ca") return "https://www.zohoapis.ca";
+  return `https://www.zohoapis${suffix}`;
+}
+
+export function getPeopleBaseUrl(accountsDomain: string): string {
+  const suffix = getDomainSuffix(accountsDomain);
+  if (suffix === ".ca") return "https://people.zohocloud.ca";
+  return `https://people.zoho${suffix}`;
+}

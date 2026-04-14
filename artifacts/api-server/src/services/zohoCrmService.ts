@@ -1,5 +1,6 @@
 import axios from "axios";
 import { getZohoAccessToken, ZohoPermissionError } from "./zohoTokenManager";
+import { getCrmBaseUrl } from "./zohoDomainUtils";
 
 export interface ZohoLead {
   id: string;
@@ -150,7 +151,6 @@ export interface ZohoCrmResult {
   source: "live" | "error";
 }
 
-const CRM_BASE = "https://www.zohoapis.com";
 const DEFAULT_LIMIT = 200;
 
 const MODULE_FIELDS: Record<string, string> = {
@@ -172,6 +172,7 @@ async function fetchModule<T>(
   accessToken: string,
   module: string,
   mapper: (record: Record<string, unknown>) => T,
+  crmBase: string,
   params?: Record<string, string>,
 ): Promise<T[]> {
   const headers = { Authorization: `Zoho-oauthtoken ${accessToken}` };
@@ -181,8 +182,10 @@ async function fetchModule<T>(
     queryParams.fields = fields;
   }
 
+  console.log(`[ZohoCRM] Fetching ${module} from ${crmBase}/crm/v7/${module}`);
+
   try {
-    const response = await axios.get(`${CRM_BASE}/crm/v7/${module}`, {
+    const response = await axios.get(`${crmBase}/crm/v7/${module}`, {
       params: queryParams,
       headers,
     });
@@ -203,7 +206,7 @@ async function fetchModule<T>(
 
       try {
         console.log(`[ZohoCRM] Trying v2 fallback for ${module}...`);
-        const fallback = await axios.get(`${CRM_BASE}/crm/v2/${module}`, {
+        const fallback = await axios.get(`${crmBase}/crm/v2/${module}`, {
           params: { per_page: DEFAULT_LIMIT, ...params },
           headers,
         });
@@ -229,12 +232,13 @@ async function searchModule<T>(
   module: string,
   criteria: string,
   mapper: (record: Record<string, unknown>) => T,
+  crmBase: string,
 ): Promise<T[]> {
   const headers = { Authorization: `Zoho-oauthtoken ${accessToken}` };
 
   async function trySearch(version: string): Promise<T[] | null> {
     try {
-      const response = await axios.get(`${CRM_BASE}/crm/${version}/${module}/search`, {
+      const response = await axios.get(`${crmBase}/crm/${version}/${module}/search`, {
         params: { criteria, per_page: DEFAULT_LIMIT },
         headers,
       });
@@ -451,55 +455,57 @@ export async function queryZohoCrm(
   domain?: string,
 ): Promise<ZohoCrmResult> {
   const accessToken = await getZohoAccessToken(clientId, clientSecret, refreshToken, domain);
+  const crmBase = getCrmBaseUrl(domain || "https://accounts.zoho.com");
+  console.log(`[ZohoCRM] Using CRM base URL: ${crmBase} (accountsDomain: ${domain})`);
   const moduleType = detectCrmModule(query);
 
   switch (moduleType) {
     case "leads": {
-      const leads = await fetchModule(accessToken, "Leads", mapLead);
+      const leads = await fetchModule(accessToken, "Leads", mapLead, crmBase);
       return { type: "leads", leads, total: leads.length, source: "live" };
     }
     case "deals": {
-      const deals = await fetchModule(accessToken, "Deals", mapDeal);
+      const deals = await fetchModule(accessToken, "Deals", mapDeal, crmBase);
       return { type: "deals", deals, total: deals.length, source: "live" };
     }
     case "accounts": {
-      const accounts = await fetchModule(accessToken, "Accounts", mapAccount);
+      const accounts = await fetchModule(accessToken, "Accounts", mapAccount, crmBase);
       return { type: "accounts", accounts, total: accounts.length, source: "live" };
     }
     case "tasks": {
-      const tasks = await fetchModule(accessToken, "Tasks", mapTask);
+      const tasks = await fetchModule(accessToken, "Tasks", mapTask, crmBase);
       return { type: "tasks", tasks, total: tasks.length, source: "live" };
     }
     case "events": {
-      const events = await fetchModule(accessToken, "Events", mapEvent);
+      const events = await fetchModule(accessToken, "Events", mapEvent, crmBase);
       return { type: "events", events, total: events.length, source: "live" };
     }
     case "calls": {
-      const calls = await fetchModule(accessToken, "Calls", mapCall);
+      const calls = await fetchModule(accessToken, "Calls", mapCall, crmBase);
       return { type: "calls", calls, total: calls.length, source: "live" };
     }
     case "products": {
-      const products = await fetchModule(accessToken, "Products", mapProduct);
+      const products = await fetchModule(accessToken, "Products", mapProduct, crmBase);
       return { type: "products", products, total: products.length, source: "live" };
     }
     case "quotes": {
-      const quotes = await fetchModule(accessToken, "Quotes", mapQuote);
+      const quotes = await fetchModule(accessToken, "Quotes", mapQuote, crmBase);
       return { type: "quotes", quotes, total: quotes.length, source: "live" };
     }
     case "invoices": {
-      const invoices = await fetchModule(accessToken, "Invoices", mapInvoice);
+      const invoices = await fetchModule(accessToken, "Invoices", mapInvoice, crmBase);
       return { type: "invoices", invoices, total: invoices.length, source: "live" };
     }
     case "campaigns": {
-      const campaigns = await fetchModule(accessToken, "Campaigns", mapCampaign);
+      const campaigns = await fetchModule(accessToken, "Campaigns", mapCampaign, crmBase);
       return { type: "campaigns", campaigns, total: campaigns.length, source: "live" };
     }
     case "vendors": {
-      const vendors = await fetchModule(accessToken, "Vendors", mapVendor);
+      const vendors = await fetchModule(accessToken, "Vendors", mapVendor, crmBase);
       return { type: "vendors", vendors, total: vendors.length, source: "live" };
     }
     default: {
-      const contacts = await fetchModule(accessToken, "Contacts", mapContact);
+      const contacts = await fetchModule(accessToken, "Contacts", mapContact, crmBase);
       return { type: "contacts", contacts, total: contacts.length, source: "live" };
     }
   }
