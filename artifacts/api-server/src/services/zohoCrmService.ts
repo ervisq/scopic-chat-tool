@@ -153,6 +153,21 @@ export interface ZohoCrmResult {
 const CRM_BASE = "https://www.zohoapis.com";
 const DEFAULT_LIMIT = 200;
 
+const MODULE_FIELDS: Record<string, string> = {
+  Leads: "id,First_Name,Last_Name,Full_Name,Company,Email,Phone,Mobile,Lead_Status,Lead_Source,Created_Time",
+  Contacts: "id,First_Name,Last_Name,Full_Name,Email,Phone,Mobile,Account_Name,Title,Department,Mailing_City",
+  Deals: "id,Deal_Name,Stage,Amount,Closing_Date,Account_Name,Contact_Name,Probability,Type",
+  Accounts: "id,Account_Name,Industry,Phone,Website,Annual_Revenue,Employees,Billing_City,Account_Type",
+  Tasks: "id,Subject,Status,Priority,Due_Date,What_Id,$se_module,Owner,Description",
+  Events: "id,Event_Title,Start_DateTime,End_DateTime,Location,Participants,Description",
+  Calls: "id,Subject,Call_Type,Call_Duration,Call_Start_Time,What_Id,Who_Id,Call_Result",
+  Products: "id,Product_Name,Product_Code,Unit_Price,Product_Category,Manufacturer,Product_Active",
+  Quotes: "id,Subject,Quote_Stage,Grand_Total,Valid_Till,Account_Name,Contact_Name",
+  Invoices: "id,Subject,Status,Grand_Total,Due_Date,Account_Name,Invoice_Date",
+  Campaigns: "id,Campaign_Name,Type,Status,Start_Date,End_Date,Expected_Revenue,Budgeted_Cost",
+  Vendors: "id,Vendor_Name,Email,Phone,Category,City,Website",
+};
+
 async function fetchModule<T>(
   accessToken: string,
   module: string,
@@ -160,7 +175,11 @@ async function fetchModule<T>(
   params?: Record<string, string>,
 ): Promise<T[]> {
   const headers = { Authorization: `Zoho-oauthtoken ${accessToken}` };
-  const queryParams = { per_page: DEFAULT_LIMIT, ...params };
+  const fields = MODULE_FIELDS[module];
+  const queryParams: Record<string, unknown> = { per_page: DEFAULT_LIMIT, ...params };
+  if (fields) {
+    queryParams.fields = fields;
+  }
 
   try {
     const response = await axios.get(`${CRM_BASE}/crm/v7/${module}`, {
@@ -168,6 +187,7 @@ async function fetchModule<T>(
       headers,
     });
     const records = response.data?.data || [];
+    console.log(`[ZohoCRM] v7 ${module} returned ${records.length} records`);
     return records.map(mapper);
   } catch (err: unknown) {
     if (axios.isAxiosError(err)) {
@@ -181,24 +201,23 @@ async function fetchModule<T>(
         );
       }
 
-      if (status === 400) {
-        try {
-          console.log(`[ZohoCRM] Trying v2 fallback for ${module}...`);
-          const fallback = await axios.get(`${CRM_BASE}/crm/v2/${module}`, {
-            params: queryParams,
-            headers,
-          });
-          const records = fallback.data?.data || [];
-          return records.map(mapper);
-        } catch (v2Err: unknown) {
-          if (axios.isAxiosError(v2Err) && [401, 403].includes(v2Err.response?.status || 0)) {
-            throw new ZohoPermissionError(
-              "Zoho CRM access denied — your Zoho connection may not include CRM permissions.",
-              v2Err.response?.status || 401,
-            );
-          }
-          console.error(`[ZohoCRM] v2 fallback also failed:`, axios.isAxiosError(v2Err) ? v2Err.response?.status : String(v2Err));
+      try {
+        console.log(`[ZohoCRM] Trying v2 fallback for ${module}...`);
+        const fallback = await axios.get(`${CRM_BASE}/crm/v2/${module}`, {
+          params: { per_page: DEFAULT_LIMIT, ...params },
+          headers,
+        });
+        const records = fallback.data?.data || [];
+        console.log(`[ZohoCRM] v2 ${module} returned ${records.length} records`);
+        return records.map(mapper);
+      } catch (v2Err: unknown) {
+        if (axios.isAxiosError(v2Err) && [401, 403].includes(v2Err.response?.status || 0)) {
+          throw new ZohoPermissionError(
+            "Zoho CRM access denied — your Zoho connection may not include CRM permissions.",
+            v2Err.response?.status || 401,
+          );
         }
+        console.error(`[ZohoCRM] v2 fallback also failed:`, axios.isAxiosError(v2Err) ? v2Err.response?.status : String(v2Err));
       }
     }
     throw err;
