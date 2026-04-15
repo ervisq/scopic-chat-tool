@@ -655,9 +655,14 @@ export async function queryZohoCrm(
   const moduleName = MODULE_NAME_MAP[moduleType];
   const mapper = MODULE_MAPPER_MAP[moduleType] as (r: Record<string, unknown>) => unknown;
 
-  const searchEntity = options?.searchEntity || (options?.isAtMentionOverride ? extractSearchTermFallback(query) : null);
+  let searchEntity = options?.searchEntity || (options?.isAtMentionOverride ? extractSearchTermFallback(query) : null);
   const wantOwnerFilter = options?.ownerFilter === "me" || detectOwnerIntent(query);
-  const wantRelated = options?.includeRelated === true;
+  const wantRelated = options?.includeRelated === true || (options?.isAtMentionOverride === true && !!searchEntity);
+
+  if (!searchEntity && wantRelated && query.trim().length > 0) {
+    searchEntity = query.trim();
+    console.log(`[ZohoCRM] No search_entity but include_related requested — using query as entity: "${searchEntity}"`);
+  }
 
   console.log(`[ZohoCRM] Module: ${moduleName}, searchEntity: ${searchEntity || "(none)"}, ownerFilter: ${wantOwnerFilter}, includeRelated: ${wantRelated}`);
 

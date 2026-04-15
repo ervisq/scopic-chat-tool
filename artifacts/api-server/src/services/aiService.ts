@@ -36,13 +36,15 @@ If the user's message is general conversation (greetings, thanks, general questi
 IMPORTANT: Use conversation history to understand follow-up messages. If a user says "what about last month?" after asking about hours, use the same tool with updated parameters.
 
 Zoho CRM search_entity guidelines:
-- When the user mentions a specific company, person, or entity name, extract it into search_entity. Examples:
+- When the user mentions a specific company, person, or entity name, ALWAYS extract it into search_entity. This is critical for targeted searches. Examples:
   - "Portfolio Co contact person" → search_entity: "Portfolio Co", module: "contacts"
+  - "Nailed Technologies" → search_entity: "Nailed Technologies", module: "accounts", include_related: true
   - "Nailed Technologies tasks" → search_entity: "Nailed Technologies", module: "tasks"
   - "deals for Acme Corp" → search_entity: "Acme Corp", module: "deals"
   - "everything about John Smith" → search_entity: "John Smith", include_related: true
   - "all leads" → no search_entity (generic listing)
   - "my tasks" → owner_filter: "me", module: "tasks"
+- If the query is JUST a company/person name (e.g. "Nailed Technologies"), set search_entity to that name, module to "accounts", and include_related to true.
 - Do NOT include generic words like "contact", "person", "website", "details", "activity" in search_entity — only the actual entity/proper noun name.
 - When the user mentions a name without specifying a module, default module to "accounts" and set include_related: true.`;
 

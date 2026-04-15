@@ -27,10 +27,15 @@ router.post("/chat", async (req, res) => {
     if (explicitTool && (!toolCall || toolCall.toolName.toLowerCase() !== explicitTool.tool.toLowerCase())) {
       console.log(`[Chat] @-mention override: AI picked "${toolCall?.toolName || 'none'}" but user explicitly mentioned @${explicitTool.tool} — forcing correct tool`);
       const query = parsed.message.replace(/@[a-zA-Z0-9_-]+/g, "").trim() || parsed.message;
+      const overrideArgs: Record<string, unknown> = { query, _atMentionOverride: true };
+      if (explicitTool.tool === "ZohoCRM") {
+        overrideArgs.module = "accounts";
+        overrideArgs.include_related = true;
+      }
       toolCall = {
         toolName: explicitTool.tool,
         functionName: `query_${explicitTool.tool.toLowerCase()}`,
-        args: { query, _atMentionOverride: true },
+        args: overrideArgs,
       };
     }
 
