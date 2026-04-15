@@ -158,9 +158,9 @@ export interface ZohoCrmResult {
 
 export interface CrmSearchOptions {
   searchEntity?: string;
-  ownerFilter?: string;
+  ownerFilter?: "me" | "all";
   includeRelated?: boolean;
-  module?: string;
+  module?: CrmResultType | string;
 }
 
 const DEFAULT_LIMIT = 200;
@@ -604,6 +604,34 @@ async function fetchRelatedRecords(
   return related;
 }
 
+const VALID_MODULES = new Set<CrmResultType>([
+  "leads", "contacts", "deals", "accounts", "tasks", "events",
+  "calls", "products", "quotes", "invoices", "campaigns", "vendors",
+]);
+
+function isValidModule(mod: string): mod is CrmResultType {
+  return VALID_MODULES.has(mod as CrmResultType);
+}
+
+function buildResult(moduleType: CrmResultType, records: unknown[], extra?: Partial<ZohoCrmResult>): ZohoCrmResult {
+  const base: ZohoCrmResult = { type: moduleType, total: records.length, source: "live", ...extra };
+  switch (moduleType) {
+    case "leads": base.leads = records as ZohoLead[]; break;
+    case "contacts": base.contacts = records as ZohoContact[]; break;
+    case "deals": base.deals = records as ZohoDeal[]; break;
+    case "accounts": base.accounts = records as ZohoAccount[]; break;
+    case "tasks": base.tasks = records as ZohoTask[]; break;
+    case "events": base.events = records as ZohoEvent[]; break;
+    case "calls": base.calls = records as ZohoCall[]; break;
+    case "products": base.products = records as ZohoProduct[]; break;
+    case "quotes": base.quotes = records as ZohoQuote[]; break;
+    case "invoices": base.invoices = records as ZohoInvoice[]; break;
+    case "campaigns": base.campaigns = records as ZohoCampaign[]; break;
+    case "vendors": base.vendors = records as ZohoVendor[]; break;
+  }
+  return base;
+}
+
 function detectOwnerIntent(query: string): boolean {
   const lower = query.toLowerCase();
   return /\b(my |i own|assigned to me|i am assigned|my own)\b/.test(lower);
@@ -621,17 +649,18 @@ export async function queryZohoCrm(
   const crmBase = getCrmBaseUrl(domain || "https://accounts.zoho.com");
   console.log(`[ZohoCRM] Using CRM base URL: ${crmBase} (accountsDomain: ${domain})`);
 
-  const moduleType: CrmResultType = (options?.module as CrmResultType) || detectCrmModule(query);
+  const rawModule = options?.module || "";
+  const moduleType: CrmResultType = isValidModule(rawModule) ? rawModule : detectCrmModule(query);
   const moduleName = MODULE_NAME_MAP[moduleType];
   const mapper = MODULE_MAPPER_MAP[moduleType] as (r: Record<string, unknown>) => unknown;
 
   const searchEntity = options?.searchEntity || extractSearchTermFallback(query);
   const wantOwnerFilter = options?.ownerFilter === "me" || detectOwnerIntent(query);
-  const wantRelated = options?.includeRelated || false;
+  const wantRelated = options?.includeRelated === true;
 
   console.log(`[ZohoCRM] Module: ${moduleName}, searchEntity: ${searchEntity || "(none)"}, ownerFilter: ${wantOwnerFilter}, includeRelated: ${wantRelated}`);
 
-  if (wantOwnerFilter && !searchEntity) {
+  if (wantOwnerFilter) {
     console.log(`[ZohoCRM] Owner filter requested — using criteria search`);
     const criteriaResults = await searchModuleByCriteria(
       accessToken,
@@ -642,16 +671,14 @@ export async function queryZohoCrm(
     );
 
     if (criteriaResults !== null) {
-      const result: ZohoCrmResult = { type: moduleType, total: criteriaResults.length, source: "live" };
-      (result as Record<string, unknown>)[moduleType] = criteriaResults;
-      return result;
+      return buildResult(moduleType, criteriaResults);
     }
 
-    console.log(`[ZohoCRM] Owner criteria search not supported, falling back to fetch-all with filter`);
-    const allRecords = await fetchModule(accessToken, moduleName, mapper, crmBase);
-    const result: ZohoCrmResult = { type: moduleType, total: allRecords.length, source: "live" };
-    (result as Record<string, unknown>)[moduleType] = allRecords;
-    return result;
+    console.log(`[ZohoCRM] Owner criteria search not supported — returning message instead of unfiltered data`);
+    return buildResult(moduleType, [], {
+      source: "live",
+      total: 0,
+    });
   }
 
   if (searchEntity) {
@@ -659,15 +686,9 @@ export async function queryZohoCrm(
     const searchResults = await searchModuleByWord(accessToken, moduleName, searchEntity, mapper, crmBase);
 
     if (searchResults !== null) {
-      const result: ZohoCrmResult = {
-        type: moduleType,
-        total: searchResults.length,
-        source: "live",
-        searchEntity,
-      };
-      (result as Record<string, unknown>)[moduleType] = searchResults;
+      const result = buildResult(moduleType, searchResults, { searchEntity });
 
-      if (wantRelated || searchResults.length > 0) {
+      if (wantRelated && searchResults.length > 0) {
         const relatedData = await fetchRelatedRecords(accessToken, crmBase, searchEntity, moduleType);
         Object.assign(result, relatedData);
         const relatedCount = (relatedData.relatedContacts?.length || 0) +
@@ -684,9 +705,7 @@ export async function queryZohoCrm(
   }
 
   const records = await fetchModule(accessToken, moduleName, mapper, crmBase);
-  const result: ZohoCrmResult = { type: moduleType, total: records.length, source: "live" };
-  (result as Record<string, unknown>)[moduleType] = records;
-  return result;
+  return buildResult(moduleType, records);
 }
 
 function formatSection(label: string, lines: string[]): string {
