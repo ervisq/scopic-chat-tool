@@ -232,42 +232,68 @@ async function fetchModule<T>(
   }
 }
 
-async function searchModule<T>(
+async function searchModuleByWord<T>(
   accessToken: string,
   module: string,
-  criteria: string,
+  word: string,
   mapper: (record: Record<string, unknown>) => T,
   crmBase: string,
-): Promise<T[]> {
+): Promise<T[] | null> {
   const headers = { Authorization: `Zoho-oauthtoken ${accessToken}` };
 
-  async function trySearch(version: string): Promise<T[] | null> {
-    try {
-      const response = await axios.get(`${crmBase}/crm/${version}/${module}/search`, {
-        params: { criteria, per_page: DEFAULT_LIMIT },
-        headers,
-      });
-      const records = response.data?.data || [];
-      return records.map(mapper);
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err) && [401, 403].includes(err.response?.status || 0)) {
+  try {
+    console.log(`[ZohoCRM] Searching ${module} for word "${word}" via ${crmBase}/crm/v7/${module}/search`);
+    const response = await axios.get(`${crmBase}/crm/v7/${module}/search`, {
+      params: { word, per_page: DEFAULT_LIMIT },
+      headers,
+    });
+    const records = response.data?.data || [];
+    console.log(`[ZohoCRM] Search ${module} for "${word}" returned ${records.length} records`);
+    return records.map(mapper);
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err)) {
+      const status = err.response?.status || 0;
+      if ([401, 403].includes(status)) {
         throw new ZohoPermissionError(
           "Zoho CRM access denied — your Zoho connection may not include CRM permissions.",
-          err.response?.status || 401,
+          status,
         );
       }
-      console.error(`[ZohoCRM] search ${version} ${module} failed:`, axios.isAxiosError(err) ? err.response?.status : String(err));
-      return null;
+      if (status === 204) {
+        console.log(`[ZohoCRM] Search ${module} for "${word}" returned no results (204)`);
+        return [];
+      }
+      console.error(`[ZohoCRM] Search ${module} failed (${status}):`, JSON.stringify(err.response?.data || {}).substring(0, 200));
     }
+    return null;
   }
+}
 
-  const v7Result = await trySearch("v7");
-  if (v7Result !== null) return v7Result;
+const GENERIC_WORDS = new Set([
+  "my", "all", "list", "show", "get", "find", "what", "which", "the",
+  "recent", "latest", "open", "any", "every", "a", "an", "me", "i",
+  "tasks", "leads", "contacts", "deals", "accounts", "events",
+  "calls", "products", "quotes", "invoices", "campaigns", "vendors",
+  "task", "lead", "contact", "deal", "account", "event",
+  "call", "product", "quote", "invoice", "campaign", "vendor",
+  "owned", "by", "created", "assigned", "to", "for", "from",
+  "this", "last", "next", "week", "month", "today", "yesterday",
+  "crm", "zoho", "zohocrm", "in", "there", "here", "data", "info",
+]);
 
-  const v2Result = await trySearch("v2");
-  if (v2Result !== null) return v2Result;
+function extractSearchTerm(query: string): string | null {
+  const cleaned = query
+    .replace(/@[a-zA-Z0-9_-]+/g, "")
+    .replace(/[?!.,;:]+/g, " ")
+    .trim();
 
-  return [];
+  const words = cleaned.split(/\s+/).filter((w) => !GENERIC_WORDS.has(w.toLowerCase()));
+  if (words.length === 0) return null;
+
+  const searchTerm = words.join(" ").trim();
+  if (searchTerm.length < 2) return null;
+
+  return searchTerm;
 }
 
 function str(val: unknown): string {
@@ -452,6 +478,20 @@ function detectCrmModule(query: string): CrmResultType {
   return "contacts";
 }
 
+const MODULE_NAME_MAP: Record<CrmResultType, string> = {
+  leads: "Leads", contacts: "Contacts", deals: "Deals", accounts: "Accounts",
+  tasks: "Tasks", events: "Events", calls: "Calls", products: "Products",
+  quotes: "Quotes", invoices: "Invoices", campaigns: "Campaigns", vendors: "Vendors",
+};
+
+type MapperFn = (r: Record<string, unknown>) => unknown;
+
+const MODULE_MAPPER_MAP: Record<CrmResultType, MapperFn> = {
+  leads: mapLead, contacts: mapContact, deals: mapDeal, accounts: mapAccount,
+  tasks: mapTask, events: mapEvent, calls: mapCall, products: mapProduct,
+  quotes: mapQuote, invoices: mapInvoice, campaigns: mapCampaign, vendors: mapVendor,
+};
+
 export async function queryZohoCrm(
   query: string,
   clientId: string,
@@ -463,57 +503,26 @@ export async function queryZohoCrm(
   const crmBase = getCrmBaseUrl(domain || "https://accounts.zoho.com");
   console.log(`[ZohoCRM] Using CRM base URL: ${crmBase} (accountsDomain: ${domain})`);
   const moduleType = detectCrmModule(query);
+  const moduleName = MODULE_NAME_MAP[moduleType];
+  const mapper = MODULE_MAPPER_MAP[moduleType] as (r: Record<string, unknown>) => unknown;
 
-  switch (moduleType) {
-    case "leads": {
-      const leads = await fetchModule(accessToken, "Leads", mapLead, crmBase);
-      return { type: "leads", leads, total: leads.length, source: "live" };
+  const searchTerm = extractSearchTerm(query);
+
+  if (searchTerm) {
+    console.log(`[ZohoCRM] Detected search term: "${searchTerm}" — trying search API first`);
+    const searchResults = await searchModuleByWord(accessToken, moduleName, searchTerm, mapper, crmBase);
+    if (searchResults !== null) {
+      const result: ZohoCrmResult = { type: moduleType, total: searchResults.length, source: "live" };
+      (result as Record<string, unknown>)[moduleType] = searchResults;
+      return result;
     }
-    case "deals": {
-      const deals = await fetchModule(accessToken, "Deals", mapDeal, crmBase);
-      return { type: "deals", deals, total: deals.length, source: "live" };
-    }
-    case "accounts": {
-      const accounts = await fetchModule(accessToken, "Accounts", mapAccount, crmBase);
-      return { type: "accounts", accounts, total: accounts.length, source: "live" };
-    }
-    case "tasks": {
-      const tasks = await fetchModule(accessToken, "Tasks", mapTask, crmBase);
-      return { type: "tasks", tasks, total: tasks.length, source: "live" };
-    }
-    case "events": {
-      const events = await fetchModule(accessToken, "Events", mapEvent, crmBase);
-      return { type: "events", events, total: events.length, source: "live" };
-    }
-    case "calls": {
-      const calls = await fetchModule(accessToken, "Calls", mapCall, crmBase);
-      return { type: "calls", calls, total: calls.length, source: "live" };
-    }
-    case "products": {
-      const products = await fetchModule(accessToken, "Products", mapProduct, crmBase);
-      return { type: "products", products, total: products.length, source: "live" };
-    }
-    case "quotes": {
-      const quotes = await fetchModule(accessToken, "Quotes", mapQuote, crmBase);
-      return { type: "quotes", quotes, total: quotes.length, source: "live" };
-    }
-    case "invoices": {
-      const invoices = await fetchModule(accessToken, "Invoices", mapInvoice, crmBase);
-      return { type: "invoices", invoices, total: invoices.length, source: "live" };
-    }
-    case "campaigns": {
-      const campaigns = await fetchModule(accessToken, "Campaigns", mapCampaign, crmBase);
-      return { type: "campaigns", campaigns, total: campaigns.length, source: "live" };
-    }
-    case "vendors": {
-      const vendors = await fetchModule(accessToken, "Vendors", mapVendor, crmBase);
-      return { type: "vendors", vendors, total: vendors.length, source: "live" };
-    }
-    default: {
-      const contacts = await fetchModule(accessToken, "Contacts", mapContact, crmBase);
-      return { type: "contacts", contacts, total: contacts.length, source: "live" };
-    }
+    console.log(`[ZohoCRM] Search failed, falling back to fetch all`);
   }
+
+  const records = await fetchModule(accessToken, moduleName, mapper, crmBase);
+  const result: ZohoCrmResult = { type: moduleType, total: records.length, source: "live" };
+  (result as Record<string, unknown>)[moduleType] = records;
+  return result;
 }
 
 export function formatCrmResult(result: ZohoCrmResult, query: string): string {
