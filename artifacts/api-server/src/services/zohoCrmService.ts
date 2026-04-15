@@ -147,8 +147,20 @@ export interface ZohoCrmResult {
   invoices?: ZohoInvoice[];
   campaigns?: ZohoCampaign[];
   vendors?: ZohoVendor[];
+  relatedContacts?: ZohoContact[];
+  relatedDeals?: ZohoDeal[];
+  relatedTasks?: ZohoTask[];
+  relatedLeads?: ZohoLead[];
   total: number;
   source: "live" | "error";
+  searchEntity?: string;
+}
+
+export interface CrmSearchOptions {
+  searchEntity?: string;
+  ownerFilter?: string;
+  includeRelated?: boolean;
+  module?: string;
 }
 
 const DEFAULT_LIMIT = 200;
@@ -191,9 +203,7 @@ async function fetchModule<T>(
     });
     const records = response.data?.data || [];
     console.log(`[ZohoCRM] v7 ${module} returned ${records.length} records`);
-    if (records.length === 0) {
-      console.log(`[ZohoCRM] v7 ${module} raw response keys:`, Object.keys(response.data || {}), "info:", JSON.stringify(response.data?.info || {}).substring(0, 200));
-    } else if (records.length > 0) {
+    if (records.length > 0) {
       console.log(`[ZohoCRM] v7 ${module} first record keys:`, Object.keys(records[0]).slice(0, 15));
     }
     return records.map(mapper);
@@ -207,6 +217,10 @@ async function fetchModule<T>(
           "Zoho CRM access denied — your Zoho connection may not include CRM permissions.",
           status,
         );
+      }
+
+      if (status === 204) {
+        return [];
       }
 
       try {
@@ -269,6 +283,43 @@ async function searchModuleByWord<T>(
   }
 }
 
+async function searchModuleByCriteria<T>(
+  accessToken: string,
+  module: string,
+  criteria: string,
+  mapper: (record: Record<string, unknown>) => T,
+  crmBase: string,
+): Promise<T[] | null> {
+  const headers = { Authorization: `Zoho-oauthtoken ${accessToken}` };
+
+  try {
+    console.log(`[ZohoCRM] Criteria search ${module}: ${criteria}`);
+    const response = await axios.get(`${crmBase}/crm/v7/${module}/search`, {
+      params: { criteria, per_page: DEFAULT_LIMIT },
+      headers,
+    });
+    const records = response.data?.data || [];
+    console.log(`[ZohoCRM] Criteria search ${module} returned ${records.length} records`);
+    return records.map(mapper);
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err)) {
+      const status = err.response?.status || 0;
+      if ([401, 403].includes(status)) {
+        throw new ZohoPermissionError(
+          "Zoho CRM access denied — your Zoho connection may not include CRM permissions.",
+          status,
+        );
+      }
+      if (status === 204) {
+        console.log(`[ZohoCRM] Criteria search ${module} returned no results (204)`);
+        return [];
+      }
+      console.error(`[ZohoCRM] Criteria search ${module} failed (${status}):`, JSON.stringify(err.response?.data || {}).substring(0, 200));
+    }
+    return null;
+  }
+}
+
 const GENERIC_WORDS = new Set([
   "my", "all", "list", "show", "get", "find", "what", "which", "the",
   "recent", "latest", "open", "any", "every", "a", "an", "me", "i",
@@ -279,9 +330,16 @@ const GENERIC_WORDS = new Set([
   "owned", "by", "created", "assigned", "to", "for", "from",
   "this", "last", "next", "week", "month", "today", "yesterday",
   "crm", "zoho", "zohocrm", "in", "there", "here", "data", "info",
+  "person", "people", "activity", "activities", "website", "details",
+  "history", "information", "status", "about", "everything", "name",
+  "number", "email", "address", "phone", "related", "associated",
+  "with", "on", "at", "is", "are", "has", "have", "do", "does",
+  "who", "how", "many", "much", "their", "its", "of", "or", "and",
+  "can", "could", "would", "should", "please", "tell", "give",
+  "look", "up", "check", "search", "query",
 ]);
 
-function extractSearchTerm(query: string): string | null {
+function extractSearchTermFallback(query: string): string | null {
   const cleaned = query
     .replace(/@[a-zA-Z0-9_-]+/g, "")
     .replace(/[?!.,;:]+/g, " ")
@@ -492,31 +550,137 @@ const MODULE_MAPPER_MAP: Record<CrmResultType, MapperFn> = {
   quotes: mapQuote, invoices: mapInvoice, campaigns: mapCampaign, vendors: mapVendor,
 };
 
+const RELATED_MODULES: Record<CrmResultType, CrmResultType[]> = {
+  accounts: ["contacts", "deals", "tasks"],
+  contacts: ["deals", "tasks"],
+  leads: ["tasks"],
+  deals: ["contacts", "tasks"],
+  tasks: [],
+  events: [],
+  calls: [],
+  products: [],
+  quotes: [],
+  invoices: [],
+  campaigns: [],
+  vendors: [],
+};
+
+async function fetchRelatedRecords(
+  accessToken: string,
+  crmBase: string,
+  searchEntity: string,
+  primaryModule: CrmResultType,
+): Promise<Pick<ZohoCrmResult, "relatedContacts" | "relatedDeals" | "relatedTasks" | "relatedLeads">> {
+  const related: Pick<ZohoCrmResult, "relatedContacts" | "relatedDeals" | "relatedTasks" | "relatedLeads"> = {};
+  const modulesToSearch = RELATED_MODULES[primaryModule] || [];
+
+  const promises = modulesToSearch.map(async (modType) => {
+    const modName = MODULE_NAME_MAP[modType];
+    const mapper = MODULE_MAPPER_MAP[modType];
+    const results = await searchModuleByWord(accessToken, modName, searchEntity, mapper, crmBase);
+    return { modType, results };
+  });
+
+  const results = await Promise.all(promises);
+
+  for (const { modType, results: records } of results) {
+    if (!records || records.length === 0) continue;
+    switch (modType) {
+      case "contacts":
+        related.relatedContacts = records as ZohoContact[];
+        break;
+      case "deals":
+        related.relatedDeals = records as ZohoDeal[];
+        break;
+      case "tasks":
+        related.relatedTasks = records as ZohoTask[];
+        break;
+      case "leads":
+        related.relatedLeads = records as ZohoLead[];
+        break;
+    }
+  }
+
+  return related;
+}
+
+function detectOwnerIntent(query: string): boolean {
+  const lower = query.toLowerCase();
+  return /\b(my |i own|assigned to me|i am assigned|my own)\b/.test(lower);
+}
+
 export async function queryZohoCrm(
   query: string,
   clientId: string,
   clientSecret: string,
   refreshToken: string,
   domain?: string,
+  options?: CrmSearchOptions,
 ): Promise<ZohoCrmResult> {
   const accessToken = await getZohoAccessToken(clientId, clientSecret, refreshToken, domain);
   const crmBase = getCrmBaseUrl(domain || "https://accounts.zoho.com");
   console.log(`[ZohoCRM] Using CRM base URL: ${crmBase} (accountsDomain: ${domain})`);
-  const moduleType = detectCrmModule(query);
+
+  const moduleType: CrmResultType = (options?.module as CrmResultType) || detectCrmModule(query);
   const moduleName = MODULE_NAME_MAP[moduleType];
   const mapper = MODULE_MAPPER_MAP[moduleType] as (r: Record<string, unknown>) => unknown;
 
-  const searchTerm = extractSearchTerm(query);
+  const searchEntity = options?.searchEntity || extractSearchTermFallback(query);
+  const wantOwnerFilter = options?.ownerFilter === "me" || detectOwnerIntent(query);
+  const wantRelated = options?.includeRelated || false;
 
-  if (searchTerm) {
-    console.log(`[ZohoCRM] Detected search term: "${searchTerm}" — trying search API first`);
-    const searchResults = await searchModuleByWord(accessToken, moduleName, searchTerm, mapper, crmBase);
-    if (searchResults !== null) {
-      const result: ZohoCrmResult = { type: moduleType, total: searchResults.length, source: "live" };
-      (result as Record<string, unknown>)[moduleType] = searchResults;
+  console.log(`[ZohoCRM] Module: ${moduleName}, searchEntity: ${searchEntity || "(none)"}, ownerFilter: ${wantOwnerFilter}, includeRelated: ${wantRelated}`);
+
+  if (wantOwnerFilter && !searchEntity) {
+    console.log(`[ZohoCRM] Owner filter requested — using criteria search`);
+    const criteriaResults = await searchModuleByCriteria(
+      accessToken,
+      moduleName,
+      "(Owner:equals:${CRMUSER})",
+      mapper,
+      crmBase,
+    );
+
+    if (criteriaResults !== null) {
+      const result: ZohoCrmResult = { type: moduleType, total: criteriaResults.length, source: "live" };
+      (result as Record<string, unknown>)[moduleType] = criteriaResults;
       return result;
     }
-    console.log(`[ZohoCRM] Search failed, falling back to fetch all`);
+
+    console.log(`[ZohoCRM] Owner criteria search not supported, falling back to fetch-all with filter`);
+    const allRecords = await fetchModule(accessToken, moduleName, mapper, crmBase);
+    const result: ZohoCrmResult = { type: moduleType, total: allRecords.length, source: "live" };
+    (result as Record<string, unknown>)[moduleType] = allRecords;
+    return result;
+  }
+
+  if (searchEntity) {
+    console.log(`[ZohoCRM] Searching ${moduleName} for entity: "${searchEntity}"`);
+    const searchResults = await searchModuleByWord(accessToken, moduleName, searchEntity, mapper, crmBase);
+
+    if (searchResults !== null) {
+      const result: ZohoCrmResult = {
+        type: moduleType,
+        total: searchResults.length,
+        source: "live",
+        searchEntity,
+      };
+      (result as Record<string, unknown>)[moduleType] = searchResults;
+
+      if (wantRelated || searchResults.length > 0) {
+        const relatedData = await fetchRelatedRecords(accessToken, crmBase, searchEntity, moduleType);
+        Object.assign(result, relatedData);
+        const relatedCount = (relatedData.relatedContacts?.length || 0) +
+          (relatedData.relatedDeals?.length || 0) +
+          (relatedData.relatedTasks?.length || 0) +
+          (relatedData.relatedLeads?.length || 0);
+        console.log(`[ZohoCRM] Found ${searchResults.length} primary + ${relatedCount} related records for "${searchEntity}"`);
+      }
+
+      return result;
+    }
+
+    console.log(`[ZohoCRM] Search for "${searchEntity}" returned null, falling back to fetch all`);
   }
 
   const records = await fetchModule(accessToken, moduleName, mapper, crmBase);
@@ -525,104 +689,136 @@ export async function queryZohoCrm(
   return result;
 }
 
+function formatSection(label: string, lines: string[]): string {
+  if (lines.length === 0) return "";
+  return `\n\n--- Related ${label} (${lines.length}) ---\n${lines.join("\n")}`;
+}
+
 export function formatCrmResult(result: ZohoCrmResult, query: string): string {
   const q = `\n\nQuery: "${query}"`;
+  let main = "";
 
   if (result.type === "leads" && result.leads) {
-    if (result.leads.length === 0) return `No leads found.${q}`;
-    const lines = result.leads.map(
-      (l) => `• ${l.name} — ${l.company} (${l.email}${l.phone ? ` | ${l.phone}` : ""}) [${l.status}] Source: ${l.source}`,
-    );
-    return `Zoho CRM — Leads (${result.total} found):\n${lines.join("\n")}${q}`;
+    if (result.leads.length === 0) main = `No leads found.`;
+    else {
+      const lines = result.leads.map(
+        (l) => `• ${l.name} — ${l.company} (${l.email}${l.phone ? ` | ${l.phone}` : ""}) [${l.status}] Source: ${l.source}`,
+      );
+      main = `Zoho CRM — Leads (${result.leads.length} found):\n${lines.join("\n")}`;
+    }
+  } else if (result.type === "deals" && result.deals) {
+    if (result.deals.length === 0) main = `No deals found.`;
+    else {
+      const lines = result.deals.map(
+        (d) => `• ${d.name} — ${d.stage} (${d.amount}) Close: ${d.closingDate} [${d.account}]${d.probability ? ` ${d.probability} prob` : ""}${d.contactName ? ` Contact: ${d.contactName}` : ""}`,
+      );
+      main = `Zoho CRM — Deals (${result.deals.length} found):\n${lines.join("\n")}`;
+    }
+  } else if (result.type === "accounts" && result.accounts) {
+    if (result.accounts.length === 0) main = `No accounts found.`;
+    else {
+      const lines = result.accounts.map(
+        (a) => `• ${a.name} — ${a.industry || "N/A"} (${a.phone || "N/A"}) ${a.website || ""}${a.annualRevenue ? ` Revenue: ${a.annualRevenue}` : ""}${a.employees ? ` | ${a.employees} employees` : ""}${a.billingCity ? ` | ${a.billingCity}` : ""} [${a.accountType || "N/A"}]`,
+      );
+      main = `Zoho CRM — Accounts (${result.accounts.length} found):\n${lines.join("\n")}`;
+    }
+  } else if (result.type === "tasks" && result.tasks) {
+    if (result.tasks.length === 0) main = `No tasks found.`;
+    else {
+      const lines = result.tasks.map(
+        (t) => `• ${t.subject} — [${t.status}] Priority: ${t.priority || "Normal"} Due: ${t.dueDate || "N/A"}${t.assignedTo ? ` | Assigned: ${t.assignedTo}` : ""}`,
+      );
+      main = `Zoho CRM — Tasks (${result.tasks.length} found):\n${lines.join("\n")}`;
+    }
+  } else if (result.type === "events" && result.events) {
+    if (result.events.length === 0) main = `No events found.`;
+    else {
+      const lines = result.events.map(
+        (e) => `• ${e.title} — ${e.startDateTime} to ${e.endDateTime}${e.location ? ` @ ${e.location}` : ""}${e.participants ? ` | With: ${e.participants}` : ""}`,
+      );
+      main = `Zoho CRM — Events/Meetings (${result.events.length} found):\n${lines.join("\n")}`;
+    }
+  } else if (result.type === "calls" && result.calls) {
+    if (result.calls.length === 0) main = `No calls found.`;
+    else {
+      const lines = result.calls.map(
+        (c) => `• ${c.subject} — ${c.callType} (${c.callDuration || "N/A"}) ${c.callStartTime || ""}${c.contactName ? ` | ${c.contactName}` : ""} [${c.callResult || "N/A"}]`,
+      );
+      main = `Zoho CRM — Calls (${result.calls.length} found):\n${lines.join("\n")}`;
+    }
+  } else if (result.type === "products" && result.products) {
+    if (result.products.length === 0) main = `No products found.`;
+    else {
+      const lines = result.products.map(
+        (p) => `• ${p.name}${p.productCode ? ` (${p.productCode})` : ""} — ${p.unitPrice || "N/A"}${p.category ? ` | ${p.category}` : ""}${p.manufacturer ? ` | ${p.manufacturer}` : ""} [${p.isActive ? "Active" : "Inactive"}]`,
+      );
+      main = `Zoho CRM — Products (${result.products.length} found):\n${lines.join("\n")}`;
+    }
+  } else if (result.type === "quotes" && result.quotes) {
+    if (result.quotes.length === 0) main = `No quotes found.`;
+    else {
+      const lines = result.quotes.map(
+        (q2) => `• ${q2.subject} — ${q2.stage || "N/A"} (${q2.grandTotal || "N/A"}) Valid till: ${q2.validTill || "N/A"} [${q2.account || "N/A"}]`,
+      );
+      main = `Zoho CRM — Quotes (${result.quotes.length} found):\n${lines.join("\n")}`;
+    }
+  } else if (result.type === "invoices" && result.invoices) {
+    if (result.invoices.length === 0) main = `No invoices found.`;
+    else {
+      const lines = result.invoices.map(
+        (inv) => `• ${inv.subject} — ${inv.grandTotal || "N/A"} [${inv.status}] Due: ${inv.dueDate || "N/A"} | Issued: ${inv.invoiceDate || "N/A"} [${inv.account || "N/A"}]`,
+      );
+      main = `Zoho CRM — Invoices (${result.invoices.length} found):\n${lines.join("\n")}`;
+    }
+  } else if (result.type === "campaigns" && result.campaigns) {
+    if (result.campaigns.length === 0) main = `No campaigns found.`;
+    else {
+      const lines = result.campaigns.map(
+        (c) => `• ${c.name} — ${c.type || "N/A"} [${c.status}] ${c.startDate || ""} to ${c.endDate || ""}${c.expectedRevenue ? ` | Expected: ${c.expectedRevenue}` : ""}${c.budgetedCost ? ` | Budget: ${c.budgetedCost}` : ""}`,
+      );
+      main = `Zoho CRM — Campaigns (${result.campaigns.length} found):\n${lines.join("\n")}`;
+    }
+  } else if (result.type === "vendors" && result.vendors) {
+    if (result.vendors.length === 0) main = `No vendors found.`;
+    else {
+      const lines = result.vendors.map(
+        (v) => `• ${v.name} — ${v.email || "N/A"} (${v.phone || "N/A"})${v.category ? ` | ${v.category}` : ""}${v.city ? ` | ${v.city}` : ""}${v.website ? ` | ${v.website}` : ""}`,
+      );
+      main = `Zoho CRM — Vendors (${result.vendors.length} found):\n${lines.join("\n")}`;
+    }
+  } else if (result.contacts) {
+    if (result.contacts.length === 0) main = `No contacts found.`;
+    else {
+      const lines = result.contacts.map(
+        (c) => `• ${c.name} — ${c.email || "N/A"} (${c.phone || "N/A"})${c.title ? ` | ${c.title}` : ""}${c.account ? ` | ${c.account}` : ""}${c.department ? ` | ${c.department}` : ""}${c.mailingCity ? ` | ${c.mailingCity}` : ""}`,
+      );
+      main = `Zoho CRM — Contacts (${result.contacts.length} found):\n${lines.join("\n")}`;
+    }
+  } else {
+    main = `No Zoho CRM data found.`;
   }
 
-  if (result.type === "deals" && result.deals) {
-    if (result.deals.length === 0) return `No deals found.${q}`;
-    const lines = result.deals.map(
-      (d) => `• ${d.name} — ${d.stage} (${d.amount}) Close: ${d.closingDate} [${d.account}]${d.probability ? ` ${d.probability} prob` : ""}${d.contactName ? ` Contact: ${d.contactName}` : ""}`,
-    );
-    return `Zoho CRM — Deals (${result.total} found):\n${lines.join("\n")}${q}`;
+  let relatedText = "";
+  if (result.relatedContacts && result.relatedContacts.length > 0) {
+    relatedText += formatSection("Contacts", result.relatedContacts.map(
+      (c) => `• ${c.name} — ${c.email || "N/A"} (${c.phone || "N/A"})${c.title ? ` | ${c.title}` : ""}${c.account ? ` | ${c.account}` : ""}`,
+    ));
+  }
+  if (result.relatedDeals && result.relatedDeals.length > 0) {
+    relatedText += formatSection("Deals", result.relatedDeals.map(
+      (d) => `• ${d.name} — ${d.stage} (${d.amount}) Close: ${d.closingDate}${d.contactName ? ` Contact: ${d.contactName}` : ""}`,
+    ));
+  }
+  if (result.relatedTasks && result.relatedTasks.length > 0) {
+    relatedText += formatSection("Tasks", result.relatedTasks.map(
+      (t) => `• ${t.subject} — [${t.status}] Priority: ${t.priority || "Normal"} Due: ${t.dueDate || "N/A"}`,
+    ));
+  }
+  if (result.relatedLeads && result.relatedLeads.length > 0) {
+    relatedText += formatSection("Leads", result.relatedLeads.map(
+      (l) => `• ${l.name} — ${l.company} (${l.email}) [${l.status}]`,
+    ));
   }
 
-  if (result.type === "accounts" && result.accounts) {
-    if (result.accounts.length === 0) return `No accounts found.${q}`;
-    const lines = result.accounts.map(
-      (a) => `• ${a.name} — ${a.industry || "N/A"} (${a.phone || "N/A"}) ${a.website || ""}${a.annualRevenue ? ` Revenue: ${a.annualRevenue}` : ""}${a.employees ? ` | ${a.employees} employees` : ""}${a.billingCity ? ` | ${a.billingCity}` : ""} [${a.accountType || "N/A"}]`,
-    );
-    return `Zoho CRM — Accounts (${result.total} found):\n${lines.join("\n")}${q}`;
-  }
-
-  if (result.type === "tasks" && result.tasks) {
-    if (result.tasks.length === 0) return `No tasks found.${q}`;
-    const lines = result.tasks.map(
-      (t) => `• ${t.subject} — [${t.status}] Priority: ${t.priority || "Normal"} Due: ${t.dueDate || "N/A"}${t.assignedTo ? ` | Assigned: ${t.assignedTo}` : ""}`,
-    );
-    return `Zoho CRM — Tasks (${result.total} found):\n${lines.join("\n")}${q}`;
-  }
-
-  if (result.type === "events" && result.events) {
-    if (result.events.length === 0) return `No events found.${q}`;
-    const lines = result.events.map(
-      (e) => `• ${e.title} — ${e.startDateTime} to ${e.endDateTime}${e.location ? ` @ ${e.location}` : ""}${e.participants ? ` | With: ${e.participants}` : ""}`,
-    );
-    return `Zoho CRM — Events/Meetings (${result.total} found):\n${lines.join("\n")}${q}`;
-  }
-
-  if (result.type === "calls" && result.calls) {
-    if (result.calls.length === 0) return `No calls found.${q}`;
-    const lines = result.calls.map(
-      (c) => `• ${c.subject} — ${c.callType} (${c.callDuration || "N/A"}) ${c.callStartTime || ""}${c.contactName ? ` | ${c.contactName}` : ""} [${c.callResult || "N/A"}]`,
-    );
-    return `Zoho CRM — Calls (${result.total} found):\n${lines.join("\n")}${q}`;
-  }
-
-  if (result.type === "products" && result.products) {
-    if (result.products.length === 0) return `No products found.${q}`;
-    const lines = result.products.map(
-      (p) => `• ${p.name}${p.productCode ? ` (${p.productCode})` : ""} — ${p.unitPrice || "N/A"}${p.category ? ` | ${p.category}` : ""}${p.manufacturer ? ` | ${p.manufacturer}` : ""} [${p.isActive ? "Active" : "Inactive"}]`,
-    );
-    return `Zoho CRM — Products (${result.total} found):\n${lines.join("\n")}${q}`;
-  }
-
-  if (result.type === "quotes" && result.quotes) {
-    if (result.quotes.length === 0) return `No quotes found.${q}`;
-    const lines = result.quotes.map(
-      (q2) => `• ${q2.subject} — ${q2.stage || "N/A"} (${q2.grandTotal || "N/A"}) Valid till: ${q2.validTill || "N/A"} [${q2.account || "N/A"}]`,
-    );
-    return `Zoho CRM — Quotes (${result.total} found):\n${lines.join("\n")}${q}`;
-  }
-
-  if (result.type === "invoices" && result.invoices) {
-    if (result.invoices.length === 0) return `No invoices found.${q}`;
-    const lines = result.invoices.map(
-      (inv) => `• ${inv.subject} — ${inv.grandTotal || "N/A"} [${inv.status}] Due: ${inv.dueDate || "N/A"} | Issued: ${inv.invoiceDate || "N/A"} [${inv.account || "N/A"}]`,
-    );
-    return `Zoho CRM — Invoices (${result.total} found):\n${lines.join("\n")}${q}`;
-  }
-
-  if (result.type === "campaigns" && result.campaigns) {
-    if (result.campaigns.length === 0) return `No campaigns found.${q}`;
-    const lines = result.campaigns.map(
-      (c) => `• ${c.name} — ${c.type || "N/A"} [${c.status}] ${c.startDate || ""} to ${c.endDate || ""}${c.expectedRevenue ? ` | Expected: ${c.expectedRevenue}` : ""}${c.budgetedCost ? ` | Budget: ${c.budgetedCost}` : ""}`,
-    );
-    return `Zoho CRM — Campaigns (${result.total} found):\n${lines.join("\n")}${q}`;
-  }
-
-  if (result.type === "vendors" && result.vendors) {
-    if (result.vendors.length === 0) return `No vendors found.${q}`;
-    const lines = result.vendors.map(
-      (v) => `• ${v.name} — ${v.email || "N/A"} (${v.phone || "N/A"})${v.category ? ` | ${v.category}` : ""}${v.city ? ` | ${v.city}` : ""}${v.website ? ` | ${v.website}` : ""}`,
-    );
-    return `Zoho CRM — Vendors (${result.total} found):\n${lines.join("\n")}${q}`;
-  }
-
-  if (result.contacts) {
-    if (result.contacts.length === 0) return `No contacts found.${q}`;
-    const lines = result.contacts.map(
-      (c) => `• ${c.name} — ${c.email || "N/A"} (${c.phone || "N/A"})${c.title ? ` | ${c.title}` : ""}${c.account ? ` | ${c.account}` : ""}${c.department ? ` | ${c.department}` : ""}${c.mailingCity ? ` | ${c.mailingCity}` : ""}`,
-    );
-    return `Zoho CRM — Contacts (${result.total} found):\n${lines.join("\n")}${q}`;
-  }
-
-  return `No Zoho CRM data found.${q}`;
+  return `${main}${relatedText}${q}`;
 }

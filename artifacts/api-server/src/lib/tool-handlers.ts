@@ -53,7 +53,11 @@ async function zohoPeopleHandler(args: Record<string, unknown>, userId: number):
 
 async function zohoCrmHandler(args: Record<string, unknown>, userId: number): Promise<ToolResult> {
   const query = (args.query as string) || "contacts";
-  const result = await queryZohoCrmDirect(query, userId);
+  const searchEntity = (args.search_entity as string) || undefined;
+  const ownerFilter = (args.owner_filter as string) || undefined;
+  const includeRelated = (args.include_related as boolean) || false;
+  const module = (args.module as string) || undefined;
+  const result = await queryZohoCrmDirect(query, userId, { searchEntity, ownerFilter, includeRelated, module });
   return { reply: result.reply };
 }
 

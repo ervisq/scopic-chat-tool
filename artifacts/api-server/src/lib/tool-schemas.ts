@@ -151,7 +151,7 @@ export const TOOL_DEFINITIONS: ChatCompletionTool[] = [
     function: {
       name: "query_zoho_crm",
       description:
-        "Query Zoho CRM for sales data: leads, contacts, deals, accounts, tasks, events, calls, products, quotes, invoices, campaigns, and vendors.",
+        "Query Zoho CRM for sales data: leads, contacts, deals, accounts, tasks, events, calls, products, quotes, invoices, campaigns, and vendors. Supports searching by entity name and fetching related data across modules.",
       parameters: {
         type: "object",
         properties: {
@@ -176,7 +176,23 @@ export const TOOL_DEFINITIONS: ChatCompletionTool[] = [
               "campaigns",
               "vendors",
             ],
-            description: "The CRM module to query.",
+            description: "The CRM module to query. If the user asks about a specific entity without specifying a module, default to 'accounts'.",
+          },
+          search_entity: {
+            type: "string",
+            description:
+              "The specific entity name to search for (e.g. company name, person name, deal name). Extract ONLY the entity/proper noun from the query, not generic words. Examples: 'Portfolio Co', 'John Smith', 'Acme Corp'. Leave empty for generic queries like 'all leads' or 'my tasks'.",
+          },
+          owner_filter: {
+            type: "string",
+            enum: ["me", "all"],
+            description:
+              "Filter by record owner. Use 'me' when the user says 'my tasks', 'tasks I own', 'my deals', 'assigned to me', etc. Default is 'all'.",
+          },
+          include_related: {
+            type: "boolean",
+            description:
+              "Whether to also fetch related records from other modules. Set to true when the user asks for 'everything about', 'all info on', 'details for', or mentions a specific entity without a module. Default is false.",
           },
         },
         required: ["query"],
