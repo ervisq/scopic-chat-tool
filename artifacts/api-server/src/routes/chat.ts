@@ -29,8 +29,12 @@ router.post("/chat", async (req, res) => {
       const query = parsed.message.replace(/@[a-zA-Z0-9_-]+/g, "").trim() || parsed.message;
       const overrideArgs: Record<string, unknown> = { query, _atMentionOverride: true };
       if (explicitTool.tool === "ZohoCRM") {
-        overrideArgs.module = "accounts";
-        overrideArgs.include_related = true;
+        const lowerQuery = query.toLowerCase();
+        const hasModuleIntent = /\b(tasks?|deals?|leads?|contacts?|accounts?|events?|calls?|products?|quotes?|invoices?|campaigns?|vendors?|my )\b/.test(lowerQuery);
+        if (!hasModuleIntent) {
+          overrideArgs.module = "accounts";
+          overrideArgs.include_related = true;
+        }
       }
       toolCall = {
         toolName: explicitTool.tool,
