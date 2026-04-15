@@ -5,6 +5,7 @@ import { routeWithAI, formatToolResponse, getGeneralResponse } from "../services
 import type { ChatHistoryEntry } from "../services/aiService";
 import { trackUsage } from "../lib/usage-tracker";
 import { getAuthUser } from "../middlewares/auth";
+import { parseToolCommand } from "../lib/parse-tool-command";
 
 const router: IRouter = Router();
 
@@ -19,7 +20,19 @@ router.post("/chat", async (req, res) => {
       .slice(-20)
       .map((h) => ({ role: h.role as "user" | "assistant", content: h.content }));
 
-    const toolCall = await routeWithAI(parsed.message, history);
+    const explicitTool = parseToolCommand(parsed.message);
+
+    let toolCall = await routeWithAI(parsed.message, history);
+
+    if (explicitTool && (!toolCall || toolCall.toolName.toLowerCase() !== explicitTool.tool.toLowerCase())) {
+      console.log(`[Chat] @-mention override: AI picked "${toolCall?.toolName || 'none'}" but user explicitly mentioned @${explicitTool.tool} — forcing correct tool`);
+      const query = parsed.message.replace(/@[a-zA-Z0-9_-]+/g, "").trim() || parsed.message;
+      toolCall = {
+        toolName: explicitTool.tool,
+        functionName: `query_${explicitTool.tool.toLowerCase()}`,
+        args: { query },
+      };
+    }
 
     let reply: string;
     let toolCommand: { tool: string; query: string } | undefined;

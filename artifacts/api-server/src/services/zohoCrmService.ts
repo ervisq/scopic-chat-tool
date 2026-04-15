@@ -191,6 +191,11 @@ async function fetchModule<T>(
     });
     const records = response.data?.data || [];
     console.log(`[ZohoCRM] v7 ${module} returned ${records.length} records`);
+    if (records.length === 0) {
+      console.log(`[ZohoCRM] v7 ${module} raw response keys:`, Object.keys(response.data || {}), "info:", JSON.stringify(response.data?.info || {}).substring(0, 200));
+    } else if (records.length > 0) {
+      console.log(`[ZohoCRM] v7 ${module} first record keys:`, Object.keys(records[0]).slice(0, 15));
+    }
     return records.map(mapper);
   } catch (err: unknown) {
     if (axios.isAxiosError(err)) {
