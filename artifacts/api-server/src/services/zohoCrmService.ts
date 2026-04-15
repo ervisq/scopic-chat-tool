@@ -766,6 +766,31 @@ export async function queryZohoCrm(
 
   const dateContext = hasDateFilter ? { dateRangeStart: dateStart, dateRangeEnd: dateEnd, dateField } : {};
 
+  if (wantOwnerFilter || (hasDateFilter && !searchEntity)) {
+    const criteria = combineCriteria(ownerCriteria, dateCriteria);
+    if (criteria) {
+      console.log(`[ZohoCRM] Criteria search: ${criteria}`);
+      const criteriaResults = await searchModuleByCriteria(
+        accessToken,
+        moduleName,
+        criteria,
+        mapper,
+        crmBase,
+      );
+
+      if (criteriaResults !== null) {
+        return buildResult(moduleType, criteriaResults, dateContext);
+      }
+
+      if (wantOwnerFilter) {
+        console.log(`[ZohoCRM] Owner criteria search not supported — returning empty result to avoid exposing unfiltered data`);
+        return buildResult(moduleType, [], dateContext);
+      }
+
+      console.log(`[ZohoCRM] Date criteria search returned null — falling back to fetch + client-side date filter`);
+    }
+  }
+
   if (searchEntity) {
     console.log(`[ZohoCRM] Searching ${moduleName} for entity: "${searchEntity}"`);
     const rawResults = await searchModuleByWordRaw(accessToken, moduleName, searchEntity, crmBase);
@@ -793,31 +818,6 @@ export async function queryZohoCrm(
     console.log(`[ZohoCRM] Search for "${searchEntity}" returned null, falling back`);
   }
 
-  if (wantOwnerFilter || hasDateFilter) {
-    const criteria = combineCriteria(ownerCriteria, dateCriteria);
-    if (criteria) {
-      console.log(`[ZohoCRM] Criteria search: ${criteria}`);
-      const criteriaResults = await searchModuleByCriteria(
-        accessToken,
-        moduleName,
-        criteria,
-        mapper,
-        crmBase,
-      );
-
-      if (criteriaResults !== null) {
-        return buildResult(moduleType, criteriaResults, dateContext);
-      }
-
-      if (wantOwnerFilter && !hasDateFilter) {
-        console.log(`[ZohoCRM] Owner criteria search not supported — returning empty result to avoid exposing unfiltered data`);
-        return buildResult(moduleType, [], dateContext);
-      }
-
-      console.log(`[ZohoCRM] Criteria search returned null — falling back to fetch + client-side date filter`);
-    }
-  }
-
   if (hasDateFilter) {
     console.log(`[ZohoCRM] Applying client-side date filter to fetched records`);
     const raw = await fetchModuleRaw(accessToken, moduleName, crmBase);
@@ -826,7 +826,7 @@ export async function queryZohoCrm(
   }
 
   const records = await fetchModule(accessToken, moduleName, mapper, crmBase);
-  return buildResult(moduleType, records, dateContext);
+  return buildResult(moduleType, records);
 }
 
 function formatSection(label: string, lines: string[]): string {
