@@ -766,7 +766,64 @@ export async function queryZohoCrm(
 
   const dateContext = hasDateFilter ? { dateRangeStart: dateStart, dateRangeEnd: dateEnd, dateField } : {};
 
-  if (wantOwnerFilter || (hasDateFilter && !searchEntity)) {
+  if (searchEntity) {
+    console.log(`[ZohoCRM] Searching ${moduleName} for entity: "${searchEntity}"`);
+    const rawResults = await searchModuleByWordRaw(accessToken, moduleName, searchEntity, crmBase);
+
+    if (rawResults !== null) {
+      let filtered = rawResults;
+
+      if (hasDateFilter) {
+        const start = new Date(dateStart!);
+        const end = new Date(dateEnd! + "T23:59:59");
+        filtered = filtered.filter((r) => {
+          const val = r[dateField];
+          if (!val || typeof val !== "string") return false;
+          const d = new Date(val);
+          return d >= start && d <= end;
+        });
+        console.log(`[ZohoCRM] Client-side date filter: ${rawResults.length} → ${filtered.length} (${dateField} ${dateStart}→${dateEnd})`);
+      }
+
+      if (wantOwnerFilter) {
+        const ownerCriteriaResults = await searchModuleByCriteria(
+          accessToken,
+          moduleName,
+          ownerCriteria,
+          (r: Record<string, unknown>) => String(r.id || ""),
+          crmBase,
+        );
+        if (ownerCriteriaResults !== null) {
+          const ownerIds = new Set(ownerCriteriaResults);
+          const beforeCount = filtered.length;
+          filtered = filtered.filter((r) => ownerIds.has(String(r.id || "")));
+          console.log(`[ZohoCRM] Owner intersection: ${beforeCount} → ${filtered.length} records`);
+        } else {
+          console.log(`[ZohoCRM] Owner criteria unsupported — returning empty to avoid unfiltered data`);
+          return buildResult(moduleType, [], { searchEntity, ...dateContext });
+        }
+      }
+
+      const mappedResults = filtered.map(mapper);
+      const result = buildResult(moduleType, mappedResults, { searchEntity, ...dateContext });
+
+      if (wantRelated && mappedResults.length > 0) {
+        const relatedData = await fetchRelatedRecords(accessToken, crmBase, searchEntity, moduleType);
+        Object.assign(result, relatedData);
+        const relatedCount = (relatedData.relatedContacts?.length || 0) +
+          (relatedData.relatedDeals?.length || 0) +
+          (relatedData.relatedTasks?.length || 0) +
+          (relatedData.relatedLeads?.length || 0);
+        console.log(`[ZohoCRM] Found ${mappedResults.length} primary + ${relatedCount} related records for "${searchEntity}"`);
+      }
+
+      return result;
+    }
+
+    console.log(`[ZohoCRM] Search for "${searchEntity}" returned null, falling back`);
+  }
+
+  if (wantOwnerFilter || hasDateFilter) {
     const criteria = combineCriteria(ownerCriteria, dateCriteria);
     if (criteria) {
       console.log(`[ZohoCRM] Criteria search: ${criteria}`);
@@ -789,33 +846,6 @@ export async function queryZohoCrm(
 
       console.log(`[ZohoCRM] Date criteria search returned null — falling back to fetch + client-side date filter`);
     }
-  }
-
-  if (searchEntity) {
-    console.log(`[ZohoCRM] Searching ${moduleName} for entity: "${searchEntity}"`);
-    const rawResults = await searchModuleByWordRaw(accessToken, moduleName, searchEntity, crmBase);
-
-    if (rawResults !== null) {
-      const mappedResults = hasDateFilter
-        ? filterByDateClientSide(rawResults, dateField, dateStart!, dateEnd!, mapper)
-        : rawResults.map(mapper);
-
-      const result = buildResult(moduleType, mappedResults, { searchEntity, ...dateContext });
-
-      if (wantRelated && mappedResults.length > 0) {
-        const relatedData = await fetchRelatedRecords(accessToken, crmBase, searchEntity, moduleType);
-        Object.assign(result, relatedData);
-        const relatedCount = (relatedData.relatedContacts?.length || 0) +
-          (relatedData.relatedDeals?.length || 0) +
-          (relatedData.relatedTasks?.length || 0) +
-          (relatedData.relatedLeads?.length || 0);
-        console.log(`[ZohoCRM] Found ${mappedResults.length} primary + ${relatedCount} related records for "${searchEntity}"`);
-      }
-
-      return result;
-    }
-
-    console.log(`[ZohoCRM] Search for "${searchEntity}" returned null, falling back`);
   }
 
   if (hasDateFilter) {
