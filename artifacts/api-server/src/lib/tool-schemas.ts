@@ -194,6 +194,22 @@ export const TOOL_DEFINITIONS: ChatCompletionTool[] = [
             description:
               "Whether to also fetch related records from other modules. Set to true when the user asks for 'everything about', 'all info on', 'details for', or mentions a specific entity without a module. Default is false.",
           },
+          date_range_start: {
+            type: "string",
+            description:
+              "Start date in YYYY-MM-DD format for filtering records by date. Resolve relative dates: 'yesterday' → previous day, 'this week' → Monday of current week, 'last month' → first day of previous month, 'last two weeks' → 14 days ago, etc.",
+          },
+          date_range_end: {
+            type: "string",
+            description:
+              "End date in YYYY-MM-DD format for filtering records by date. Resolve relative dates: 'yesterday' → yesterday's date, 'this week' → Sunday of current week, 'last month' → last day of previous month, etc.",
+          },
+          date_field: {
+            type: "string",
+            enum: ["Created_Time", "Modified_Time", "Closing_Date", "Due_Date", "Start_DateTime", "End_DateTime"],
+            description:
+              "Which date field to filter on. Use 'Closing_Date' for deals, 'Due_Date' for tasks, 'Start_DateTime' for events/calls, 'Created_Time' for leads/contacts/accounts or when unspecified. Default is 'Created_Time'.",
+          },
         },
         required: ["query"],
       },

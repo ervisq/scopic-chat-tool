@@ -59,7 +59,11 @@ async function zohoCrmHandler(args: Record<string, unknown>, userId: number): Pr
   const includeRelated = (args.include_related as boolean) || false;
   const module = (args.module as string) || undefined;
   const isAtMentionOverride = (args._atMentionOverride as boolean) || false;
-  const result = await queryZohoCrmDirect(query, userId, { searchEntity, ownerFilter, includeRelated, module, isAtMentionOverride });
+  const dateRangeStart = (args.date_range_start as string) || undefined;
+  const dateRangeEnd = (args.date_range_end as string) || undefined;
+  const rawDateField = (args.date_field as string) || undefined;
+  const dateField = rawDateField as import("../services/zohoCrmService").CrmDateField | undefined;
+  const result = await queryZohoCrmDirect(query, userId, { searchEntity, ownerFilter, includeRelated, module, isAtMentionOverride, dateRangeStart, dateRangeEnd, dateField });
   return { reply: result.reply };
 }
 

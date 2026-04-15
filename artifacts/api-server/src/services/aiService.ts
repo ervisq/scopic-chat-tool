@@ -46,7 +46,35 @@ Zoho CRM search_entity guidelines:
   - "my tasks" → owner_filter: "me", module: "tasks"
 - If the query is JUST a company/person name (e.g. "Nailed Technologies"), set search_entity to that name, module to "accounts", and include_related to true.
 - Do NOT include generic words like "contact", "person", "website", "details", "activity" in search_entity — only the actual entity/proper noun name.
-- When the user mentions a name without specifying a module, default module to "accounts" and set include_related: true.`;
+- When the user mentions a name without specifying a module, default module to "accounts" and set include_related: true.
+
+Zoho CRM date filtering guidelines:
+- When the user mentions dates, time periods, or relative time references, extract date_range_start and date_range_end in YYYY-MM-DD format.
+- Resolve relative dates the same way as STS. Today is the current date. Week starts Monday.
+  - "yesterday" → previous day for both start and end
+  - "today" → today's date for both start and end
+  - "this week" → Monday to Sunday of current week
+  - "last week" → Monday to Sunday of previous week
+  - "last two weeks" → 14 days ago to today
+  - "this month" → first day to last day of current month
+  - "last month" → first day to last day of previous month
+  - "last 3 months" → first day of 3 months ago to today
+  - "this year" → January 1 to today
+  - "since March" or "from March" → March 1 to today
+  - "before April" → January 1 of current year to March 31
+- Pick the right date_field based on module and context:
+  - deals: "Closing_Date" (for "closed", "closing") or "Created_Time" (for "created", "added")
+  - tasks: "Due_Date" (for "due") or "Created_Time" (for "created")
+  - events/calls: "Start_DateTime"
+  - leads/contacts/accounts: "Created_Time"
+  - If unclear, default to "Created_Time"
+- Examples:
+  - "deals closed last month" → module: "deals", date_field: "Closing_Date", date_range_start/end: last month range
+  - "tasks due this week" → module: "tasks", date_field: "Due_Date", date_range_start/end: this week range
+  - "leads created yesterday" → module: "leads", date_field: "Created_Time", date_range_start/end: yesterday
+  - "my tasks due this week" → module: "tasks", owner_filter: "me", date_field: "Due_Date", date_range_start/end: this week
+  - "Portfolio Co deals this year" → search_entity: "Portfolio Co", module: "deals", date_field: "Closing_Date", date_range_start/end: this year range
+  - "contacts from January to March" → module: "contacts", date_field: "Created_Time", date_range_start: Jan 1, date_range_end: Mar 31`;
 
 const RESPONSE_SYSTEM_PROMPT = `You are a helpful assistant embedded in a company chat application for Scopic Software. You help users interact with their integrated tools and answer general questions.
 
