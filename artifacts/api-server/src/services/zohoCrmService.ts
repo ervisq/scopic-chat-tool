@@ -189,13 +189,12 @@ const MODULE_FIELDS: Record<string, string> = {
   Vendors: "id,Vendor_Name,Email,Phone,Category,City,Website",
 };
 
-async function fetchModule<T>(
+async function fetchModuleRaw(
   accessToken: string,
   module: string,
-  mapper: (record: Record<string, unknown>) => T,
   crmBase: string,
   params?: Record<string, string>,
-): Promise<T[]> {
+): Promise<Record<string, unknown>[]> {
   const headers = { Authorization: `Zoho-oauthtoken ${accessToken}` };
   const fields = MODULE_FIELDS[module];
   const queryParams: Record<string, unknown> = { per_page: DEFAULT_LIMIT, ...params };
@@ -215,7 +214,7 @@ async function fetchModule<T>(
     if (records.length > 0) {
       console.log(`[ZohoCRM] v7 ${module} first record keys:`, Object.keys(records[0]).slice(0, 15));
     }
-    return records.map(mapper);
+    return records;
   } catch (err: unknown) {
     if (axios.isAxiosError(err)) {
       const status = err.response?.status || 0;
@@ -240,7 +239,7 @@ async function fetchModule<T>(
         });
         const records = fallback.data?.data || [];
         console.log(`[ZohoCRM] v2 ${module} returned ${records.length} records`);
-        return records.map(mapper);
+        return records;
       } catch (v2Err: unknown) {
         if (axios.isAxiosError(v2Err) && [401, 403].includes(v2Err.response?.status || 0)) {
           throw new ZohoPermissionError(
@@ -253,6 +252,17 @@ async function fetchModule<T>(
     }
     throw err;
   }
+}
+
+async function fetchModule<T>(
+  accessToken: string,
+  module: string,
+  mapper: (record: Record<string, unknown>) => T,
+  crmBase: string,
+  params?: Record<string, string>,
+): Promise<T[]> {
+  const raw = await fetchModuleRaw(accessToken, module, crmBase, params);
+  return raw.map(mapper);
 }
 
 async function searchModuleByWordRaw(
@@ -756,6 +766,33 @@ export async function queryZohoCrm(
 
   const dateContext = hasDateFilter ? { dateRangeStart: dateStart, dateRangeEnd: dateEnd, dateField } : {};
 
+  if (searchEntity) {
+    console.log(`[ZohoCRM] Searching ${moduleName} for entity: "${searchEntity}"`);
+    const rawResults = await searchModuleByWordRaw(accessToken, moduleName, searchEntity, crmBase);
+
+    if (rawResults !== null) {
+      const mappedResults = hasDateFilter
+        ? filterByDateClientSide(rawResults, dateField, dateStart!, dateEnd!, mapper)
+        : rawResults.map(mapper);
+
+      const result = buildResult(moduleType, mappedResults, { searchEntity, ...dateContext });
+
+      if (wantRelated && mappedResults.length > 0) {
+        const relatedData = await fetchRelatedRecords(accessToken, crmBase, searchEntity, moduleType);
+        Object.assign(result, relatedData);
+        const relatedCount = (relatedData.relatedContacts?.length || 0) +
+          (relatedData.relatedDeals?.length || 0) +
+          (relatedData.relatedTasks?.length || 0) +
+          (relatedData.relatedLeads?.length || 0);
+        console.log(`[ZohoCRM] Found ${mappedResults.length} primary + ${relatedCount} related records for "${searchEntity}"`);
+      }
+
+      return result;
+    }
+
+    console.log(`[ZohoCRM] Search for "${searchEntity}" returned null, falling back`);
+  }
+
   if (wantOwnerFilter || hasDateFilter) {
     const criteria = combineCriteria(ownerCriteria, dateCriteria);
     if (criteria) {
@@ -781,55 +818,11 @@ export async function queryZohoCrm(
     }
   }
 
-  if (searchEntity) {
-    console.log(`[ZohoCRM] Searching ${moduleName} for entity: "${searchEntity}"`);
-
-    if (hasDateFilter) {
-      const rawResults = await searchModuleByWordRaw(accessToken, moduleName, searchEntity, crmBase);
-      if (rawResults !== null) {
-        const filteredResults = filterByDateClientSide(rawResults, dateField, dateStart!, dateEnd!, mapper);
-        const result = buildResult(moduleType, filteredResults, { searchEntity, ...dateContext });
-
-        if (wantRelated && filteredResults.length > 0) {
-          const relatedData = await fetchRelatedRecords(accessToken, crmBase, searchEntity, moduleType);
-          Object.assign(result, relatedData);
-        }
-        return result;
-      }
-    } else {
-      const searchResults = await searchModuleByWord(accessToken, moduleName, searchEntity, mapper, crmBase);
-      if (searchResults !== null) {
-        const result = buildResult(moduleType, searchResults, { searchEntity, ...dateContext });
-
-        if (wantRelated && searchResults.length > 0) {
-          const relatedData = await fetchRelatedRecords(accessToken, crmBase, searchEntity, moduleType);
-          Object.assign(result, relatedData);
-          const relatedCount = (relatedData.relatedContacts?.length || 0) +
-            (relatedData.relatedDeals?.length || 0) +
-            (relatedData.relatedTasks?.length || 0) +
-            (relatedData.relatedLeads?.length || 0);
-          console.log(`[ZohoCRM] Found ${searchResults.length} primary + ${relatedCount} related records for "${searchEntity}"`);
-        }
-        return result;
-      }
-    }
-
-    console.log(`[ZohoCRM] Search for "${searchEntity}" returned null, falling back to fetch all`);
-  }
-
-  if (hasDateFilter && !wantOwnerFilter) {
-    console.log(`[ZohoCRM] Date-only criteria search for ${moduleName}`);
-    const criteriaResults = await searchModuleByCriteria(
-      accessToken,
-      moduleName,
-      dateCriteria,
-      mapper,
-      crmBase,
-    );
-    if (criteriaResults !== null) {
-      return buildResult(moduleType, criteriaResults, dateContext);
-    }
-    console.log(`[ZohoCRM] Date criteria search failed — falling back to fetch all + client-side filter`);
+  if (hasDateFilter) {
+    console.log(`[ZohoCRM] Applying client-side date filter to fetched records`);
+    const raw = await fetchModuleRaw(accessToken, moduleName, crmBase);
+    const filtered = filterByDateClientSide(raw, dateField, dateStart!, dateEnd!, mapper);
+    return buildResult(moduleType, filtered, dateContext);
   }
 
   const records = await fetchModule(accessToken, moduleName, mapper, crmBase);
