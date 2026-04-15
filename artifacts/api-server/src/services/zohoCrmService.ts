@@ -161,6 +161,7 @@ export interface CrmSearchOptions {
   ownerFilter?: "me" | "all";
   includeRelated?: boolean;
   module?: CrmResultType | string;
+  isAtMentionOverride?: boolean;
 }
 
 const DEFAULT_LIMIT = 200;
@@ -654,7 +655,7 @@ export async function queryZohoCrm(
   const moduleName = MODULE_NAME_MAP[moduleType];
   const mapper = MODULE_MAPPER_MAP[moduleType] as (r: Record<string, unknown>) => unknown;
 
-  const searchEntity = options?.searchEntity || extractSearchTermFallback(query);
+  const searchEntity = options?.searchEntity || (options?.isAtMentionOverride ? extractSearchTermFallback(query) : null);
   const wantOwnerFilter = options?.ownerFilter === "me" || detectOwnerIntent(query);
   const wantRelated = options?.includeRelated === true;
 
@@ -665,7 +666,7 @@ export async function queryZohoCrm(
     const criteriaResults = await searchModuleByCriteria(
       accessToken,
       moduleName,
-      "(Owner:equals:${CRMUSER})",
+      "(Owner:equals:${CURRENTUSER})",
       mapper,
       crmBase,
     );
@@ -674,11 +675,8 @@ export async function queryZohoCrm(
       return buildResult(moduleType, criteriaResults);
     }
 
-    console.log(`[ZohoCRM] Owner criteria search not supported — returning message instead of unfiltered data`);
-    return buildResult(moduleType, [], {
-      source: "live",
-      total: 0,
-    });
+    console.log(`[ZohoCRM] Owner criteria search not supported — returning empty result to avoid exposing unfiltered data`);
+    return buildResult(moduleType, []);
   }
 
   if (searchEntity) {

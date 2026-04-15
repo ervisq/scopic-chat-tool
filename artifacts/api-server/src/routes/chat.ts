@@ -30,7 +30,7 @@ router.post("/chat", async (req, res) => {
       toolCall = {
         toolName: explicitTool.tool,
         functionName: `query_${explicitTool.tool.toLowerCase()}`,
-        args: { query },
+        args: { query, _atMentionOverride: true },
       };
     }
 

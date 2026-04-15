@@ -54,10 +54,12 @@ async function zohoPeopleHandler(args: Record<string, unknown>, userId: number):
 async function zohoCrmHandler(args: Record<string, unknown>, userId: number): Promise<ToolResult> {
   const query = (args.query as string) || "contacts";
   const searchEntity = (args.search_entity as string) || undefined;
-  const ownerFilter = (args.owner_filter as string) || undefined;
+  const rawOwner = (args.owner_filter as string) || undefined;
+  const ownerFilter = rawOwner === "me" ? "me" as const : rawOwner === "all" ? "all" as const : undefined;
   const includeRelated = (args.include_related as boolean) || false;
   const module = (args.module as string) || undefined;
-  const result = await queryZohoCrmDirect(query, userId, { searchEntity, ownerFilter, includeRelated, module });
+  const isAtMentionOverride = (args._atMentionOverride as boolean) || false;
+  const result = await queryZohoCrmDirect(query, userId, { searchEntity, ownerFilter, includeRelated, module, isAtMentionOverride });
   return { reply: result.reply };
 }
 
