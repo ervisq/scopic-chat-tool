@@ -9,7 +9,7 @@ const router: IRouter = Router();
 const ZOHO_CLIENT_ID = process.env.ZOHO_CLIENT_ID || "";
 const ZOHO_CLIENT_SECRET = process.env.ZOHO_CLIENT_SECRET || "";
 const ZOHO_ACCOUNTS_URL = "https://accounts.zoho.com";
-const ZOHO_SCOPES = "ZohoPeople.forms.ALL,ZohoCRM.modules.ALL,ZohoCRM.settings.ALL,ZohoRecruit.modules.ALL,ZohoRecruit.settings.ALL,ZohoContracts.contracts.ALL";
+const ZOHO_SCOPES = "ZohoPeople.forms.ALL,ZohoCRM.modules.ALL,ZohoCRM.settings.ALL,ZohoRecruit.modules.ALL,ZohoRecruit.settings.ALL";
 
 const API_DOMAIN_TO_ACCOUNTS: Record<string, string> = {
   "https://www.zohoapis.com": "https://accounts.zoho.com",
@@ -63,12 +63,15 @@ router.get("/zoho/auth-url", requireAuth, (req, res) => {
     expiresAt: Date.now() + STATE_TTL_MS,
   });
 
+  const redirectUri = getRedirectUri();
+  console.log("[ZohoOAuth] Generating auth URL with redirect:", redirectUri, "scopes:", ZOHO_SCOPES);
+
   const params = new URLSearchParams({
     scope: ZOHO_SCOPES,
     client_id: ZOHO_CLIENT_ID,
     response_type: "code",
     access_type: "offline",
-    redirect_uri: getRedirectUri(),
+    redirect_uri: redirectUri,
     state: nonce,
     prompt: "consent",
   });
