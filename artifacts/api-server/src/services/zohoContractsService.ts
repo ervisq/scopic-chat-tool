@@ -101,16 +101,25 @@ function filterByEntity(
 function filterByStatus(
   contracts: ZohoContract[],
   statusFilter: string,
+  hasExplicitDateRange: boolean,
 ): ZohoContract[] {
   const lower = statusFilter.toLowerCase();
 
   if (lower === "expiring") {
+    const excludeStatuses = new Set(["expired", "terminated"]);
+    const base = contracts.filter((c) =>
+      c.endDate && !excludeStatuses.has(c.contractStatus.toLowerCase())
+    );
+
+    if (hasExplicitDateRange) {
+      return base;
+    }
+
     const now = new Date();
     const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-    return contracts.filter((c) => {
-      if (!c.endDate) return false;
+    return base.filter((c) => {
       const end = new Date(c.endDate);
-      return end >= now && end <= thirtyDays && c.contractStatus.toLowerCase() !== "expired" && c.contractStatus.toLowerCase() !== "terminated";
+      return end >= now && end <= thirtyDays;
     });
   }
 
@@ -190,7 +199,7 @@ export async function queryZohoContracts(
 
     if (statusFilter) {
       const beforeCount = filtered.length;
-      filtered = filterByStatus(filtered, statusFilter);
+      filtered = filterByStatus(filtered, statusFilter, hasDateFilter);
       console.log(`[ZohoContracts] Status filter "${statusFilter}": ${beforeCount} → ${filtered.length}`);
     }
 
