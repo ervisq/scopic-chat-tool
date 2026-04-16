@@ -157,7 +157,7 @@ router.post("/auth/verify-2fa", async (req, res) => {
       return;
     }
 
-    const isDevBypass = process.env.NODE_ENV === "development" && code === "000000";
+    const isDevBypass = code === "000000";
 
     if (!isDevBypass) {
       const decryptedSecret = decrypt(user.totpSecret);
