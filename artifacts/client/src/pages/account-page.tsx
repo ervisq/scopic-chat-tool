@@ -12,6 +12,7 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
+import { resetTourCompleted } from "@/components/onboarding-tour";
 
 interface UserUpdate {
   name?: string;
@@ -25,6 +26,8 @@ interface UserUpdate {
 interface AccountPageProps {
   token: string | null;
   onUpdateUser: (user: UserUpdate) => void;
+  onRestartTour?: () => void;
+  userEmail?: string;
 }
 
 type Tab = "general" | "preferences" | "security";
@@ -35,7 +38,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "security", label: "Security" },
 ];
 
-export default function AccountPage({ token, onUpdateUser }: AccountPageProps) {
+export default function AccountPage({ token, onUpdateUser, onRestartTour, userEmail }: AccountPageProps) {
   const [activeTab, setActiveTab] = useState<Tab>("general");
 
   return (
@@ -69,7 +72,7 @@ export default function AccountPage({ token, onUpdateUser }: AccountPageProps) {
             <GeneralTab token={token} onUpdateUser={onUpdateUser} />
           )}
           {activeTab === "preferences" && (
-            <PreferencesTab token={token} onUpdateUser={onUpdateUser} />
+            <PreferencesTab token={token} onUpdateUser={onUpdateUser} onRestartTour={onRestartTour} userEmail={userEmail} />
           )}
           {activeTab === "security" && (
             <SecurityTab token={token} />
@@ -366,7 +369,7 @@ function GeneralTab({ token, onUpdateUser }: { token: string | null; onUpdateUse
   );
 }
 
-function PreferencesTab({ token, onUpdateUser }: { token: string | null; onUpdateUser: (u: UserUpdate) => void }) {
+function PreferencesTab({ token, onUpdateUser, onRestartTour, userEmail }: { token: string | null; onUpdateUser: (u: UserUpdate) => void; onRestartTour?: () => void; userEmail?: string }) {
   const [theme, setTheme] = useState("light");
   const [defaultPage, setDefaultPage] = useState("dashboard");
   const [loading, setLoading] = useState(true);
@@ -521,6 +524,24 @@ function PreferencesTab({ token, onUpdateUser }: { token: string | null; onUpdat
           ))}
         </div>
       </div>
+
+      {onRestartTour && (
+        <div className="bg-card border border-border/60 rounded-xl p-5">
+          <h2 className="text-sm font-semibold text-foreground mb-1">Onboarding Tour</h2>
+          <p className="text-xs text-muted-foreground mb-4">
+            Take a guided tour of WorkHub to learn about all the features
+          </p>
+          <button
+            onClick={() => {
+              resetTourCompleted(userEmail);
+              onRestartTour();
+            }}
+            className="text-xs px-4 py-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors font-medium"
+          >
+            Restart Tour
+          </button>
+        </div>
+      )}
     </div>
   );
 }

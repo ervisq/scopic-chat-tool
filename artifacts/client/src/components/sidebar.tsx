@@ -78,6 +78,7 @@ export default function Sidebar({ activePage, onNavigate, user, onLogout }: Side
           return (
             <button
               key={page}
+              data-tour={`nav-${page}`}
               onClick={() => onNavigate(page)}
               title={collapsed ? label : undefined}
               className={`w-full flex items-center gap-3 rounded-lg transition-colors text-sm font-medium ${

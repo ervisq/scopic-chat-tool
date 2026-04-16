@@ -132,7 +132,7 @@ export default function ChatPage() {
               onSelect={handleAutocompleteSelect}
               visible={autocompleteVisible}
             />
-            <div className="flex items-end gap-2 bg-card border border-border/60 rounded-2xl p-2 focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/10 transition-all">
+            <div data-tour="chat-input" className="flex items-end gap-2 bg-card border border-border/60 rounded-2xl p-2 focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/10 transition-all">
               <textarea
                 ref={textareaRef}
                 value={inputValue}
