@@ -72,6 +72,7 @@ export interface ZohoRecruitResult {
   dateRangeStart?: string;
   dateRangeEnd?: string;
   dateField?: string;
+  recruiterFilter?: string;
 }
 
 const DEFAULT_LIMIT = 200;
@@ -298,9 +299,13 @@ function filterByStatusClientSide(
   statusFilter: string,
 ): Record<string, unknown>[] {
   const lowerFilter = statusFilter.toLowerCase();
+  const altFields = statusField === "Interview_Status" ? ["Interview_Status", "Status"] : [statusField, "Status"];
   return records.filter((r) => {
-    const val = str(r[statusField]);
-    return val.toLowerCase().includes(lowerFilter);
+    for (const f of altFields) {
+      const val = str(r[f]);
+      if (val && val.toLowerCase().includes(lowerFilter)) return true;
+    }
+    return false;
   });
 }
 
@@ -402,6 +407,7 @@ export async function queryZohoRecruit(
     filterContext.dateRangeEnd = dateEnd!;
     filterContext.dateField = dateField;
   }
+  if (wantRecruiterFilter) filterContext.recruiterFilter = "me";
 
   console.log(`[ZohoRecruit] Module: ${apiModule}, searchEntity: ${searchEntity || "(none)"}, statusFilter: ${statusFilter || "(none)"}, recruiterFilter: ${wantRecruiterFilter}, dateFilter: ${hasDateFilter ? `${dateField} ${dateStart}→${dateEnd}` : "none"}`);
 
@@ -503,6 +509,7 @@ export function formatRecruitResult(result: ZohoRecruitResult, query: string): s
   if (result.dateRangeStart && result.dateRangeEnd) {
     contextParts.push(`Date filter: ${result.dateField || "Created_Time"} from ${result.dateRangeStart} to ${result.dateRangeEnd}`);
   }
+  if (result.recruiterFilter) contextParts.push(`Recruiter filter: ${result.recruiterFilter}`);
   const filterNote = contextParts.length > 0 ? `\n${contextParts.join(" | ")}` : "";
 
   if (result.type === "pipeline" && result.candidates && result.jobOpenings) {
