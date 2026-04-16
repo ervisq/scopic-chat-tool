@@ -686,11 +686,33 @@ const DEFAULT_DATE_FIELD_MAP: Record<string, CrmDateField> = {
   Vendors: "Created_Time",
 };
 
+// Company timezone: Scopic Software is based in Europe/Tirana.
+// Using a fixed company-wide timezone avoids UTC-boundary bugs where
+// records created just after local midnight fall into the wrong UTC day.
+const COMPANY_TIMEZONE = "Europe/Tirane";
+
+function getCompanyTimezoneOffset(dateStr: string): string {
+  try {
+    const probe = new Date(`${dateStr}T12:00:00Z`);
+    const fmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: COMPANY_TIMEZONE,
+      timeZoneName: "longOffset",
+    });
+    const name = fmt.formatToParts(probe).find((p) => p.type === "timeZoneName")?.value || "GMT+00:00";
+    const offset = name.replace("GMT", "").trim();
+    return offset || "+00:00";
+  } catch {
+    return "+00:00";
+  }
+}
+
 function buildDateCriteria(dateField: CrmDateField, startDate: string, endDate: string): string {
   const isDateTimeField = dateField === "Created_Time" || dateField === "Modified_Time" || dateField === "Start_DateTime" || dateField === "End_DateTime";
 
   if (isDateTimeField) {
-    return `(${dateField}:between:${startDate}T00:00:00+00:00,${endDate}T23:59:59+00:00)`;
+    const startOffset = getCompanyTimezoneOffset(startDate);
+    const endOffset = getCompanyTimezoneOffset(endDate);
+    return `(${dateField}:between:${startDate}T00:00:00${startOffset},${endDate}T23:59:59${endOffset})`;
   }
   return `(${dateField}:between:${startDate},${endDate})`;
 }
@@ -709,8 +731,10 @@ function filterByDateClientSide<T>(
   endDate: string,
   mapper: (r: Record<string, unknown>) => T,
 ): T[] {
-  const start = new Date(startDate);
-  const end = new Date(endDate + "T23:59:59");
+  const startOffset = getCompanyTimezoneOffset(startDate);
+  const endOffset = getCompanyTimezoneOffset(endDate);
+  const start = new Date(`${startDate}T00:00:00${startOffset}`);
+  const end = new Date(`${endDate}T23:59:59${endOffset}`);
 
   const filtered = records.filter((r) => {
     const val = r[dateField];
@@ -771,8 +795,10 @@ export async function queryZohoCrm(
       let filtered = rawResults;
 
       if (hasDateFilter) {
-        const start = new Date(dateStart!);
-        const end = new Date(dateEnd! + "T23:59:59");
+        const startOffset = getCompanyTimezoneOffset(dateStart!);
+        const endOffset = getCompanyTimezoneOffset(dateEnd!);
+        const start = new Date(`${dateStart!}T00:00:00${startOffset}`);
+        const end = new Date(`${dateEnd!}T23:59:59${endOffset}`);
         filtered = filtered.filter((r) => {
           const val = r[dateField];
           if (!val || typeof val !== "string") return false;

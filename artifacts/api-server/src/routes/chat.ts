@@ -63,10 +63,43 @@ router.post("/chat", async (req, res) => {
       console.log(`[Chat] @-mention override: AI picked "${toolCall?.toolName || 'none'}" but user explicitly mentioned @${explicitTool.tool} — forcing correct tool`);
       const query = parsed.message.replace(/@[a-zA-Z0-9_-]+/g, "").trim() || parsed.message;
       const overrideArgs: Record<string, unknown> = { query, _atMentionOverride: true };
+
+      // Carry over date / filter intent that the AI router already extracted
+      // from the user's natural-language query, so @-mention doesn't erase
+      // things like "today", "this week", "my", or a specific entity name.
+      // Only tool-agnostic fields are copied unconditionally; tool-specific
+      // fields like `module` are only copied when the AI originally routed to
+      // the same tool, to avoid cross-tool contamination (e.g. a Recruit
+      // module leaking into a CRM query).
+      if (toolCall?.args && typeof toolCall.args === "object") {
+        const prev = toolCall.args as Record<string, unknown>;
+        const sameTool = toolCall.toolName.toLowerCase() === explicitTool.tool.toLowerCase();
+        const crossToolKeys = [
+          "date_field",
+          "date_range_start",
+          "date_range_end",
+          "owner_filter",
+          "search_entity",
+        ];
+        const sameToolOnlyKeys = ["status_filter", "module"];
+        for (const key of crossToolKeys) {
+          if (prev[key] !== undefined && overrideArgs[key] === undefined) {
+            overrideArgs[key] = prev[key];
+          }
+        }
+        if (sameTool) {
+          for (const key of sameToolOnlyKeys) {
+            if (prev[key] !== undefined && overrideArgs[key] === undefined) {
+              overrideArgs[key] = prev[key];
+            }
+          }
+        }
+      }
+
       if (explicitTool.tool === "ZohoCRM") {
         const lowerQuery = query.toLowerCase();
         const hasModuleIntent = /\b(tasks?|deals?|leads?|contacts?|accounts?|events?|calls?|products?|quotes?|invoices?|campaigns?|vendors?|my )\b/.test(lowerQuery);
-        if (!hasModuleIntent) {
+        if (!hasModuleIntent && overrideArgs.module === undefined) {
           overrideArgs.module = "accounts";
           overrideArgs.include_related = true;
         }
