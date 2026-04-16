@@ -293,8 +293,9 @@ export const TOOL_DEFINITIONS: ChatCompletionTool[] = [
           },
           status_filter: {
             type: "string",
+            enum: ["Active", "Expired", "Pending", "Draft", "Terminated", "Expiring"],
             description:
-              "Filter by contract status: Active, Expired, Pending, Draft, Terminated, Expiring.",
+              "Filter by contract status.",
           },
           owner_filter: {
             type: "string",
