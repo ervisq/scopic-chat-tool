@@ -289,6 +289,28 @@ function filterByStatusClientSide(
   });
 }
 
+const ENTITY_SEARCH_FIELDS: Record<string, string[]> = {
+  Candidates: ["First_Name", "Last_Name", "Full_Name", "Email", "Current_Employer", "Current_Job_Title", "Skill_Set"],
+  Job_Openings: ["Posting_Title", "Department", "Job_Type", "Industry"],
+  Interviews: ["Interview_Name", "Candidate_Name", "Job_Opening_Name"],
+};
+
+function filterByEntityClientSide(
+  records: Record<string, unknown>[],
+  entity: string,
+  apiModule: string,
+): Record<string, unknown>[] {
+  const lowerEntity = entity.toLowerCase();
+  const fields = ENTITY_SEARCH_FIELDS[apiModule] || [];
+  return records.filter((r) => {
+    for (const field of fields) {
+      const val = str(r[field]).toLowerCase();
+      if (val.includes(lowerEntity)) return true;
+    }
+    return false;
+  });
+}
+
 function buildResult(
   moduleType: RecruitResultType,
   records: Record<string, unknown>[],
@@ -403,10 +425,10 @@ export async function queryZohoRecruit(
       return buildResult(moduleType, filtered, filterContext);
     }
 
-    console.log(`[ZohoRecruit] Search for "${searchEntity}" returned null, falling through`);
+    console.log(`[ZohoRecruit] Search for "${searchEntity}" returned null, falling back to fetch + client-side entity filter`);
   }
 
-  if (wantRecruiterFilter || (hasDateFilter && !searchEntity) || statusFilter) {
+  if (wantRecruiterFilter || statusFilter) {
     const criteriaparts: string[] = [];
     if (wantRecruiterFilter) criteriaparts.push("(Created_By:equals:${CURRENTUSER})");
     if (statusFilter) criteriaparts.push(`(${statusField}:equals:${statusFilter})`);
@@ -418,9 +440,13 @@ export async function queryZohoRecruit(
 
       if (criteriaResults !== null) {
         let filtered = criteriaResults;
+        if (searchEntity) {
+          filtered = filterByEntityClientSide(filtered, searchEntity, apiModule);
+          console.log(`[ZohoRecruit] Entity filter on criteria results: "${searchEntity}" → ${filtered.length}`);
+        }
         if (hasDateFilter) {
           filtered = filterByDateClientSide(filtered, dateField, dateStart!, dateEnd!);
-          console.log(`[ZohoRecruit] Date filter on criteria results: ${criteriaResults.length} → ${filtered.length}`);
+          console.log(`[ZohoRecruit] Date filter on criteria results: → ${filtered.length}`);
         }
         return buildResult(moduleType, filtered, filterContext);
       }
@@ -437,9 +463,15 @@ export async function queryZohoRecruit(
   const raw = await fetchRecruitModuleRaw(accessToken, apiModule, recruitBase);
   let filtered = raw;
 
+  if (searchEntity) {
+    filtered = filterByEntityClientSide(filtered, searchEntity, apiModule);
+    console.log(`[ZohoRecruit] Client-side entity filter: "${searchEntity}" ${raw.length} → ${filtered.length}`);
+  }
+
   if (statusFilter) {
+    const beforeCount = filtered.length;
     filtered = filterByStatusClientSide(filtered, statusField, statusFilter);
-    console.log(`[ZohoRecruit] Client-side status filter: ${raw.length} → ${filtered.length}`);
+    console.log(`[ZohoRecruit] Client-side status filter: ${beforeCount} → ${filtered.length}`);
   }
 
   if (hasDateFilter) {
