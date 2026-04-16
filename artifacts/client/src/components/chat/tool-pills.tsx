@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, X } from "lucide-react";
 import { TOOLS, type ToolConfig } from "@/lib/tool-config";
@@ -12,7 +12,6 @@ interface ToolPillsProps {
 
 export function ToolPills({ onPresetSelect, disabled }: ToolPillsProps) {
   const [selected, setSelected] = useState<string | null>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!selected) return;
@@ -77,7 +76,6 @@ export function ToolPills({ onPresetSelect, disabled }: ToolPillsProps) {
       <AnimatePresence initial={false}>
         {selectedTool && (
           <motion.div
-            ref={panelRef}
             key={selectedTool.name}
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
