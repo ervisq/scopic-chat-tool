@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { toast } from "sonner";
 import { TOOLS, type ToolConfig } from "@/lib/tool-config";
 
 interface ToolVisibilityContextValue {
@@ -16,6 +17,7 @@ interface ToolVisibilityContextValue {
   isHidden: (toolName: string) => boolean;
   setHidden: (toolName: string, hidden: boolean) => Promise<void>;
   saving: boolean;
+  justSaved: boolean;
   error: string | null;
 }
 
@@ -36,7 +38,9 @@ export function ToolVisibilityProvider({
     () => new Set(initialHiddenTools ?? []),
   );
   const [saving, setSaving] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchedRef = useRef(false);
   const dirtyRef = useRef(false);
@@ -140,11 +144,18 @@ export function ToolVisibilityProvider({
             const err = await res.json().catch(() => ({}));
             throw new Error(err.message || "Failed to save");
           }
+          if (mountedRef.current) {
+            setJustSaved(true);
+            if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+            savedTimerRef.current = setTimeout(() => {
+              if (mountedRef.current) setJustSaved(false);
+            }, 1500);
+          }
         } catch (e) {
           if ((e as { name?: string })?.name === "AbortError") return;
-          if (mountedRef.current) {
-            setError(e instanceof Error ? e.message : "Failed to save");
-          }
+          const msg = e instanceof Error ? e.message : "Failed to save";
+          toast.error(`Couldn't save tool visibility: ${msg}`);
+          if (mountedRef.current) setError(msg);
         } finally {
           if (inflightAbortRef.current === ctrl) {
             inflightAbortRef.current = null;
@@ -168,9 +179,10 @@ export function ToolVisibilityProvider({
       isHidden: (name: string) => hiddenTools.has(name),
       setHidden,
       saving,
+      justSaved,
       error,
     }),
-    [hiddenTools, visibleTools, setHidden, saving, error],
+    [hiddenTools, visibleTools, setHidden, saving, justSaved, error],
   );
 
   return (

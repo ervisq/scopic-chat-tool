@@ -1,24 +1,28 @@
 import { TOOLS } from "@/lib/tool-config";
 import { useToolVisibility } from "@/lib/tool-visibility";
 import { cn } from "@/lib/utils";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 
 interface ToolVisibilityPanelProps {
   className?: string;
 }
 
 export function ToolVisibilityPanel({ className }: ToolVisibilityPanelProps) {
-  const { hiddenTools, setHidden, saving, error } = useToolVisibility();
+  const { hiddenTools, setHidden, saving, justSaved, error } = useToolVisibility();
 
   return (
     <div className={cn("space-y-2", className)}>
       <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1 mb-1">
         <span>Hidden tools stay accessible if you type them manually.</span>
-        {saving && (
+        {saving ? (
           <span className="inline-flex items-center gap-1">
             <Loader2 className="w-3 h-3 animate-spin" /> Saving…
           </span>
-        )}
+        ) : justSaved ? (
+          <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+            <CheckCircle2 className="w-3 h-3" /> Saved
+          </span>
+        ) : null}
       </div>
 
       {error && (

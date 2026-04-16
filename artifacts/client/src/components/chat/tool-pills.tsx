@@ -52,7 +52,7 @@ export function ToolPills({ onPresetSelect, onOpenSettings, disabled }: ToolPill
     return (
       <div className="mb-2">
         <div className="flex items-center gap-2 text-xs text-muted-foreground px-3 py-2 rounded-lg bg-muted/30">
-          <span>All tools hidden.</span>
+          <span>All tools hidden — visit settings to re-enable</span>
           {onOpenSettings && (
             <button
               type="button"
@@ -60,7 +60,7 @@ export function ToolPills({ onPresetSelect, onOpenSettings, disabled }: ToolPill
               className="inline-flex items-center gap-1 text-primary hover:underline font-medium"
             >
               <Settings className="w-3 h-3" />
-              Open tool visibility settings
+              Settings
             </button>
           )}
         </div>
