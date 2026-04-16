@@ -17,7 +17,19 @@ interface ProfileUpdates {
 interface PreferencesUpdates {
   theme?: string;
   defaultPage?: string;
+  hiddenTools?: string[];
 }
+
+const KNOWN_TOOL_NAMES = [
+  "JIRA",
+  "ZohoPeople",
+  "ZohoCRM",
+  "ZohoRecruit",
+  "ZohoContracts",
+  "STS",
+  "Teamwork",
+  "Outlook",
+] as const;
 
 const router: IRouter = Router();
 
@@ -130,6 +142,7 @@ router.get("/account/preferences", async (req, res) => {
     res.json({
       theme: user.theme || "light",
       defaultPage: user.defaultPage || "dashboard",
+      hiddenTools: Array.isArray(user.hiddenTools) ? user.hiddenTools : [],
     });
   } catch (err) {
     console.error("Get preferences error:", err);
@@ -140,7 +153,7 @@ router.get("/account/preferences", async (req, res) => {
 router.put("/account/preferences", async (req, res) => {
   try {
     const { userId } = getAuthUser(req);
-    const { theme, defaultPage } = req.body;
+    const { theme, defaultPage, hiddenTools } = req.body;
 
     const updates: PreferencesUpdates = {};
     if (theme !== undefined) {
@@ -157,6 +170,18 @@ router.put("/account/preferences", async (req, res) => {
       }
       updates.defaultPage = defaultPage;
     }
+    if (hiddenTools !== undefined) {
+      if (!Array.isArray(hiddenTools) || !hiddenTools.every((t) => typeof t === "string")) {
+        res.status(400).json({ message: "hiddenTools must be an array of strings" });
+        return;
+      }
+      const invalid = hiddenTools.filter((t) => !(KNOWN_TOOL_NAMES as readonly string[]).includes(t));
+      if (invalid.length > 0) {
+        res.status(400).json({ message: `Unknown tool name(s): ${invalid.join(", ")}` });
+        return;
+      }
+      updates.hiddenTools = Array.from(new Set(hiddenTools));
+    }
 
     if (Object.keys(updates).length === 0) {
       res.status(400).json({ message: "No preferences to update" });
@@ -167,6 +192,7 @@ router.put("/account/preferences", async (req, res) => {
     res.json({
       theme: updated.theme || "light",
       defaultPage: updated.defaultPage || "dashboard",
+      hiddenTools: Array.isArray(updated.hiddenTools) ? updated.hiddenTools : [],
     });
   } catch (err) {
     console.error("Update preferences error:", err);

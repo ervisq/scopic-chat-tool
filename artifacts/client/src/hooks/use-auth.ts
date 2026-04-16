@@ -9,6 +9,7 @@ interface User {
   defaultPage?: string;
   totpEnabled?: boolean;
   role?: string;
+  hiddenTools?: string[];
 }
 
 interface AuthState {

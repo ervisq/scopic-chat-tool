@@ -13,6 +13,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import { resetTourCompleted } from "@/components/onboarding-tour";
+import { ToolVisibilityPanel } from "@/components/tool-visibility-panel";
 
 interface UserUpdate {
   name?: string;
@@ -523,6 +524,14 @@ function PreferencesTab({ token, onUpdateUser, onRestartTour, userEmail }: { tok
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="bg-card border border-border/60 rounded-xl p-5">
+        <h2 className="text-sm font-semibold text-foreground mb-1">Tool Visibility</h2>
+        <p className="text-xs text-muted-foreground mb-4">
+          Hide tools you don't use from the chat pills, @ autocomplete, and dashboard widgets. Hidden tools still work if you type their full query manually.
+        </p>
+        <ToolVisibilityPanel />
       </div>
 
       {onRestartTour && (

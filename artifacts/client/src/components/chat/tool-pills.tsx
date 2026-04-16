@@ -1,17 +1,26 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, X } from "lucide-react";
-import { TOOLS, type ToolConfig } from "@/lib/tool-config";
+import { ChevronDown, Settings, X } from "lucide-react";
+import { type ToolConfig } from "@/lib/tool-config";
 import { getPresetsForTool } from "@/lib/tool-presets";
+import { useToolVisibility } from "@/lib/tool-visibility";
 import { cn } from "@/lib/utils";
 
 interface ToolPillsProps {
   onPresetSelect: (query: string) => void;
+  onOpenSettings?: () => void;
   disabled?: boolean;
 }
 
-export function ToolPills({ onPresetSelect, disabled }: ToolPillsProps) {
+export function ToolPills({ onPresetSelect, onOpenSettings, disabled }: ToolPillsProps) {
+  const { visibleTools } = useToolVisibility();
   const [selected, setSelected] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (selected && !visibleTools.some((t) => t.name === selected)) {
+      setSelected(null);
+    }
+  }, [visibleTools, selected]);
 
   useEffect(() => {
     if (!selected) return;
@@ -25,7 +34,7 @@ export function ToolPills({ onPresetSelect, disabled }: ToolPillsProps) {
   }, [selected]);
 
   const selectedTool: ToolConfig | undefined = selected
-    ? TOOLS.find((t) => t.name === selected)
+    ? visibleTools.find((t) => t.name === selected)
     : undefined;
   const presets = selectedTool ? getPresetsForTool(selectedTool.name) : [];
 
@@ -39,10 +48,30 @@ export function ToolPills({ onPresetSelect, disabled }: ToolPillsProps) {
     setSelected(null);
   };
 
+  if (visibleTools.length === 0) {
+    return (
+      <div className="mb-2">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground px-3 py-2 rounded-lg bg-muted/30">
+          <span>All tools hidden.</span>
+          {onOpenSettings && (
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="inline-flex items-center gap-1 text-primary hover:underline font-medium"
+            >
+              <Settings className="w-3 h-3" />
+              Open tool visibility settings
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mb-2">
       <div className="flex gap-2 overflow-x-auto scrollbar-thin pb-1 -mx-1 px-1">
-        {TOOLS.map((tool) => {
+        {visibleTools.map((tool) => {
           const Icon = tool.icon;
           const isActive = selected === tool.name;
           return (

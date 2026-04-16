@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { TOOLS } from "@/lib/tool-config";
+import { useToolVisibility } from "@/lib/tool-visibility";
 import { cn } from "@/lib/utils";
 
 interface ToolAutocompleteProps {
@@ -11,6 +11,7 @@ interface ToolAutocompleteProps {
 }
 
 export function useToolAutocomplete(inputValue: string) {
+  const { visibleTools } = useToolVisibility();
   const trimmed = inputValue.trim();
 
   if (!trimmed.startsWith("@")) {
@@ -23,7 +24,7 @@ export function useToolAutocomplete(inputValue: string) {
     return { suggestions: [], visible: false };
   }
 
-  const suggestions = TOOLS.filter((t) =>
+  const suggestions = visibleTools.filter((t) =>
     t.name.toLowerCase().startsWith(afterAt),
   );
 

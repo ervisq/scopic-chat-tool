@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ArrowUp, MessageSquare } from "lucide-react";
+import { ArrowUp, MessageSquare, Settings } from "lucide-react";
 import { useChat } from "@/hooks/use-chat";
 import { ChatMessageBubble } from "@/components/chat/chat-message-bubble";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
@@ -9,11 +9,13 @@ import {
   ToolAutocomplete,
   useToolAutocomplete,
 } from "@/components/chat/tool-autocomplete";
+import { ToolVisibilityModal } from "@/components/tool-visibility-panel";
 
 export default function ChatPage() {
   const { messages, sendMessage, isTyping } = useChat();
   const [inputValue, setInputValue] = useState("");
   const [autocompleteIndex, setAutocompleteIndex] = useState(0);
+  const [toolSettingsOpen, setToolSettingsOpen] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -103,11 +105,20 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-dvh bg-background">
-      <header className="h-14 shrink-0 flex items-center px-4 md:px-6 border-b border-border/50 bg-background z-10">
+      <header className="h-14 shrink-0 flex items-center justify-between px-4 md:px-6 border-b border-border/50 bg-background z-10">
         <div className="flex items-center gap-2">
           <MessageSquare className="w-5 h-5 text-primary" />
           <h1 className="text-base font-semibold text-foreground">Chat</h1>
         </div>
+        <button
+          type="button"
+          onClick={() => setToolSettingsOpen(true)}
+          aria-label="Tool visibility"
+          title="Tool visibility"
+          className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+        >
+          <Settings className="w-4 h-4" />
+        </button>
       </header>
 
       <div ref={scrollAreaRef} className="flex-1 overflow-y-auto">
@@ -127,7 +138,11 @@ export default function ChatPage() {
 
       <div className="shrink-0 border-t border-border/50 bg-background px-4 md:px-6 py-3">
         <div className="max-w-3xl mx-auto">
-          <ToolPills onPresetSelect={handlePresetSelect} disabled={isTyping} />
+          <ToolPills
+            onPresetSelect={handlePresetSelect}
+            onOpenSettings={() => setToolSettingsOpen(true)}
+            disabled={isTyping}
+          />
           <div className="relative">
             <ToolAutocomplete
               inputValue={inputValue}
@@ -162,6 +177,10 @@ export default function ChatPage() {
           </p>
         </div>
       </div>
+      <ToolVisibilityModal
+        open={toolSettingsOpen}
+        onClose={() => setToolSettingsOpen(false)}
+      />
     </div>
   );
 }

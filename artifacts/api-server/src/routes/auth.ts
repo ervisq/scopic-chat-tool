@@ -219,6 +219,7 @@ router.get("/auth/me", requireAuth, async (req, res) => {
       defaultPage: user.defaultPage || "dashboard",
       totpEnabled: user.totpEnabled || false,
       role: user.role,
+      hiddenTools: Array.isArray(user.hiddenTools) ? user.hiddenTools : [],
     });
   } catch (err) {
     console.error("Get me error:", err);

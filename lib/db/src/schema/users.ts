@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, boolean, check } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, boolean, check, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { sql } from "drizzle-orm";
@@ -15,6 +15,7 @@ export const users = pgTable("users", {
   profilePictureUrl: text("profile_picture_url"),
   theme: text("theme").default("light"),
   defaultPage: text("default_page").default("dashboard"),
+  hiddenTools: jsonb("hidden_tools").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
   totpSecret: text("totp_secret"),
   totpEnabled: boolean("totp_enabled").default(false),
   totpFrequency: text("totp_frequency").default("weekly"),

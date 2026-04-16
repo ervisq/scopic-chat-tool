@@ -10,6 +10,7 @@ import AdminPage from "@/pages/admin-page";
 import ConnectionsPage from "@/pages/connections-page";
 import AccountPage from "@/pages/account-page";
 import OnboardingTour, { isTourCompleted, type TourStep } from "@/components/onboarding-tour";
+import { ToolVisibilityProvider } from "@/lib/tool-visibility";
 
 const TOUR_STEPS: TourStep[] = [
   {
@@ -140,7 +141,11 @@ function AuthGate() {
   }
 
   return (
-    <>
+    <ToolVisibilityProvider
+      key={user?.email ?? "anon"}
+      token={token}
+      initialHiddenTools={user?.hiddenTools}
+    >
       <AppLayout
         activePage={page}
         onNavigate={setPage}
@@ -157,7 +162,7 @@ function AuthGate() {
           userEmail={user?.email}
         />
       )}
-    </>
+    </ToolVisibilityProvider>
   );
 }
 

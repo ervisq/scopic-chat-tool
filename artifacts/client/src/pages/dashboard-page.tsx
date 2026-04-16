@@ -1,4 +1,4 @@
-import { useState, useEffect, type ComponentType, type SVGProps } from "react";
+import { useState, useEffect, useMemo, type ComponentType, type SVGProps } from "react";
 import {
   MessageSquare,
   ExternalLink,
@@ -19,9 +19,22 @@ import {
   FolderOpen,
   CalendarClock,
   BarChart3,
+  Settings,
 } from "lucide-react";
 import { JiraIcon, TeamworkIcon, OutlookIcon, ZohoIcon, StsIcon } from "../components/chat/tool-icons";
 import { safeExternalUrl } from "@/lib/utils";
+import { useToolVisibility } from "@/lib/tool-visibility";
+import { ToolVisibilityModal } from "@/components/tool-visibility-panel";
+
+const SERVICE_KEY_TO_TOOL_NAME: Record<string, string> = {
+  jira: "JIRA",
+  zoho_people: "ZohoPeople",
+  zoho_crm: "ZohoCRM",
+  sts: "STS",
+  teamwork: "Teamwork",
+  outlook_email: "Outlook",
+  outlook_calendar: "Outlook",
+};
 
 interface DashboardPageProps {
   user: { email: string; name: string } | null;
@@ -1269,6 +1282,8 @@ export default function DashboardPage({
   const [services, setServices] = useState<ServiceData[]>([]);
   const [loading, setLoading] = useState(true);
   const [drawerService, setDrawerService] = useState<ServiceData | null>(null);
+  const [toolSettingsOpen, setToolSettingsOpen] = useState(false);
+  const { isHidden } = useToolVisibility();
 
   const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -1320,21 +1335,50 @@ export default function DashboardPage({
     setDrawerService(merged);
   }
 
-  const stsService = services.find((s) => s.key === "sts");
-  const calendarService = services.find((s) => s.key === "outlook_calendar");
-  const emailService = services.find((s) => s.key === "outlook_email");
-  const mainServices = services.filter(
+  const isServiceHidden = (key: string) => {
+    const toolName = SERVICE_KEY_TO_TOOL_NAME[key];
+    return toolName ? isHidden(toolName) : false;
+  };
+
+  const visibleServices = useMemo(
+    () => services.filter((s) => !isServiceHidden(s.key)),
+    [services, isHidden],
+  );
+
+  const stsService = !isHidden("STS")
+    ? services.find((s) => s.key === "sts")
+    : undefined;
+  const calendarService = !isHidden("Outlook")
+    ? services.find((s) => s.key === "outlook_calendar")
+    : undefined;
+  const emailService = !isHidden("Outlook")
+    ? services.find((s) => s.key === "outlook_email")
+    : undefined;
+  const mainServices = visibleServices.filter(
     (s) => s.key !== "sts" && s.key !== "outlook_calendar" && s.key !== "outlook_email"
   );
+  const showOutlookPanel = !isHidden("Outlook");
+  const showStsPanel = !isHidden("STS");
   const connectedCount = services.filter((s) => s.connected).length;
+  const hasAnyVisibleWidget =
+    mainServices.length > 0 || showStsPanel || showOutlookPanel;
 
   return (
     <div className="flex flex-col h-dvh bg-background">
-      <header className="h-14 shrink-0 flex items-center px-4 md:px-6 border-b border-border/50 bg-background z-10">
+      <header className="h-14 shrink-0 flex items-center justify-between px-4 md:px-6 border-b border-border/50 bg-background z-10">
         <div className="flex items-center gap-2">
           <LayoutDashboard className="w-5 h-5 text-primary" />
           <h1 className="text-base font-semibold text-foreground">Dashboard</h1>
         </div>
+        <button
+          type="button"
+          onClick={() => setToolSettingsOpen(true)}
+          aria-label="Tool visibility"
+          title="Tool visibility"
+          className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+        >
+          <Settings className="w-4 h-4" />
+        </button>
       </header>
 
       <div className="flex-1 overflow-y-auto">
@@ -1354,25 +1398,50 @@ export default function DashboardPage({
             <div className="flex items-center justify-center py-20">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
+          ) : !hasAnyVisibleWidget ? (
+            <div className="rounded-2xl border border-border/60 bg-card p-8 text-center">
+              <Settings className="w-8 h-8 mx-auto text-muted-foreground mb-3" />
+              <h3 className="text-sm font-semibold text-foreground mb-1">All tools are hidden</h3>
+              <p className="text-xs text-muted-foreground mb-4">
+                Re-enable a tool to see its widget on your dashboard.
+              </p>
+              <button
+                onClick={() => setToolSettingsOpen(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90"
+              >
+                <Settings className="w-4 h-4" />
+                Open tool visibility
+              </button>
+            </div>
           ) : (
             <div className="flex flex-col lg:flex-row lg:items-start gap-6">
-              <div className="flex-1 min-w-0">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  {mainServices.map((service) => (
-                    <ServiceCard
-                      key={service.key}
-                      service={service}
-                      onConnect={onOpenConnections}
-                      onViewMore={() => setDrawerService(service)}
-                    />
-                  ))}
+              {mainServices.length > 0 && (
+                <div className="flex-1 min-w-0">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {mainServices.map((service) => (
+                      <ServiceCard
+                        key={service.key}
+                        service={service}
+                        onConnect={onOpenConnections}
+                        onViewMore={() => setDrawerService(service)}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div className="w-full lg:w-[340px] shrink-0 space-y-5">
-                <WeeklyHoursPanel service={stsService} />
-                <OutlookPanel calendarService={calendarService} emailService={emailService} onViewMore={openOutlookDrawer} />
-              </div>
+              {(showStsPanel || showOutlookPanel) && (
+                <div className="w-full lg:w-[340px] shrink-0 space-y-5">
+                  {showStsPanel && <WeeklyHoursPanel service={stsService} />}
+                  {showOutlookPanel && (
+                    <OutlookPanel
+                      calendarService={calendarService}
+                      emailService={emailService}
+                      onViewMore={openOutlookDrawer}
+                    />
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -1389,6 +1458,10 @@ export default function DashboardPage({
       </div>
 
       <ServiceDrawer service={drawerService} onClose={() => setDrawerService(null)} />
+      <ToolVisibilityModal
+        open={toolSettingsOpen}
+        onClose={() => setToolSettingsOpen(false)}
+      />
     </div>
   );
 }
