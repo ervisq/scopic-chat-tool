@@ -201,7 +201,7 @@ export default function OnboardingTour({ steps, onComplete, onNavigate, userEmai
 
       <div
         ref={tooltipRef}
-        className={`absolute w-[300px] bg-card border border-border/60 rounded-xl shadow-xl transition-opacity duration-200 ${visible ? "opacity-100" : "opacity-0"}`}
+        className={`absolute w-[min(300px,calc(100vw-24px))] bg-card border border-border/60 rounded-xl shadow-xl transition-opacity duration-200 ${visible ? "opacity-100" : "opacity-0"}`}
         style={{ ...tooltipStyle, zIndex: 10000 }}
       >
         <div className="absolute" style={arrowStyle}>
@@ -225,6 +225,12 @@ export default function OnboardingTour({ steps, onComplete, onNavigate, userEmai
               {currentStep + 1} of {steps.length}
             </span>
             <div className="flex items-center gap-2">
+              <button
+                onClick={handleSkip}
+                className="text-xs px-3 py-1.5 rounded-lg text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Skip
+              </button>
               {currentStep > 0 && (
                 <button
                   onClick={handleBack}
