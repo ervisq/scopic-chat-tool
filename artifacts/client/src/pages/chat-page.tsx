@@ -4,6 +4,7 @@ import { useChat } from "@/hooks/use-chat";
 import { ChatMessageBubble } from "@/components/chat/chat-message-bubble";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { EmptyState } from "@/components/chat/empty-state";
+import { ToolPills } from "@/components/chat/tool-pills";
 import {
   ToolAutocomplete,
   useToolAutocomplete,
@@ -92,11 +93,12 @@ export default function ChatPage() {
     }
   };
 
-  const handleSuggestionClick = useCallback(
+  const handlePresetSelect = useCallback(
     (text: string) => {
+      if (isTyping) return;
       sendMessage(text);
     },
-    [sendMessage],
+    [isTyping, sendMessage],
   );
 
   return (
@@ -111,7 +113,7 @@ export default function ChatPage() {
       <div ref={scrollAreaRef} className="flex-1 overflow-y-auto">
         {messages.length === 0 ? (
           <div className="flex items-center justify-center min-h-full">
-            <EmptyState onSuggestionClick={handleSuggestionClick} />
+            <EmptyState />
           </div>
         ) : (
           <div className="flex flex-col">
@@ -125,6 +127,7 @@ export default function ChatPage() {
 
       <div className="shrink-0 border-t border-border/50 bg-background px-4 md:px-6 py-3">
         <div className="max-w-3xl mx-auto">
+          <ToolPills onPresetSelect={handlePresetSelect} disabled={isTyping} />
           <div className="relative">
             <ToolAutocomplete
               inputValue={inputValue}
