@@ -125,7 +125,8 @@ router.post("/auth/login", async (req, res) => {
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error("Login error:", msg);
+    const stack = error instanceof Error ? error.stack : undefined;
+    console.error("Login error:", msg, stack || "");
     res.status(500).json({ message: "Login failed. Please try again." });
   }
 });

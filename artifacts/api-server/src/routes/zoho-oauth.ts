@@ -37,14 +37,16 @@ function cleanExpiredStates() {
   }
 }
 
+function getAppDomain(): string {
+  return process.env.REPLIT_DOMAINS?.split(",")[0]?.trim() || process.env.REPLIT_DEV_DOMAIN || "localhost";
+}
+
 function getRedirectUri(): string {
-  const domain = process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS?.split(",")[0] || "localhost";
-  return `https://${domain}/api/zoho/callback`;
+  return `https://${getAppDomain()}/api/zoho/callback`;
 }
 
 function getFrontendUrl(): string {
-  const domain = process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS?.split(",")[0] || "localhost";
-  return `https://${domain}/`;
+  return `https://${getAppDomain()}/`;
 }
 
 router.get("/zoho/auth-url", requireAuth, (req, res) => {
