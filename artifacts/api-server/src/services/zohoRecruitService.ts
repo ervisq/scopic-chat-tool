@@ -261,6 +261,21 @@ async function searchRecruitByCriteria(
   }
 }
 
+function buildRecruitDateCriteria(dateField: string, startDate: string, endDate: string): string {
+  const isDateTimeField = dateField === "Created_Time" || dateField === "Modified_Time";
+  if (isDateTimeField) {
+    return `(${dateField}:between:${startDate}T00:00:00+00:00,${endDate}T23:59:59+00:00)`;
+  }
+  return `(${dateField}:between:${startDate},${endDate})`;
+}
+
+function combineCriteria(...parts: string[]): string {
+  const valid = parts.filter(Boolean);
+  if (valid.length === 0) return "";
+  if (valid.length === 1) return valid[0];
+  return `(${valid.join("and")})`;
+}
+
 function filterByDateClientSide(
   records: Record<string, unknown>[],
   dateField: string,
@@ -428,13 +443,13 @@ export async function queryZohoRecruit(
     console.log(`[ZohoRecruit] Search for "${searchEntity}" returned null, falling back to fetch + client-side entity filter`);
   }
 
-  if (wantRecruiterFilter || statusFilter) {
-    const criteriaparts: string[] = [];
-    if (wantRecruiterFilter) criteriaparts.push("(Created_By:equals:${CURRENTUSER})");
-    if (statusFilter) criteriaparts.push(`(${statusField}:equals:${statusFilter})`);
+  const dateCriteria = hasDateFilter ? buildRecruitDateCriteria(dateField, dateStart!, dateEnd!) : "";
+  const recruiterCriteria = wantRecruiterFilter ? "(Created_By:equals:${CURRENTUSER})" : "";
+  const statusCriteria = statusFilter ? `(${statusField}:equals:${statusFilter})` : "";
 
-    if (criteriaparts.length > 0) {
-      const criteria = criteriaparts.join("and");
+  if (wantRecruiterFilter || statusFilter || hasDateFilter) {
+    const criteria = combineCriteria(recruiterCriteria, statusCriteria, dateCriteria);
+    if (criteria) {
       console.log(`[ZohoRecruit] Criteria search: ${criteria}`);
       const criteriaResults = await searchRecruitByCriteria(accessToken, apiModule, criteria, recruitBase);
 
@@ -443,10 +458,6 @@ export async function queryZohoRecruit(
         if (searchEntity) {
           filtered = filterByEntityClientSide(filtered, searchEntity, apiModule);
           console.log(`[ZohoRecruit] Entity filter on criteria results: "${searchEntity}" → ${filtered.length}`);
-        }
-        if (hasDateFilter) {
-          filtered = filterByDateClientSide(filtered, dateField, dateStart!, dateEnd!);
-          console.log(`[ZohoRecruit] Date filter on criteria results: → ${filtered.length}`);
         }
         return buildResult(moduleType, filtered, filterContext);
       }
