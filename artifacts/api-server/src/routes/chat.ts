@@ -9,6 +9,41 @@ import { parseToolCommand } from "../lib/parse-tool-command";
 
 const router: IRouter = Router();
 
+const MAX_TOOL_DATA_CHARS = 8000;
+const FORMAT_TIMEOUT_MS = 25000;
+
+function truncateToolData(data: string): string {
+  if (data.length <= MAX_TOOL_DATA_CHARS) return data;
+
+  const lines = data.split("\n");
+  let truncated = "";
+  let lineCount = 0;
+
+  for (const line of lines) {
+    if (truncated.length + line.length + 1 > MAX_TOOL_DATA_CHARS) break;
+    truncated += (lineCount > 0 ? "\n" : "") + line;
+    lineCount++;
+  }
+
+  const totalLines = lines.length;
+  const remainingLines = totalLines - lineCount;
+  if (remainingLines > 0) {
+    truncated += `\n\n... and ${remainingLines} more lines (${data.length - truncated.length} more characters). Showing first ${lineCount} of ${totalLines} lines.`;
+  }
+
+  return truncated;
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    promise.then(
+      (val) => { clearTimeout(timer); resolve(val); },
+      (err) => { clearTimeout(timer); reject(err); },
+    );
+  });
+}
+
 router.post("/chat", async (req, res) => {
   try {
     const parsed = SendMessageBody.parse(req.body);
@@ -55,8 +90,17 @@ router.post("/chat", async (req, res) => {
       const toolResult = await routeToolCommand(toolCall.toolName, toolCall.args, authUser.userId);
       console.log("[Chat] Tool result length:", toolResult.reply.length, "chars");
 
+      const dataForFormatting = truncateToolData(toolResult.reply);
+      if (dataForFormatting.length < toolResult.reply.length) {
+        console.log(`[Chat] Truncated tool data for AI formatting: ${toolResult.reply.length} → ${dataForFormatting.length} chars`);
+      }
+
       try {
-        reply = await formatToolResponse(parsed.message, toolCall.toolName, toolResult.reply, history);
+        reply = await withTimeout(
+          formatToolResponse(parsed.message, toolCall.toolName, dataForFormatting, history),
+          FORMAT_TIMEOUT_MS,
+          "AI formatting",
+        );
       } catch (aiErr) {
         console.error("[Chat] AI formatting error, falling back to raw data:", aiErr instanceof Error ? aiErr.message : aiErr);
         reply = toolResult.reply;
@@ -73,7 +117,7 @@ router.post("/chat", async (req, res) => {
       ...(toolCommand ? { toolCommand } : {}),
     });
 
-    console.log("[Chat] Response sent to client");
+    console.log("[Chat] Response sent to client, reply length:", reply.length, "chars");
     res.json(data);
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
