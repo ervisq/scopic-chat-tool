@@ -64,6 +64,18 @@ router.post("/chat", async (req, res) => {
       const query = parsed.message.replace(/@[a-zA-Z0-9_-]+/g, "").trim() || parsed.message;
       const overrideArgs: Record<string, unknown> = { query, _atMentionOverride: true };
 
+      // If the cleaned query is clearly a pure temporal/filter phrase
+      // ("leads created today", "deals closed this week", "tasks due today"),
+      // suppress the search-entity fallback so the query doesn't degrade into
+      // a word-search on "closed" or "today". The CRM service will resolve
+      // the date intent via router-provided date args (carried over below) or
+      // fall back to module-wide fetch + date filter.
+      const temporalOnly = /^(my\s+)?(tasks?|deals?|leads?|contacts?|accounts?|events?|calls?|products?|quotes?|invoices?|campaigns?|vendors?)(\s+(created|closed|added|due|opened|modified|updated|open))?(\s+(today|yesterday|tomorrow|this\s+(week|month|year|quarter)|last\s+(week|month|year|quarter|\d+\s+days?|\d+\s+months?)|next\s+(week|month|year|quarter)|since\s+\w+|from\s+\w+|before\s+\w+))?$/i
+        .test(query.trim());
+      if (temporalOnly) {
+        overrideArgs._atMentionOverride = false;
+      }
+
       // Carry over date / filter intent that the AI router already extracted
       // from the user's natural-language query, so @-mention doesn't erase
       // things like "today", "this week", "my", or a specific entity name.
