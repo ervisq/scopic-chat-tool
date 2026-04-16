@@ -20,9 +20,34 @@ export interface ZohoContractResult {
   contracts: ZohoContract[];
   total: number;
   source: "live" | "error";
+  searchEntity?: string;
+  statusFilter?: string;
+  ownerFilter?: string;
+  dateRangeStart?: string;
+  dateRangeEnd?: string;
+  dateField?: string;
+}
+
+export type ContractsDateField = "start_date" | "end_date" | "created_time";
+
+export interface ContractsSearchOptions {
+  searchEntity?: string;
+  statusFilter?: string;
+  ownerFilter?: "me" | "all";
+  dateRangeStart?: string;
+  dateRangeEnd?: string;
+  dateField?: string;
 }
 
 const DEFAULT_LIMIT = 200;
+
+const VALID_DATE_FIELDS = new Set<string>(["start_date", "end_date", "created_time"]);
+
+const DATE_FIELD_TO_PROP: Record<string, keyof ZohoContract> = {
+  start_date: "startDate",
+  end_date: "endDate",
+  created_time: "createdTime",
+};
 
 function str(val: unknown): string {
   if (val === null || val === undefined) return "";
@@ -47,59 +72,155 @@ function mapContract(r: Record<string, unknown>): ZohoContract {
   };
 }
 
+async function fetchAllContracts(
+  accessToken: string,
+  contractsBase: string,
+): Promise<ZohoContract[]> {
+  const response = await axios.get(`${contractsBase}/contracts`, {
+    params: { limit: DEFAULT_LIMIT },
+    headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+  });
+
+  const records = response.data?.contracts || response.data?.data || [];
+  return (Array.isArray(records) ? records : []).map(mapContract);
+}
+
+function filterByEntity(
+  contracts: ZohoContract[],
+  searchEntity: string,
+): ZohoContract[] {
+  const lower = searchEntity.toLowerCase();
+  return contracts.filter((c) =>
+    c.contractName.toLowerCase().includes(lower) ||
+    c.company.toLowerCase().includes(lower) ||
+    c.contractType.toLowerCase().includes(lower) ||
+    c.contractOwner.toLowerCase().includes(lower)
+  );
+}
+
+function filterByStatus(
+  contracts: ZohoContract[],
+  statusFilter: string,
+): ZohoContract[] {
+  const lower = statusFilter.toLowerCase();
+
+  if (lower === "expiring") {
+    const now = new Date();
+    const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    return contracts.filter((c) => {
+      if (!c.endDate) return false;
+      const end = new Date(c.endDate);
+      return end >= now && end <= thirtyDays && c.contractStatus.toLowerCase() !== "expired" && c.contractStatus.toLowerCase() !== "terminated";
+    });
+  }
+
+  return contracts.filter((c) =>
+    c.contractStatus.toLowerCase() === lower
+  );
+}
+
+function filterByDate(
+  contracts: ZohoContract[],
+  dateField: string,
+  dateStart: string,
+  dateEnd: string,
+): ZohoContract[] {
+  const prop = DATE_FIELD_TO_PROP[dateField] || "createdTime";
+  const start = new Date(dateStart);
+  const end = new Date(dateEnd + "T23:59:59");
+
+  return contracts.filter((c) => {
+    const val = c[prop];
+    if (!val) return false;
+    const d = new Date(val);
+    return d >= start && d <= end;
+  });
+}
+
+function filterByOwner(
+  contracts: ZohoContract[],
+  ownerContracts: ZohoContract[] | null,
+): ZohoContract[] {
+  if (ownerContracts === null) return [];
+  const ownerIds = new Set(ownerContracts.map((c) => c.id));
+  return contracts.filter((c) => ownerIds.has(c.id));
+}
+
 export async function queryZohoContracts(
   query: string,
   clientId: string,
   clientSecret: string,
   refreshToken: string,
   domain?: string,
+  options?: ContractsSearchOptions,
 ): Promise<ZohoContractResult> {
   const accessToken = await getZohoAccessToken(clientId, clientSecret, refreshToken, domain);
   const contractsBase = getContractsBaseUrl(domain || "https://accounts.zoho.com");
 
+  const searchEntity = options?.searchEntity || undefined;
+  const statusFilter = options?.statusFilter || undefined;
+  const rawDateField = options?.dateField || "created_time";
+  const dateField = VALID_DATE_FIELDS.has(rawDateField) ? rawDateField : "created_time";
+  const dateStart = options?.dateRangeStart || undefined;
+  const dateEnd = options?.dateRangeEnd || undefined;
+  const hasDateFilter = !!(dateStart && dateEnd);
+  const wantOwnerFilter = options?.ownerFilter === "me";
+
+  const filterContext: Partial<ZohoContractResult> = {};
+  if (searchEntity) filterContext.searchEntity = searchEntity;
+  if (statusFilter) filterContext.statusFilter = statusFilter;
+  if (hasDateFilter) {
+    filterContext.dateRangeStart = dateStart!;
+    filterContext.dateRangeEnd = dateEnd!;
+    filterContext.dateField = dateField;
+  }
+  if (wantOwnerFilter) filterContext.ownerFilter = "me";
+
+  console.log(`[ZohoContracts] searchEntity: ${searchEntity || "(none)"}, statusFilter: ${statusFilter || "(none)"}, ownerFilter: ${wantOwnerFilter}, dateFilter: ${hasDateFilter ? `${dateField} ${dateStart}→${dateEnd}` : "none"}`);
+
   try {
-    const response = await axios.get(`${contractsBase}/contracts`, {
-      params: { limit: DEFAULT_LIMIT },
-      headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
-    });
+    const allContracts = await fetchAllContracts(accessToken, contractsBase);
+    console.log(`[ZohoContracts] Fetched ${allContracts.length} contracts`);
+    let filtered = allContracts;
 
-    const records = response.data?.contracts || response.data?.data || [];
-    const contracts = (Array.isArray(records) ? records : []).map(mapContract);
-
-    const lower = query.toLowerCase();
-    let filtered = contracts;
-
-    if (lower.includes("active")) {
-      filtered = contracts.filter((c) => c.contractStatus.toLowerCase().includes("active"));
-    } else if (lower.includes("expired") || lower.includes("past")) {
-      filtered = contracts.filter((c) => c.contractStatus.toLowerCase().includes("expired") || c.contractStatus.toLowerCase().includes("terminated"));
-    } else if (lower.includes("pending") || lower.includes("draft")) {
-      filtered = contracts.filter((c) => c.contractStatus.toLowerCase().includes("pending") || c.contractStatus.toLowerCase().includes("draft"));
-    } else if (lower.includes("expiring")) {
-      const now = new Date();
-      const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-      filtered = contracts.filter((c) => {
-        if (!c.endDate) return false;
-        const end = new Date(c.endDate);
-        return end >= now && end <= thirtyDays;
-      });
+    if (searchEntity) {
+      filtered = filterByEntity(filtered, searchEntity);
+      console.log(`[ZohoContracts] Entity filter "${searchEntity}": ${allContracts.length} → ${filtered.length}`);
     }
 
-    const searchTerms = lower.replace(/contracts?|show|list|find|get|all|active|expired|pending|draft|expiring/g, "").trim();
-    if (searchTerms.length > 2) {
-      const termFiltered = filtered.filter((c) =>
-        c.contractName.toLowerCase().includes(searchTerms) ||
-        c.company.toLowerCase().includes(searchTerms) ||
-        c.contractType.toLowerCase().includes(searchTerms) ||
-        c.contractOwner.toLowerCase().includes(searchTerms)
-      );
-      if (termFiltered.length > 0) filtered = termFiltered;
+    if (statusFilter) {
+      const beforeCount = filtered.length;
+      filtered = filterByStatus(filtered, statusFilter);
+      console.log(`[ZohoContracts] Status filter "${statusFilter}": ${beforeCount} → ${filtered.length}`);
     }
 
-    return { contracts: filtered, total: filtered.length, source: "live" };
+    if (hasDateFilter) {
+      const beforeCount = filtered.length;
+      filtered = filterByDate(filtered, dateField, dateStart!, dateEnd!);
+      console.log(`[ZohoContracts] Date filter ${dateField} ${dateStart}→${dateEnd}: ${beforeCount} → ${filtered.length}`);
+    }
+
+    if (wantOwnerFilter) {
+      const beforeCount = filtered.length;
+      try {
+        const ownerResponse = await axios.get(`${contractsBase}/contracts`, {
+          params: { limit: DEFAULT_LIMIT, owner: "CURRENTUSER" },
+          headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+        });
+        const ownerRecords = ownerResponse.data?.contracts || ownerResponse.data?.data || [];
+        const ownerContracts = (Array.isArray(ownerRecords) ? ownerRecords : []).map(mapContract);
+        filtered = filterByOwner(filtered, ownerContracts);
+        console.log(`[ZohoContracts] Owner filter: ${beforeCount} → ${filtered.length}`);
+      } catch (ownerErr) {
+        console.log(`[ZohoContracts] Owner filter API failed — returning empty to avoid unfiltered data`);
+        filtered = [];
+      }
+    }
+
+    return { contracts: filtered, total: filtered.length, source: "live", ...filterContext };
   } catch (err: unknown) {
     if (axios.isAxiosError(err) && err.response?.status === 404) {
-      return { contracts: [], total: 0, source: "live" };
+      return { contracts: [], total: 0, source: "live", ...filterContext };
     }
     if (axios.isAxiosError(err) && [400, 401, 403].includes(err.response?.status || 0)) {
       throw new ZohoPermissionError(
@@ -114,10 +235,19 @@ export async function queryZohoContracts(
 export function formatContractsResult(result: ZohoContractResult, query: string): string {
   const q = `\n\nQuery: "${query}"`;
 
-  if (result.contracts.length === 0) return `No contracts found.${q}`;
+  const contextParts: string[] = [];
+  if (result.searchEntity) contextParts.push(`Search: "${result.searchEntity}"`);
+  if (result.statusFilter) contextParts.push(`Status filter: ${result.statusFilter}`);
+  if (result.dateRangeStart && result.dateRangeEnd) {
+    contextParts.push(`Date filter: ${result.dateField || "created_time"} from ${result.dateRangeStart} to ${result.dateRangeEnd}`);
+  }
+  if (result.ownerFilter) contextParts.push(`Owner filter: ${result.ownerFilter}`);
+  const filterNote = contextParts.length > 0 ? `\n${contextParts.join(" | ")}` : "";
+
+  if (result.contracts.length === 0) return `No contracts found.${filterNote}${q}`;
 
   const lines = result.contracts.map(
     (c) => `• ${c.contractName} — [${c.contractStatus || "N/A"}] Type: ${c.contractType || "N/A"}${c.company ? ` | Company: ${c.company}` : ""}${c.contractValue ? ` | Value: ${c.contractValue}` : ""}${c.startDate ? ` | Start: ${c.startDate}` : ""}${c.endDate ? ` | End: ${c.endDate}` : ""}${c.contractOwner ? ` | Owner: ${c.contractOwner}` : ""}`,
   );
-  return `Zoho Contracts (${result.total} found):\n${lines.join("\n")}${q}`;
+  return `Zoho Contracts (${result.total} found):\n${lines.join("\n")}${filterNote}${q}`;
 }

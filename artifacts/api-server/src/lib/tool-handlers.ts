@@ -85,7 +85,16 @@ async function zohoRecruitHandler(args: Record<string, unknown>, userId: number)
 
 async function zohoContractsHandler(args: Record<string, unknown>, userId: number): Promise<ToolResult> {
   const query = (args.query as string) || "active contracts";
-  const result = await queryZohoContractsDirect(query, userId);
+  const searchEntity = (args.search_entity as string) || undefined;
+  const statusFilter = (args.status_filter as string) || undefined;
+  const rawOwner = (args.owner_filter as string) || undefined;
+  const ownerFilter = rawOwner === "me" ? "me" as const : rawOwner === "all" ? "all" as const : undefined;
+  const dateRangeStart = (args.date_range_start as string) || undefined;
+  const dateRangeEnd = (args.date_range_end as string) || undefined;
+  const dateField = (args.date_field as string) || undefined;
+  const result = await queryZohoContractsDirect(query, userId, {
+    searchEntity, statusFilter, ownerFilter, dateRangeStart, dateRangeEnd, dateField,
+  });
   return { reply: result.reply };
 }
 

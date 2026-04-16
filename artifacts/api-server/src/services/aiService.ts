@@ -113,7 +113,43 @@ Zoho Recruit guidelines:
   - "positions opened last quarter" → module: "job_openings", date_field: "Date_Opened", date_range_start/end: last quarter range
   - "completed interviews this month" → module: "interviews", status_filter: "Completed", date_range_start/end: this month
   - "any QA roles open?" → search_entity: "QA", module: "job_openings", status_filter: "Open"
-  - "who did we interview last week?" → module: "interviews", date_range_start/end: last week`;
+  - "who did we interview last week?" → module: "interviews", date_range_start/end: last week
+
+Zoho Contracts guidelines:
+- search_entity: Extract specific contract or company names. Only proper nouns.
+  - "Acme Corp contract" → search_entity: "Acme Corp"
+  - "NDA agreements" → search_entity: "NDA"
+  - "Microsoft contract details" → search_entity: "Microsoft"
+  - "all contracts" → no search_entity
+- status_filter: Map casual language to contract statuses:
+  - "active"/"current"/"in effect"/"live" → "Active"
+  - "expired"/"past"/"ended" → "Expired"
+  - "pending"/"awaiting"/"under review" → "Pending"
+  - "draft"/"not signed"/"in progress" → "Draft"
+  - "terminated"/"cancelled"/"canceled" → "Terminated"
+  - "expiring"/"expiring soon"/"about to expire"/"ending soon" → "Expiring"
+- owner_filter: "me"/"my"/"mine"/"I own" → owner_filter: "me"
+- Date field selection:
+  - end_date: "expiring", "ending", "expires", "due to end", "renewal date"
+  - start_date: "started", "signed", "effective", "began", "commenced"
+  - created_time: "created", "added", "entered", "recorded"
+  - If unclear, default to "created_time"
+- Examples:
+  - "active contracts" → status_filter: "Active"
+  - "contracts expiring next month" → status_filter: "Expiring", date_field: "end_date", date_range_start/end: next month
+  - "my active contracts" → owner_filter: "me", status_filter: "Active"
+  - "show me the Acme Corp contract" → search_entity: "Acme Corp"
+  - "contracts signed this year" → date_field: "start_date", date_range_start: Jan 1, date_range_end: today
+  - "drafts pending approval" → status_filter: "Draft"
+  - "NDA contracts" → search_entity: "NDA"
+  - "expired contracts from last quarter" → status_filter: "Expired", date_field: "end_date", date_range_start/end: last quarter
+  - "what contracts do I own" → owner_filter: "me"
+  - "anything expiring soon" → status_filter: "Expiring", date_field: "end_date"
+  - "contracts we signed with Microsoft" → search_entity: "Microsoft", date_field: "start_date"
+  - "NDAs from last quarter" → search_entity: "NDA", date_field: "created_time", date_range_start/end: last quarter
+  - "terminated contracts" → status_filter: "Terminated"
+  - "contracts created this month" → date_field: "created_time", date_range_start/end: this month
+  - "all contracts ending before June" → date_field: "end_date", date_range_start: Jan 1, date_range_end: May 31`;
 
 const RESPONSE_SYSTEM_PROMPT = `You are a helpful assistant embedded in a company chat application for Scopic Software. You help users interact with their integrated tools and answer general questions.
 

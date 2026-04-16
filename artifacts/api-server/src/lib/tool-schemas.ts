@@ -286,6 +286,38 @@ export const TOOL_DEFINITIONS: ChatCompletionTool[] = [
             description:
               "The full natural language query about Zoho Contracts data.",
           },
+          search_entity: {
+            type: "string",
+            description:
+              "Specific name to search for (contract name, company name, contract type). Extract only the proper noun/name.",
+          },
+          status_filter: {
+            type: "string",
+            description:
+              "Filter by contract status: Active, Expired, Pending, Draft, Terminated, Expiring.",
+          },
+          owner_filter: {
+            type: "string",
+            enum: ["me", "all"],
+            description:
+              "Filter by contract owner. 'me' = only contracts owned by the current user. 'all' = no owner filter (default).",
+          },
+          date_range_start: {
+            type: "string",
+            description:
+              "Start of date range in YYYY-MM-DD format for filtering contracts.",
+          },
+          date_range_end: {
+            type: "string",
+            description:
+              "End of date range in YYYY-MM-DD format for filtering contracts.",
+          },
+          date_field: {
+            type: "string",
+            enum: ["start_date", "end_date", "created_time"],
+            description:
+              "Which date field to filter on. 'end_date' for expiring/ending, 'start_date' for started/signed/effective, 'created_time' for created/added. Default: created_time.",
+          },
         },
         required: ["query"],
       },
