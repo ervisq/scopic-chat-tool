@@ -48,6 +48,18 @@ export interface RecruitInterview {
 
 export type RecruitResultType = "candidates" | "job_openings" | "interviews" | "pipeline";
 
+export type RecruitDateField = "Created_Time" | "Modified_Time" | "Date_Opened" | "Target_Date" | "Interview_Date";
+
+export interface RecruitSearchOptions {
+  module?: string;
+  searchEntity?: string;
+  statusFilter?: string;
+  dateRangeStart?: string;
+  dateRangeEnd?: string;
+  dateField?: string;
+  recruiterFilter?: "me" | "all";
+}
+
 export interface ZohoRecruitResult {
   type: RecruitResultType;
   candidates?: RecruitCandidate[];
@@ -55,9 +67,28 @@ export interface ZohoRecruitResult {
   interviews?: RecruitInterview[];
   total: number;
   source: "live" | "error";
+  searchEntity?: string;
+  statusFilter?: string;
+  dateRangeStart?: string;
+  dateRangeEnd?: string;
+  dateField?: string;
 }
 
 const DEFAULT_LIMIT = 200;
+
+const VALID_DATE_FIELDS = new Set<string>(["Created_Time", "Modified_Time", "Date_Opened", "Target_Date", "Interview_Date"]);
+
+const DEFAULT_DATE_FIELD_MAP: Record<string, RecruitDateField> = {
+  Candidates: "Created_Time",
+  Job_Openings: "Date_Opened",
+  Interviews: "Interview_Date",
+};
+
+const STATUS_FIELD_MAP: Record<string, string> = {
+  Candidates: "Candidate_Status",
+  Job_Openings: "Job_Opening_Status",
+  Interviews: "Interview_Status",
+};
 
 function str(val: unknown): string {
   if (val === null || val === undefined) return "";
@@ -123,24 +154,31 @@ function detectRecruitModule(query: string): RecruitResultType {
 
   if (lower.includes("pipeline") || lower.includes("hiring overview") || lower.includes("recruitment summary")) return "pipeline";
   if (lower.includes("interview") || lower.includes("schedule")) return "interviews";
-  if (lower.includes("job") || lower.includes("opening") || lower.includes("position") || lower.includes("vacancy") || lower.includes("posting") || lower.includes("hiring for")) return "job_openings";
+  if (lower.includes("job") || lower.includes("opening") || lower.includes("position") || lower.includes("vacancy") || lower.includes("posting") || lower.includes("hiring for") || lower.includes("role")) return "job_openings";
   return "candidates";
 }
 
-async function fetchRecruitModule<T>(
+function moduleTypeToApiModule(moduleType: RecruitResultType): string {
+  switch (moduleType) {
+    case "candidates": return "Candidates";
+    case "job_openings": return "Job_Openings";
+    case "interviews": return "Interviews";
+    default: return "Candidates";
+  }
+}
+
+async function fetchRecruitModuleRaw(
   accessToken: string,
   module: string,
-  mapper: (record: Record<string, unknown>) => T,
   recruitBase: string,
-): Promise<T[]> {
+): Promise<Record<string, unknown>[]> {
   try {
     const response = await axios.get(`${recruitBase}/${module}`, {
       params: { per_page: DEFAULT_LIMIT },
       headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
     });
 
-    const records = response.data?.data || [];
-    return records.map(mapper);
+    return response.data?.data || [];
   } catch (err: unknown) {
     if (axios.isAxiosError(err) && [401, 403].includes(err.response?.status || 0)) {
       throw new ZohoPermissionError(
@@ -148,8 +186,134 @@ async function fetchRecruitModule<T>(
         err.response?.status || 401,
       );
     }
+    if (axios.isAxiosError(err) && err.response?.status === 204) {
+      return [];
+    }
     throw err;
   }
+}
+
+async function searchRecruitByWord(
+  accessToken: string,
+  module: string,
+  word: string,
+  recruitBase: string,
+): Promise<Record<string, unknown>[] | null> {
+  try {
+    console.log(`[ZohoRecruit] Searching ${module} for word "${word}"`);
+    const response = await axios.get(`${recruitBase}/${module}/search`, {
+      params: { word, per_page: DEFAULT_LIMIT },
+      headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+    });
+    const records = response.data?.data || [];
+    console.log(`[ZohoRecruit] Search ${module} for "${word}" returned ${records.length} records`);
+    return records;
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err)) {
+      const status = err.response?.status || 0;
+      if ([401, 403].includes(status)) {
+        throw new ZohoPermissionError(
+          "Zoho Recruit access denied — your Zoho connection may not include Recruit permissions.",
+          status,
+        );
+      }
+      if (status === 204) {
+        console.log(`[ZohoRecruit] Search ${module} for "${word}" returned no results (204)`);
+        return [];
+      }
+      console.error(`[ZohoRecruit] Search ${module} failed (${status}):`, JSON.stringify(err.response?.data || {}).substring(0, 200));
+    }
+    return null;
+  }
+}
+
+async function searchRecruitByCriteria(
+  accessToken: string,
+  module: string,
+  criteria: string,
+  recruitBase: string,
+): Promise<Record<string, unknown>[] | null> {
+  try {
+    console.log(`[ZohoRecruit] Criteria search ${module}: ${criteria}`);
+    const response = await axios.get(`${recruitBase}/${module}/search`, {
+      params: { criteria, per_page: DEFAULT_LIMIT },
+      headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+    });
+    const records = response.data?.data || [];
+    console.log(`[ZohoRecruit] Criteria search ${module} returned ${records.length} records`);
+    return records;
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err)) {
+      const status = err.response?.status || 0;
+      if ([401, 403].includes(status)) {
+        throw new ZohoPermissionError(
+          "Zoho Recruit access denied — your Zoho connection may not include Recruit permissions.",
+          status,
+        );
+      }
+      if (status === 204) {
+        console.log(`[ZohoRecruit] Criteria search ${module} returned no results (204)`);
+        return [];
+      }
+      console.error(`[ZohoRecruit] Criteria search ${module} failed (${status}):`, JSON.stringify(err.response?.data || {}).substring(0, 200));
+    }
+    return null;
+  }
+}
+
+function filterByDateClientSide(
+  records: Record<string, unknown>[],
+  dateField: string,
+  dateStart: string,
+  dateEnd: string,
+): Record<string, unknown>[] {
+  const start = new Date(dateStart);
+  const end = new Date(dateEnd + "T23:59:59");
+  return records.filter((r) => {
+    const val = r[dateField];
+    if (!val || typeof val !== "string") return false;
+    const d = new Date(val);
+    return d >= start && d <= end;
+  });
+}
+
+function filterByStatusClientSide(
+  records: Record<string, unknown>[],
+  statusField: string,
+  statusFilter: string,
+): Record<string, unknown>[] {
+  const lowerFilter = statusFilter.toLowerCase();
+  return records.filter((r) => {
+    const val = str(r[statusField]);
+    return val.toLowerCase().includes(lowerFilter);
+  });
+}
+
+function buildResult(
+  moduleType: RecruitResultType,
+  records: Record<string, unknown>[],
+  context?: Partial<ZohoRecruitResult>,
+): ZohoRecruitResult {
+  const base: ZohoRecruitResult = {
+    type: moduleType,
+    total: records.length,
+    source: "live",
+    ...context,
+  };
+
+  switch (moduleType) {
+    case "candidates":
+      base.candidates = records.map(mapCandidate);
+      break;
+    case "job_openings":
+      base.jobOpenings = records.map(mapJobOpening);
+      break;
+    case "interviews":
+      base.interviews = records.map(mapInterview);
+      break;
+  }
+
+  return base;
 }
 
 export async function queryZohoRecruit(
@@ -158,36 +322,145 @@ export async function queryZohoRecruit(
   clientSecret: string,
   refreshToken: string,
   domain?: string,
+  options?: RecruitSearchOptions,
 ): Promise<ZohoRecruitResult> {
   const accessToken = await getZohoAccessToken(clientId, clientSecret, refreshToken, domain);
   const recruitBase = getRecruitBaseUrl(domain || "https://accounts.zoho.com");
-  const moduleType = detectRecruitModule(query);
 
-  switch (moduleType) {
-    case "pipeline": {
-      const [candidates, jobOpenings] = await Promise.all([
-        fetchRecruitModule(accessToken, "Candidates", mapCandidate, recruitBase),
-        fetchRecruitModule(accessToken, "Job_Openings", mapJobOpening, recruitBase),
-      ]);
-      return { type: "pipeline", candidates, jobOpenings, total: candidates.length + jobOpenings.length, source: "live" };
+  const moduleParam = options?.module?.toLowerCase();
+  const moduleType: RecruitResultType = moduleParam === "candidates" || moduleParam === "job_openings" || moduleParam === "interviews" || moduleParam === "pipeline"
+    ? moduleParam
+    : detectRecruitModule(query);
+
+  if (moduleType === "pipeline") {
+    const [candidateRaw, jobRaw] = await Promise.all([
+      fetchRecruitModuleRaw(accessToken, "Candidates", recruitBase),
+      fetchRecruitModuleRaw(accessToken, "Job_Openings", recruitBase),
+    ]);
+    return {
+      type: "pipeline",
+      candidates: candidateRaw.map(mapCandidate),
+      jobOpenings: jobRaw.map(mapJobOpening),
+      total: candidateRaw.length + jobRaw.length,
+      source: "live",
+    };
+  }
+
+  const apiModule = moduleTypeToApiModule(moduleType);
+  const searchEntity = options?.searchEntity || undefined;
+  const statusFilter = options?.statusFilter || undefined;
+  const rawDateField = options?.dateField || "";
+  const dateField = VALID_DATE_FIELDS.has(rawDateField) ? rawDateField : DEFAULT_DATE_FIELD_MAP[apiModule] || "Created_Time";
+  const dateStart = options?.dateRangeStart || null;
+  const dateEnd = options?.dateRangeEnd || null;
+  const hasDateFilter = !!(dateStart && dateEnd);
+  const wantRecruiterFilter = options?.recruiterFilter === "me";
+  const statusField = STATUS_FIELD_MAP[apiModule] || "Status";
+
+  const filterContext: Partial<ZohoRecruitResult> = {};
+  if (searchEntity) filterContext.searchEntity = searchEntity;
+  if (statusFilter) filterContext.statusFilter = statusFilter;
+  if (hasDateFilter) {
+    filterContext.dateRangeStart = dateStart!;
+    filterContext.dateRangeEnd = dateEnd!;
+    filterContext.dateField = dateField;
+  }
+
+  console.log(`[ZohoRecruit] Module: ${apiModule}, searchEntity: ${searchEntity || "(none)"}, statusFilter: ${statusFilter || "(none)"}, recruiterFilter: ${wantRecruiterFilter}, dateFilter: ${hasDateFilter ? `${dateField} ${dateStart}→${dateEnd}` : "none"}`);
+
+  if (searchEntity) {
+    const rawResults = await searchRecruitByWord(accessToken, apiModule, searchEntity, recruitBase);
+
+    if (rawResults !== null) {
+      let filtered = rawResults;
+
+      if (statusFilter) {
+        filtered = filterByStatusClientSide(filtered, statusField, statusFilter);
+        console.log(`[ZohoRecruit] Status filter "${statusFilter}": ${rawResults.length} → ${filtered.length}`);
+      }
+
+      if (hasDateFilter) {
+        const beforeCount = filtered.length;
+        filtered = filterByDateClientSide(filtered, dateField, dateStart!, dateEnd!);
+        console.log(`[ZohoRecruit] Date filter: ${beforeCount} → ${filtered.length} (${dateField} ${dateStart}→${dateEnd})`);
+      }
+
+      if (wantRecruiterFilter) {
+        const recruiterResults = await searchRecruitByCriteria(
+          accessToken, apiModule, "(Created_By:equals:${CURRENTUSER})", recruitBase,
+        );
+        if (recruiterResults !== null) {
+          const recruiterIds = new Set(recruiterResults.map((r) => String(r.id || "")));
+          const beforeCount = filtered.length;
+          filtered = filtered.filter((r) => recruiterIds.has(String(r.id || "")));
+          console.log(`[ZohoRecruit] Recruiter intersection: ${beforeCount} → ${filtered.length}`);
+        } else {
+          console.log(`[ZohoRecruit] Recruiter criteria unsupported — returning empty to avoid unfiltered data`);
+          return buildResult(moduleType, [], filterContext);
+        }
+      }
+
+      return buildResult(moduleType, filtered, filterContext);
     }
-    case "candidates": {
-      const candidates = await fetchRecruitModule(accessToken, "Candidates", mapCandidate, recruitBase);
-      return { type: "candidates", candidates, total: candidates.length, source: "live" };
-    }
-    case "job_openings": {
-      const jobOpenings = await fetchRecruitModule(accessToken, "Job_Openings", mapJobOpening, recruitBase);
-      return { type: "job_openings", jobOpenings, total: jobOpenings.length, source: "live" };
-    }
-    case "interviews": {
-      const interviews = await fetchRecruitModule(accessToken, "Interviews", mapInterview, recruitBase);
-      return { type: "interviews", interviews, total: interviews.length, source: "live" };
+
+    console.log(`[ZohoRecruit] Search for "${searchEntity}" returned null, falling through`);
+  }
+
+  if (wantRecruiterFilter || (hasDateFilter && !searchEntity) || statusFilter) {
+    const criteriaparts: string[] = [];
+    if (wantRecruiterFilter) criteriaparts.push("(Created_By:equals:${CURRENTUSER})");
+    if (statusFilter) criteriaparts.push(`(${statusField}:equals:${statusFilter})`);
+
+    if (criteriaparts.length > 0) {
+      const criteria = criteriaparts.join("and");
+      console.log(`[ZohoRecruit] Criteria search: ${criteria}`);
+      const criteriaResults = await searchRecruitByCriteria(accessToken, apiModule, criteria, recruitBase);
+
+      if (criteriaResults !== null) {
+        let filtered = criteriaResults;
+        if (hasDateFilter) {
+          filtered = filterByDateClientSide(filtered, dateField, dateStart!, dateEnd!);
+          console.log(`[ZohoRecruit] Date filter on criteria results: ${criteriaResults.length} → ${filtered.length}`);
+        }
+        return buildResult(moduleType, filtered, filterContext);
+      }
+
+      if (wantRecruiterFilter) {
+        console.log(`[ZohoRecruit] Recruiter criteria not supported — returning empty to avoid unfiltered data`);
+        return buildResult(moduleType, [], filterContext);
+      }
+
+      console.log(`[ZohoRecruit] Criteria search failed — falling back to fetch + client-side filter`);
     }
   }
+
+  const raw = await fetchRecruitModuleRaw(accessToken, apiModule, recruitBase);
+  let filtered = raw;
+
+  if (statusFilter) {
+    filtered = filterByStatusClientSide(filtered, statusField, statusFilter);
+    console.log(`[ZohoRecruit] Client-side status filter: ${raw.length} → ${filtered.length}`);
+  }
+
+  if (hasDateFilter) {
+    const beforeCount = filtered.length;
+    filtered = filterByDateClientSide(filtered, dateField, dateStart!, dateEnd!);
+    console.log(`[ZohoRecruit] Client-side date filter: ${beforeCount} → ${filtered.length}`);
+  }
+
+  return buildResult(moduleType, filtered, filterContext);
 }
 
 export function formatRecruitResult(result: ZohoRecruitResult, query: string): string {
   const q = `\n\nQuery: "${query}"`;
+
+  const contextParts: string[] = [];
+  if (result.searchEntity) contextParts.push(`Search: "${result.searchEntity}"`);
+  if (result.statusFilter) contextParts.push(`Status filter: ${result.statusFilter}`);
+  if (result.dateRangeStart && result.dateRangeEnd) {
+    contextParts.push(`Date filter: ${result.dateField || "Created_Time"} from ${result.dateRangeStart} to ${result.dateRangeEnd}`);
+  }
+  const filterNote = contextParts.length > 0 ? `\n${contextParts.join(" | ")}` : "";
 
   if (result.type === "pipeline" && result.candidates && result.jobOpenings) {
     const sections: string[] = [];
@@ -214,27 +487,27 @@ export function formatRecruitResult(result: ZohoRecruitResult, query: string): s
   }
 
   if (result.type === "candidates" && result.candidates) {
-    if (result.candidates.length === 0) return `No candidates found.${q}`;
+    if (result.candidates.length === 0) return `No candidates found.${filterNote}${q}`;
     const lines = result.candidates.map(
       (c) => `• ${c.name} — ${c.currentJobTitle || "N/A"} at ${c.currentEmployer || "N/A"} (${c.email}${c.phone ? ` | ${c.phone}` : ""}) [${c.candidateStatus}]${c.experienceYears ? ` ${c.experienceYears}yr exp` : ""}${c.skill ? ` | Skills: ${c.skill}` : ""}${c.city ? ` | ${c.city}` : ""} Source: ${c.source || "N/A"}`,
     );
-    return `Zoho Recruit — Candidates (${result.total} found):\n${lines.join("\n")}${q}`;
+    return `Zoho Recruit — Candidates (${result.total} found):\n${lines.join("\n")}${filterNote}${q}`;
   }
 
   if (result.type === "job_openings" && result.jobOpenings) {
-    if (result.jobOpenings.length === 0) return `No job openings found.${q}`;
+    if (result.jobOpenings.length === 0) return `No job openings found.${filterNote}${q}`;
     const lines = result.jobOpenings.map(
       (j) => `• ${j.postingTitle} — ${j.department || "N/A"} [${j.jobStatus}] Positions: ${j.numberOfPositions || "1"} Type: ${j.jobType || "N/A"}${j.dateOpened ? ` | Opened: ${j.dateOpened}` : ""}${j.targetDate ? ` | Target: ${j.targetDate}` : ""}${j.salary ? ` | Salary: ${j.salary}` : ""}${j.city ? ` | ${j.city}` : ""}${j.assignedRecruiter ? ` | Recruiter: ${j.assignedRecruiter}` : ""}`,
     );
-    return `Zoho Recruit — Job Openings (${result.total} found):\n${lines.join("\n")}${q}`;
+    return `Zoho Recruit — Job Openings (${result.total} found):\n${lines.join("\n")}${filterNote}${q}`;
   }
 
   if (result.type === "interviews" && result.interviews) {
-    if (result.interviews.length === 0) return `No interviews found.${q}`;
+    if (result.interviews.length === 0) return `No interviews found.${filterNote}${q}`;
     const lines = result.interviews.map(
       (i) => `• ${i.interviewName || "Interview"} — Candidate: ${i.candidateName || "N/A"} [${i.status || "Scheduled"}] Date: ${i.interviewDate || "TBD"} ${i.from && i.to ? `${i.from}-${i.to}` : ""}${i.interviewers ? ` | Interviewers: ${i.interviewers}` : ""}${i.location ? ` | Location: ${i.location}` : ""}${i.jobOpeningName ? ` | Job: ${i.jobOpeningName}` : ""}`,
     );
-    return `Zoho Recruit — Interviews (${result.total} found):\n${lines.join("\n")}${q}`;
+    return `Zoho Recruit — Interviews (${result.total} found):\n${lines.join("\n")}${filterNote}${q}`;
   }
 
   return `No Zoho Recruit data found.${q}`;

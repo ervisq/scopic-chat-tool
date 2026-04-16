@@ -1,7 +1,7 @@
 import { getUserCredentials } from "../lib/credential-store";
 import { queryZohoPeople, formatPeopleResult } from "./zohoPeopleService";
 import { queryZohoCrm, formatCrmResult, type CrmSearchOptions } from "./zohoCrmService";
-import { queryZohoRecruit, formatRecruitResult } from "./zohoRecruitService";
+import { queryZohoRecruit, formatRecruitResult, type RecruitSearchOptions } from "./zohoRecruitService";
 import { queryZohoContracts, formatContractsResult } from "./zohoContractsService";
 import { clearTokenCache, ZohoPermissionError } from "./zohoTokenManager";
 
@@ -138,7 +138,7 @@ export async function queryZohoCrmDirect(query: string, userId?: number, options
   }
 }
 
-export async function queryZohoRecruitDirect(query: string, userId?: number): Promise<ZohoDirectResult> {
+export async function queryZohoRecruitDirect(query: string, userId?: number, options?: RecruitSearchOptions): Promise<ZohoDirectResult> {
   if (!userId) {
     return {
       reply: "Your Zoho account is not connected. Please go to Connected Services (Settings icon) and click 'Connect with Zoho'.",
@@ -152,7 +152,7 @@ export async function queryZohoRecruitDirect(query: string, userId?: number): Pr
   const { refreshToken, clientId, clientSecret, accountsDomain } = credsOrError;
 
   try {
-    const result = await queryZohoRecruit(query, clientId, clientSecret, refreshToken, accountsDomain);
+    const result = await queryZohoRecruit(query, clientId, clientSecret, refreshToken, accountsDomain, options);
     return { reply: formatRecruitResult(result, query), source: "live" };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

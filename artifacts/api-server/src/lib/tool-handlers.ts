@@ -69,7 +69,17 @@ async function zohoCrmHandler(args: Record<string, unknown>, userId: number): Pr
 
 async function zohoRecruitHandler(args: Record<string, unknown>, userId: number): Promise<ToolResult> {
   const query = (args.query as string) || "candidates";
-  const result = await queryZohoRecruitDirect(query, userId);
+  const module = (args.module as string) || undefined;
+  const searchEntity = (args.search_entity as string) || undefined;
+  const statusFilter = (args.status_filter as string) || undefined;
+  const dateRangeStart = (args.date_range_start as string) || undefined;
+  const dateRangeEnd = (args.date_range_end as string) || undefined;
+  const dateField = (args.date_field as string) || undefined;
+  const rawRecruiter = (args.recruiter_filter as string) || undefined;
+  const recruiterFilter = rawRecruiter === "me" ? "me" as const : rawRecruiter === "all" ? "all" as const : undefined;
+  const result = await queryZohoRecruitDirect(query, userId, {
+    module, searchEntity, statusFilter, dateRangeStart, dateRangeEnd, dateField, recruiterFilter,
+  });
   return { reply: result.reply };
 }
 

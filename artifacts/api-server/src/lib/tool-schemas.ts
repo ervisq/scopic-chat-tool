@@ -220,7 +220,7 @@ export const TOOL_DEFINITIONS: ChatCompletionTool[] = [
     function: {
       name: "query_zoho_recruit",
       description:
-        "Query Zoho Recruit for hiring/recruitment data: candidates, job openings, interviews, and hiring pipeline.",
+        "Query Zoho Recruit for hiring/recruitment data: candidates, job openings, interviews, and hiring pipeline. Supports filtering by module, entity name, status, date range, and recruiter.",
       parameters: {
         type: "object",
         properties: {
@@ -228,6 +228,44 @@ export const TOOL_DEFINITIONS: ChatCompletionTool[] = [
             type: "string",
             description:
               "The full natural language query about Zoho Recruit data.",
+          },
+          module: {
+            type: "string",
+            enum: ["candidates", "job_openings", "interviews", "pipeline"],
+            description:
+              "The Recruit module to query. Defaults to candidates if not specified.",
+          },
+          search_entity: {
+            type: "string",
+            description:
+              "Specific name to search for (candidate name, job title, company name). Extract only the proper noun/name.",
+          },
+          status_filter: {
+            type: "string",
+            description:
+              "Filter by status. Candidates: New/Qualified/Unqualified/Junk Lead/Contacted/Contact in Future. Jobs: Open/Closed/On-hold/Filled/Cancelled. Interviews: Scheduled/Completed/Cancelled/To-be-scheduled/Waiting.",
+          },
+          date_range_start: {
+            type: "string",
+            description:
+              "Start of date range in YYYY-MM-DD format for filtering records.",
+          },
+          date_range_end: {
+            type: "string",
+            description:
+              "End of date range in YYYY-MM-DD format for filtering records.",
+          },
+          date_field: {
+            type: "string",
+            enum: ["Created_Time", "Modified_Time", "Date_Opened", "Target_Date", "Interview_Date"],
+            description:
+              "Which date field to filter by. Defaults: candidates→Created_Time, job_openings→Date_Opened, interviews→Interview_Date.",
+          },
+          recruiter_filter: {
+            type: "string",
+            enum: ["me", "all"],
+            description:
+              "Filter by recruiter/owner. 'me' = only records owned by current user. 'all' = no owner filter.",
           },
         },
         required: ["query"],

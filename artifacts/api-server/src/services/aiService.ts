@@ -74,7 +74,46 @@ Zoho CRM date filtering guidelines:
   - "leads created yesterday" → module: "leads", date_field: "Created_Time", date_range_start/end: yesterday
   - "my tasks due this week" → module: "tasks", owner_filter: "me", date_field: "Due_Date", date_range_start/end: this week
   - "Portfolio Co deals this year" → search_entity: "Portfolio Co", module: "deals", date_field: "Closing_Date", date_range_start/end: this year range
-  - "contacts from January to March" → module: "contacts", date_field: "Created_Time", date_range_start: Jan 1, date_range_end: Mar 31`;
+  - "contacts from January to March" → module: "contacts", date_field: "Created_Time", date_range_start: Jan 1, date_range_end: Mar 31
+
+Zoho Recruit guidelines:
+- Module detection from context:
+  - candidates: applicant, candidate, resume, CV, people who applied, devs, engineers, developers, designer, QA, tester
+  - job_openings: job, opening, position, vacancy, posting, role, hiring for, we're looking for, open roles
+  - interviews: interview, scheduled, meeting with candidate
+  - pipeline: pipeline, hiring overview, recruitment summary, hiring stats
+- search_entity: Extract specific names (candidate name, job title, company). Only proper nouns.
+  - "John Smith application" → search_entity: "John Smith", module: "candidates"
+  - "QA Engineer position" → search_entity: "QA Engineer", module: "job_openings"
+  - "who applied from Google" → search_entity: "Google", module: "candidates"
+- status_filter: Map casual language to actual statuses:
+  - Candidates: "new" → "New", "qualified" → "Qualified", "junk"/"spam" → "Junk Lead", "unqualified"/"rejected" → "Unqualified", "contacted" → "Contacted"
+  - Job openings: "open"/"active" → "Open", "closed" → "Closed", "on hold"/"paused" → "On-hold", "filled" → "Filled", "cancelled" → "Cancelled"
+  - Interviews: "scheduled"/"upcoming" → "Scheduled", "completed"/"done"/"finished" → "Completed", "cancelled" → "Cancelled", "waiting" → "Waiting"
+- Date field selection per module:
+  - candidates: "Created_Time" (default — when applied/added)
+  - job_openings: "Date_Opened" (for "opened", "posted", "created") or "Target_Date" (for "target", "deadline", "due")
+  - interviews: "Interview_Date" (default)
+  - If unclear, default to "Created_Time"
+- recruiter_filter: "me"/"my" → recruiter_filter: "me"
+- Examples (including casual/non-professional phrasing):
+  - "show me all candidates" → module: "candidates"
+  - "open positions" → module: "job_openings", status_filter: "Open"
+  - "any new applicants this week?" → module: "candidates", status_filter: "New", date_range_start/end: this week
+  - "interviews scheduled for tomorrow" → module: "interviews", status_filter: "Scheduled", date_range_start/end: tomorrow
+  - "java developers" → search_entity: "java", module: "candidates"
+  - "who applied last month" → module: "candidates", date_range_start/end: last month
+  - "jobs we're hiring for" → module: "job_openings", status_filter: "Open"
+  - "my interviews this week" → module: "interviews", recruiter_filter: "me", date_range_start/end: this week
+  - "closed positions" → module: "job_openings", status_filter: "Closed"
+  - "candidates from Acme Corp" → search_entity: "Acme Corp", module: "candidates"
+  - "senior engineer openings" → search_entity: "Senior Engineer", module: "job_openings"
+  - "junk leads" → module: "candidates", status_filter: "Junk Lead"
+  - "hiring pipeline" → module: "pipeline"
+  - "positions opened last quarter" → module: "job_openings", date_field: "Date_Opened", date_range_start/end: last quarter range
+  - "completed interviews this month" → module: "interviews", status_filter: "Completed", date_range_start/end: this month
+  - "any QA roles open?" → search_entity: "QA", module: "job_openings", status_filter: "Open"
+  - "who did we interview last week?" → module: "interviews", date_range_start/end: last week`;
 
 const RESPONSE_SYSTEM_PROMPT = `You are a helpful assistant embedded in a company chat application for Scopic Software. You help users interact with their integrated tools and answer general questions.
 
