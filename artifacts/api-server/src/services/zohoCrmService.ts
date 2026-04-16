@@ -802,22 +802,27 @@ export async function queryZohoCrm(
       }
 
       const mappedResults = filtered.map(mapper);
-      const result = buildResult(moduleType, mappedResults, { searchEntity, ...dateContext, ...(contextNote ? { contextNote } : {}) });
 
-      if (wantRelated && mappedResults.length > 0) {
-        const relatedData = await fetchRelatedRecords(accessToken, crmBase, searchEntity, moduleType);
-        Object.assign(result, relatedData);
-        const relatedCount = (relatedData.relatedContacts?.length || 0) +
-          (relatedData.relatedDeals?.length || 0) +
-          (relatedData.relatedTasks?.length || 0) +
-          (relatedData.relatedLeads?.length || 0);
-        console.log(`[ZohoCRM] Found ${mappedResults.length} primary + ${relatedCount} related records for "${searchEntity}"`);
+      if (mappedResults.length > 0) {
+        const result = buildResult(moduleType, mappedResults, { searchEntity, ...dateContext, ...(contextNote ? { contextNote } : {}) });
+
+        if (wantRelated) {
+          const relatedData = await fetchRelatedRecords(accessToken, crmBase, searchEntity, moduleType);
+          Object.assign(result, relatedData);
+          const relatedCount = (relatedData.relatedContacts?.length || 0) +
+            (relatedData.relatedDeals?.length || 0) +
+            (relatedData.relatedTasks?.length || 0) +
+            (relatedData.relatedLeads?.length || 0);
+          console.log(`[ZohoCRM] Found ${mappedResults.length} primary + ${relatedCount} related records for "${searchEntity}"`);
+        }
+
+        return result;
       }
 
-      return result;
+      console.log(`[ZohoCRM] Word search for "${searchEntity}" returned ${rawResults.length} raw → ${mappedResults.length} after filtering — falling through to broader search`);
+    } else {
+      console.log(`[ZohoCRM] Search for "${searchEntity}" returned null — falling through to broader search`);
     }
-
-    console.log(`[ZohoCRM] Search for "${searchEntity}" returned null, falling back`);
   }
 
   if (wantOwnerFilter || hasDateFilter) {
