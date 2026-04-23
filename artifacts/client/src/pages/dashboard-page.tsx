@@ -1159,6 +1159,45 @@ function ServiceCard({
               </div>
             )}
 
+            {service.key === "zoho_people" && !service.error && (
+              <div className="space-y-1.5">
+                {(service.summary?.onLeaveToday ?? []).slice(0, 3).map((l, i) => (
+                  <div key={`leave-${i}`} className="py-1.5 px-3 rounded-lg bg-muted/30">
+                    <p className="text-xs text-foreground truncate">
+                      <span className="text-muted-foreground">On leave:</span> {l.employee || "—"}
+                      {l.leaveType ? ` · ${l.leaveType}` : ""}
+                    </p>
+                  </div>
+                ))}
+                {(service.summary?.recentJoiners ?? []).slice(0, 3 - Math.min((service.summary?.onLeaveToday?.length ?? 0), 3)).map((j) => (
+                  <div key={`joiner-${j.id}`} className="py-1.5 px-3 rounded-lg bg-muted/30">
+                    <p className="text-xs text-foreground truncate">
+                      <span className="text-muted-foreground">Joined:</span> {j.name || "—"}
+                      {j.designation ? ` · ${j.designation}` : ""}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {service.key === "zoho_crm" && !service.error && (
+              <div className="space-y-1.5">
+                {(service.summary?.openDeals ?? []).slice(0, 3).map((d) => (
+                  <div key={`deal-${d.id}`} className="flex items-center justify-between gap-2 py-1.5 px-3 rounded-lg bg-muted/30">
+                    <span className="text-xs text-foreground truncate flex-1">{d.name || "Deal"}</span>
+                    {d.amount && <span className="text-xs font-semibold text-muted-foreground shrink-0">{d.amount}</span>}
+                  </div>
+                ))}
+                {(service.summary?.tasksDueToday ?? []).slice(0, 3 - Math.min((service.summary?.openDeals?.length ?? 0), 3)).map((t) => (
+                  <div key={`task-${t.id}`} className="py-1.5 px-3 rounded-lg bg-amber-100/40 dark:bg-amber-900/20">
+                    <p className="text-xs text-foreground truncate">
+                      <span className="text-muted-foreground">Due today:</span> {t.subject || "Task"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {previewTickets.length > 0 && (
               <div className="space-y-1.5">
                 {previewTickets.map((t) => (
@@ -1607,6 +1646,19 @@ function ServiceDrawer({
               {service.summary?.status && (
                 <div className={`rounded-lg ${style.bgColor} px-4 py-3`}>
                   <p className={`text-sm font-medium ${style.textColor}`}>{service.summary.status}</p>
+                </div>
+              )}
+              {(service.summary?.expiringContracts?.length ?? 0) > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Expiring soon (next 30 days)</p>
+                  {service.summary!.expiringContracts!.map((c) => (
+                    <div key={c.id} className="py-1.5 px-3 rounded-lg bg-amber-100/40 dark:bg-amber-900/20">
+                      <p className="text-sm text-foreground truncate">{c.contractName || "Contract"}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        {c.company || "—"}{c.endDate ? ` · ends ${c.endDate}` : ""}{c.contractValue ? ` · ${c.contractValue}` : ""}{c.contractStatus ? ` · ${c.contractStatus}` : ""}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               )}
               {(service.summary?.contracts?.length ?? 0) > 0 && (

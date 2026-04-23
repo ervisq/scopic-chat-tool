@@ -408,6 +408,21 @@ router.get("/dashboard", async (req, res) => {
                 return !isNaN(end.getTime()) && end >= now && end <= thirtyDays;
               });
               const previewSource = activeContracts.length > 0 ? activeContracts : all;
+              const expiringSorted = [...expiring].sort((a, b) => {
+                const ad = a.endDate ? new Date(a.endDate).getTime() : Infinity;
+                const bd = b.endDate ? new Date(b.endDate).getTime() : Infinity;
+                return ad - bd;
+              });
+              const expiringContracts = expiringSorted.slice(0, 5).map((c) => ({
+                id: c.id,
+                contractName: c.contractName,
+                contractType: c.contractType,
+                contractStatus: c.contractStatus,
+                company: c.company,
+                startDate: c.startDate,
+                endDate: c.endDate,
+                contractValue: c.contractValue,
+              }));
               services.push({
                 key: "zoho_contracts",
                 name: "Zoho Contracts",
@@ -416,6 +431,7 @@ router.get("/dashboard", async (req, res) => {
                   status: `${activeContracts.length} active${expiring.length ? `, ${expiring.length} expiring soon` : ""}`,
                   activeCount: activeContracts.length,
                   expiringCount: expiring.length,
+                  expiringContracts,
                   totalContracts: all.length,
                   contracts: previewSource.slice(0, 8).map((c) => ({
                     id: c.id,
