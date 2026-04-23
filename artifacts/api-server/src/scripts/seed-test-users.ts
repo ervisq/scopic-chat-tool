@@ -14,7 +14,7 @@ import * as OTPAuth from "otpauth";
 const TEST_PASSWORD = "Scopic1234";
 
 const testUsers = [
-  { email: "ervis.q@scopicsoftware.com", name: "Ervis", role: "super_admin" },
+  { email: "ervis.q@scopicsoftware.com", name: "Ervis", role: "admin" },
   { email: "don@scopicsoftware.com", name: "Don", role: "user" },
   { email: "john@scopicsoftware.com", name: "John", role: "user" },
 ] as const;

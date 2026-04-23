@@ -8,7 +8,7 @@ import jiraOAuthRouter from "./jira-oauth";
 import dashboardRouter from "./dashboard";
 import accountRouter from "./account";
 import adminRouter from "./admin";
-import { requireAuth, requireSuperAdmin } from "../middlewares/auth";
+import { requireAuth, requireAdmin } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -20,6 +20,6 @@ router.use(requireAuth, chatRouter);
 router.use(requireAuth, credentialsRouter);
 router.use(requireAuth, dashboardRouter);
 router.use(requireAuth, accountRouter);
-router.use("/admin", requireAuth, requireSuperAdmin, adminRouter);
+router.use("/admin", requireAuth, requireAdmin, adminRouter);
 
 export default router;

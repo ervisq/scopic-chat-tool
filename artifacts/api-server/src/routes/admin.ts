@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { getUsageLog, getUsageStats } from "../lib/usage-tracker";
-import { getAuthUser, requireSuperAdmin } from "../middlewares/auth";
+import { getAuthUser, requireAdmin } from "../middlewares/auth";
 import { db } from "@workspace/db";
 import { users } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
@@ -31,7 +31,7 @@ router.get("/users", async (_req, res) => {
   }
 });
 
-router.patch("/users/:id/role", requireSuperAdmin, async (req, res) => {
+router.patch("/users/:id/role", requireAdmin, async (req, res) => {
   try {
     const userId = parseInt(String(req.params.id), 10);
     if (isNaN(userId)) {
@@ -40,8 +40,8 @@ router.patch("/users/:id/role", requireSuperAdmin, async (req, res) => {
     }
 
     const { role } = req.body;
-    if (!role || !["super_admin", "user"].includes(role)) {
-      res.status(400).json({ message: "Role must be 'super_admin' or 'user'" });
+    if (!role || !["admin", "user"].includes(role)) {
+      res.status(400).json({ message: "Role must be 'admin' or 'user'" });
       return;
     }
 
@@ -58,7 +58,7 @@ router.patch("/users/:id/role", requireSuperAdmin, async (req, res) => {
     }
 
     if (targetUser.email.toLowerCase() === "ervis.q@scopicsoftware.com") {
-      res.status(400).json({ message: "Cannot change the role of the root super admin" });
+      res.status(400).json({ message: "Cannot change the role of the root admin" });
       return;
     }
 

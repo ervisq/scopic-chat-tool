@@ -73,7 +73,7 @@ export default function Sidebar({ activePage, onNavigate, user, onLogout }: Side
       </div>
 
       <nav className="flex-1 py-2 px-2 space-y-1">
-        {NAV_ITEMS.filter(({ adminOnly }) => !adminOnly || user?.role === "super_admin").map(({ page, label, icon: Icon }) => {
+        {NAV_ITEMS.filter(({ adminOnly }) => !adminOnly || user?.role === "admin").map(({ page, label, icon: Icon }) => {
           const isActive = activePage === page;
           return (
             <button

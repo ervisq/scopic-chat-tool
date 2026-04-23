@@ -63,12 +63,12 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   }
 }
 
-export async function requireSuperAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function requireAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authUser = getAuthUser(req);
   try {
     const [user] = await db.select({ role: users.role }).from(users).where(eq(users.id, authUser.userId)).limit(1);
-    if (!user || user.role !== "super_admin") {
-      res.status(403).json({ message: "Super admin access required" });
+    if (!user || user.role !== "admin") {
+      res.status(403).json({ message: "Admin access required" });
       return;
     }
     next();

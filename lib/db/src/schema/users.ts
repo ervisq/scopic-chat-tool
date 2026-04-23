@@ -3,7 +3,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { sql } from "drizzle-orm";
 
-export const userRoles = ["super_admin", "user"] as const;
+export const userRoles = ["admin", "user"] as const;
 export type UserRole = (typeof userRoles)[number];
 
 export const users = pgTable("users", {
@@ -23,7 +23,7 @@ export const users = pgTable("users", {
   role: text("role").default("user").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
-  check("users_role_check", sql`${table.role} IN ('super_admin', 'user')`),
+  check("users_role_check", sql`${table.role} IN ('admin', 'user')`),
 ]);
 
 export const insertUserSchema = createInsertSchema(users).omit({

@@ -51,12 +51,12 @@ const TOOL_COLORS: Record<string, string> = {
 const DEFAULT_COLOR = "#6b7280";
 
 const ROLE_LABELS: Record<string, string> = {
-  super_admin: "Super Admin",
+  admin: "Admin",
   user: "User",
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  super_admin: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+  admin: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
   user: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
 };
 
@@ -73,7 +73,7 @@ export default function AdminPage({ userRole }: AdminPageProps) {
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [updatingUserId, setUpdatingUserId] = useState<number | null>(null);
 
-  const isSuperAdmin = userRole === "super_admin";
+  const isAdmin = userRole === "admin";
 
   const fetchUsers = useCallback(async () => {
     setUsersLoading(true);
@@ -167,7 +167,7 @@ export default function AdminPage({ userRole }: AdminPageProps) {
   }, [managedUsers, searchQuery, roleFilter]);
 
   const roleCounts = useMemo(() => {
-    const counts = { super_admin: 0, user: 0 };
+    const counts = { admin: 0, user: 0 };
     for (const u of managedUsers) {
       if (u.role in counts) counts[u.role as keyof typeof counts]++;
     }
@@ -248,7 +248,7 @@ export default function AdminPage({ userRole }: AdminPageProps) {
             <UsersTab
               users={filteredUsers}
               loading={usersLoading}
-              isSuperAdmin={isSuperAdmin}
+              isAdmin={isAdmin}
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
               roleFilter={roleFilter}
@@ -276,7 +276,7 @@ export default function AdminPage({ userRole }: AdminPageProps) {
 function UsersTab({
   users,
   loading,
-  isSuperAdmin,
+  isAdmin,
   searchQuery,
   onSearchChange,
   roleFilter,
@@ -288,21 +288,21 @@ function UsersTab({
 }: {
   users: ManagedUser[];
   loading: boolean;
-  isSuperAdmin: boolean;
+  isAdmin: boolean;
   searchQuery: string;
   onSearchChange: (q: string) => void;
   roleFilter: string;
   onRoleFilterChange: (r: string) => void;
   onRoleChange: (id: number, role: string) => void;
   updatingUserId: number | null;
-  roleCounts: { super_admin: number; user: number };
+  roleCounts: { admin: number; user: number };
   totalCount: number;
 }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard icon={<Users className="w-4 h-4" />} label="Total Users" value={totalCount} />
-        <StatCard icon={<Shield className="w-4 h-4 text-amber-500" />} label="Super Admins" value={roleCounts.super_admin} />
+        <StatCard icon={<Shield className="w-4 h-4 text-amber-500" />} label="Admin" value={roleCounts.admin} />
         <StatCard icon={<Users className="w-4 h-4 text-gray-500" />} label="Users" value={roleCounts.user} />
       </div>
 
@@ -324,7 +324,7 @@ function UsersTab({
             className="appearance-none pl-3 pr-8 py-2 text-sm bg-card border border-border/60 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground cursor-pointer"
           >
             <option value="all">All Roles</option>
-            <option value="super_admin">Super Admin</option>
+            <option value="admin">Admin</option>
             <option value="user">User</option>
           </select>
           <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
@@ -365,7 +365,7 @@ function UsersTab({
                       <span className="text-sm text-muted-foreground">{u.email}</span>
                     </td>
                     <td className="px-4 py-3">
-                      {isSuperAdmin && u.email.toLowerCase() !== "ervis.q@scopicsoftware.com" ? (
+                      {isAdmin && u.email.toLowerCase() !== "ervis.q@scopicsoftware.com" ? (
                         <div className="relative inline-block">
                           <select
                             value={u.role}
@@ -375,7 +375,7 @@ function UsersTab({
                               ROLE_COLORS[u.role] || ROLE_COLORS.user
                             } ${updatingUserId === u.id ? "opacity-50" : ""}`}
                           >
-                            <option value="super_admin">Super Admin</option>
+                            <option value="admin">Admin</option>
                             <option value="user">User</option>
                           </select>
                           <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 pointer-events-none" />
