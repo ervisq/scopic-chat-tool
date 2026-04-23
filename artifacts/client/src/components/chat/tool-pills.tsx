@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, Settings, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Settings, X } from "lucide-react";
 import { type ToolConfig } from "@/lib/tool-config";
 import { getPresetsForTool } from "@/lib/tool-presets";
 import { useToolVisibility } from "@/lib/tool-visibility";
@@ -70,7 +70,7 @@ export function ToolPills({ onPresetSelect, onOpenSettings, disabled }: ToolPill
 
   return (
     <div className="mb-2">
-      <div className="flex gap-2 overflow-x-auto scrollbar-thin pb-1 -mx-1 px-1">
+      <ScrollableTilesRow visibleToolsKey={visibleTools.map((t) => t.name).join("|")}>
         {visibleTools.map((tool) => {
           const Icon = tool.icon;
           const isActive = selected === tool.name;
@@ -100,7 +100,7 @@ export function ToolPills({ onPresetSelect, onOpenSettings, disabled }: ToolPill
             </button>
           );
         })}
-      </div>
+      </ScrollableTilesRow>
 
       <AnimatePresence initial={false}>
         {selectedTool && (
@@ -169,6 +169,87 @@ export function ToolPills({ onPresetSelect, onOpenSettings, disabled }: ToolPill
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+interface ScrollableTilesRowProps {
+  children: React.ReactNode;
+  visibleToolsKey: string;
+}
+
+function ScrollableTilesRow({ children, visibleToolsKey }: ScrollableTilesRowProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateScrollState = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const hasOverflow = el.scrollWidth > el.clientWidth + 1;
+    setCanScrollLeft(hasOverflow && el.scrollLeft > 0);
+    setCanScrollRight(hasOverflow && el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  }, []);
+
+  useLayoutEffect(() => {
+    updateScrollState();
+  }, [updateScrollState, visibleToolsKey]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    updateScrollState();
+    el.addEventListener("scroll", updateScrollState, { passive: true });
+    const ro = new ResizeObserver(updateScrollState);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", updateScrollState);
+      ro.disconnect();
+    };
+  }, [updateScrollState]);
+
+  const scrollByDirection = (dir: 1 | -1) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * el.clientWidth * 0.8, behavior: "smooth" });
+  };
+
+  return (
+    <div className="relative">
+      <div
+        ref={scrollRef}
+        className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1"
+      >
+        {children}
+      </div>
+
+      {canScrollLeft && (
+        <>
+          <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-background to-transparent" />
+          <button
+            type="button"
+            onClick={() => scrollByDirection(-1)}
+            aria-label="Scroll tools left"
+            className="absolute left-0.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-background/95 border border-border shadow-sm flex items-center justify-center text-foreground/70 hover:text-foreground hover:bg-background transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+        </>
+      )}
+
+      {canScrollRight && (
+        <>
+          <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-background to-transparent" />
+          <button
+            type="button"
+            onClick={() => scrollByDirection(1)}
+            aria-label="Scroll tools right"
+            className="absolute right-0.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-background/95 border border-border shadow-sm flex items-center justify-center text-foreground/70 hover:text-foreground hover:bg-background transition-colors"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </>
+      )}
     </div>
   );
 }
