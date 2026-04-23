@@ -51,14 +51,14 @@ router.patch("/users/:id/role", requireSuperAdmin, async (req, res) => {
       return;
     }
 
-    const [targetUser] = await db.select({ id: users.id, role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+    const [targetUser] = await db.select({ id: users.id, email: users.email, role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
     if (!targetUser) {
       res.status(404).json({ message: "User not found" });
       return;
     }
 
-    if (targetUser.role === "super_admin") {
-      res.status(400).json({ message: "Cannot change the role of a super admin" });
+    if (targetUser.email.toLowerCase() === "ervis.q@scopicsoftware.com") {
+      res.status(400).json({ message: "Cannot change the role of the root super admin" });
       return;
     }
 
