@@ -513,7 +513,7 @@ function UsageTab({
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <EmptyChart label="No tool usage yet" />
+            <EmptyChart label={`No tool usage ${rangeLabel}`} />
           )}
         </div>
 
