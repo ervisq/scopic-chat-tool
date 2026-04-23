@@ -4,6 +4,9 @@ import { listUserConnections, getUserCredentials } from "../lib/credential-store
 import { queryJira } from "../services/jiraService";
 import { queryZohoPeople } from "../services/zohoPeopleService";
 import { queryZohoCrm } from "../services/zohoCrmService";
+import { queryZohoRecruit } from "../services/zohoRecruitService";
+import { queryZohoContracts } from "../services/zohoContractsService";
+import { ZohoPermissionError } from "../services/zohoTokenManager";
 import { querySts } from "../services/stsService";
 import { queryTeamwork } from "../services/teamworkService";
 import { getGraphClient, isGraphConfigured } from "../services/microsoftGraphClient";
@@ -110,6 +113,18 @@ router.get("/dashboard", async (req, res) => {
           connected: true,
           summary: { status: "Reconnect needed — token expired" },
         });
+        services.push({
+          key: "zoho_recruit",
+          name: "Zoho Recruit",
+          connected: true,
+          summary: { status: "Reconnect needed — token expired" },
+        });
+        services.push({
+          key: "zoho_contracts",
+          name: "Zoho Contracts",
+          connected: true,
+          summary: { status: "Reconnect needed — token expired" },
+        });
       } else {
         promises.push(
           (async () => {
@@ -171,10 +186,126 @@ router.get("/dashboard", async (req, res) => {
             }
           })(),
         );
+
+
+        promises.push(
+          (async () => {
+            try {
+              const result = await queryZohoRecruit(
+                "pipeline",
+                zohoTokens.clientId,
+                zohoTokens.clientSecret,
+                zohoTokens.refreshToken,
+                "https://accounts.zoho.com",
+                { module: "pipeline" },
+              );
+              const allCandidates = result.candidates || [];
+              const allJobs = result.jobOpenings || [];
+              const closedStatuses = new Set(["closed", "filled", "cancelled", "on hold", "on-hold"]);
+              const openJobs = allJobs.filter(
+                (j) => !closedStatuses.has((j.jobStatus || "").toLowerCase()),
+              );
+              services.push({
+                key: "zoho_recruit",
+                name: "Zoho Recruit",
+                connected: true,
+                summary: {
+                  status: `${openJobs.length} open position${openJobs.length !== 1 ? "s" : ""}, ${allCandidates.length} candidate${allCandidates.length !== 1 ? "s" : ""}`,
+                  openPositions: openJobs.length,
+                  candidateCount: allCandidates.length,
+                  candidates: allCandidates.slice(0, 8).map((c) => ({
+                    id: c.id,
+                    name: c.name,
+                    email: c.email,
+                    status: c.candidateStatus,
+                    currentJobTitle: c.currentJobTitle,
+                    currentEmployer: c.currentEmployer,
+                  })),
+                  jobOpenings: openJobs.slice(0, 8).map((j) => ({
+                    id: j.id,
+                    title: j.postingTitle,
+                    department: j.department,
+                    status: j.jobStatus,
+                    positions: j.numberOfPositions,
+                  })),
+                },
+              });
+            } catch (err: unknown) {
+              const isPerm = err instanceof ZohoPermissionError;
+              services.push({
+                key: "zoho_recruit",
+                name: "Zoho Recruit",
+                connected: true,
+                error: isPerm
+                  ? "Recruit access not granted — reconnect Zoho with Recruit permissions."
+                  : "Could not load Recruit data",
+              });
+            }
+          })(),
+        );
+
+        promises.push(
+          (async () => {
+            try {
+              const result = await queryZohoContracts(
+                "all contracts",
+                zohoTokens.clientId,
+                zohoTokens.clientSecret,
+                zohoTokens.refreshToken,
+                "https://accounts.zoho.com",
+              );
+              const all = result.contracts || [];
+              const activeContracts = all.filter((c) =>
+                /active|in.?progress|signed/i.test(c.contractStatus || ""),
+              );
+              const now = new Date();
+              const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+              const expiring = all.filter((c) => {
+                if (!c.endDate) return false;
+                const end = new Date(c.endDate);
+                return !isNaN(end.getTime()) && end >= now && end <= thirtyDays;
+              });
+              const previewSource = activeContracts.length > 0 ? activeContracts : all;
+              services.push({
+                key: "zoho_contracts",
+                name: "Zoho Contracts",
+                connected: true,
+                summary: {
+                  status: `${activeContracts.length} active${expiring.length ? `, ${expiring.length} expiring soon` : ""}`,
+                  activeCount: activeContracts.length,
+                  expiringCount: expiring.length,
+                  totalContracts: all.length,
+                  contracts: previewSource.slice(0, 8).map((c) => ({
+                    id: c.id,
+                    contractName: c.contractName,
+                    contractType: c.contractType,
+                    contractStatus: c.contractStatus,
+                    company: c.company,
+                    startDate: c.startDate,
+                    endDate: c.endDate,
+                    contractValue: c.contractValue,
+                  })),
+                },
+              });
+            } catch (err: unknown) {
+              const isPerm = err instanceof ZohoPermissionError;
+              services.push({
+                key: "zoho_contracts",
+                name: "Zoho Contracts",
+                connected: true,
+                error: isPerm
+                  ? "Contracts access not granted — reconnect Zoho with Contracts permissions."
+                  : "Could not load Contracts data",
+              });
+            }
+          })(),
+        );
       }
     } else {
       services.push({ key: "zoho_people", name: "Zoho People", connected: false });
       services.push({ key: "zoho_crm", name: "Zoho CRM", connected: false });
+      services.push({ key: "zoho_recruit", name: "Zoho Recruit", connected: false });
+      services.push({ key: "zoho_contracts", name: "Zoho Contracts", connected: false });
     }
 
     const stsConn = connMap.get("sts");
@@ -371,7 +502,7 @@ router.get("/dashboard", async (req, res) => {
 
     await Promise.all(promises);
 
-    const order = ["outlook_email", "outlook_calendar", "jira", "zoho_people", "zoho_crm", "sts", "teamwork"];
+    const order = ["outlook_email", "outlook_calendar", "jira", "zoho_people", "zoho_crm", "zoho_recruit", "zoho_contracts", "sts", "teamwork"];
     services.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
 
     res.json({ services });

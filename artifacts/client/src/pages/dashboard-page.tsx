@@ -30,6 +30,8 @@ const SERVICE_KEY_TO_TOOL_NAME: Record<string, string> = {
   jira: "JIRA",
   zoho_people: "ZohoPeople",
   zoho_crm: "ZohoCRM",
+  zoho_recruit: "ZohoRecruit",
+  zoho_contracts: "ZohoContracts",
   sts: "STS",
   teamwork: "Teamwork",
   outlook_email: "Outlook",
@@ -93,6 +95,34 @@ interface OutlookEventSummary {
   organizer?: string;
 }
 
+interface RecruitCandidateSummary {
+  id: string;
+  name: string;
+  email: string;
+  status: string;
+  currentJobTitle: string;
+  currentEmployer: string;
+}
+
+interface RecruitJobOpeningSummary {
+  id: string;
+  title: string;
+  department: string;
+  status: string;
+  positions: string;
+}
+
+interface ContractSummary {
+  id: string;
+  contractName: string;
+  contractType: string;
+  contractStatus: string;
+  company: string;
+  startDate: string;
+  endDate: string;
+  contractValue: string;
+}
+
 interface TeamworkTaskSummary {
   id: number;
   title: string;
@@ -125,6 +155,14 @@ interface ServiceData {
     byProject?: StsProjectSummary[];
     emails?: OutlookEmailSummary[];
     events?: OutlookEventSummary[];
+    candidates?: RecruitCandidateSummary[];
+    jobOpenings?: RecruitJobOpeningSummary[];
+    openPositions?: number;
+    candidateCount?: number;
+    contracts?: ContractSummary[];
+    activeCount?: number;
+    expiringCount?: number;
+    totalContracts?: number;
   };
   error?: string;
 }
@@ -154,6 +192,20 @@ const SERVICE_STYLES: Record<
     bgColor: "bg-orange-500/10",
     textColor: "text-orange-600 dark:text-orange-400",
     borderColor: "border-orange-500/20",
+    Icon: ZohoIcon,
+  },
+  zoho_recruit: {
+    color: "bg-rose-500",
+    bgColor: "bg-rose-500/10",
+    textColor: "text-rose-600 dark:text-rose-400",
+    borderColor: "border-rose-500/20",
+    Icon: ZohoIcon,
+  },
+  zoho_contracts: {
+    color: "bg-teal-500",
+    bgColor: "bg-teal-500/10",
+    textColor: "text-teal-600 dark:text-teal-400",
+    borderColor: "border-teal-500/20",
     Icon: ZohoIcon,
   },
   sts: {
@@ -190,6 +242,8 @@ const EXTERNAL_URLS: Record<string, (instanceUrl?: string | null) => string> = {
   jira: (instanceUrl) => instanceUrl || "https://www.atlassian.com/software/jira",
   zoho_people: () => "https://people.zoho.com",
   zoho_crm: () => "https://crm.zoho.com",
+  zoho_recruit: () => "https://recruit.zoho.com",
+  zoho_contracts: () => "https://contracts.zoho.com",
   sts: (instanceUrl) => instanceUrl || "https://time.scopicsoftware.com",
   teamwork: (instanceUrl) => instanceUrl || "https://www.teamwork.com",
 };
@@ -899,6 +953,22 @@ function ServiceCard({
     if (service.key === "zoho_people" || service.key === "zoho_crm") {
       return service.summary?.status || "Connected";
     }
+    if (service.key === "zoho_recruit") {
+      const open = service.summary?.openPositions;
+      const cands = service.summary?.candidateCount;
+      if (open !== undefined && cands !== undefined) {
+        return `${open} open position${open !== 1 ? "s" : ""}, ${cands} candidate${cands !== 1 ? "s" : ""}`;
+      }
+      return service.summary?.status || "Connected";
+    }
+    if (service.key === "zoho_contracts") {
+      const active = service.summary?.activeCount;
+      const expiring = service.summary?.expiringCount;
+      if (active !== undefined) {
+        return `${active} active${expiring ? `, ${expiring} expiring soon` : ""}`;
+      }
+      return service.summary?.status || "Connected";
+    }
     return service.summary?.status || "Connected";
   }
 
@@ -1253,6 +1323,71 @@ function ServiceDrawer({
               </p>
             </div>
           )}
+
+          {service.key === "zoho_recruit" && (
+            <div className="space-y-3">
+              {service.summary?.status && (
+                <div className={`rounded-lg ${style.bgColor} px-4 py-3`}>
+                  <p className={`text-sm font-medium ${style.textColor}`}>{service.summary.status}</p>
+                </div>
+              )}
+              {(service.summary?.jobOpenings?.length ?? 0) > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Open Positions</p>
+                  {service.summary!.jobOpenings!.map((j) => (
+                    <div key={j.id} className="py-1.5 px-3 rounded-lg bg-muted/30">
+                      <p className="text-sm text-foreground truncate">{j.title}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        {j.department || "—"}{j.positions ? ` · ${j.positions} position${j.positions !== "1" ? "s" : ""}` : ""}{j.status ? ` · ${j.status}` : ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {(service.summary?.candidates?.length ?? 0) > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Recent Candidates</p>
+                  {service.summary!.candidates!.map((c) => (
+                    <div key={c.id} className="py-1.5 px-3 rounded-lg bg-muted/30">
+                      <p className="text-sm text-foreground truncate">{c.name || c.email || "Candidate"}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        {c.currentJobTitle || "—"}{c.currentEmployer ? ` @ ${c.currentEmployer}` : ""}{c.status ? ` · ${c.status}` : ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-[11px] text-muted-foreground">
+                Use <span className="font-mono font-semibold">@ZohoRecruit</span> in chat for more
+              </p>
+            </div>
+          )}
+
+          {service.key === "zoho_contracts" && (
+            <div className="space-y-3">
+              {service.summary?.status && (
+                <div className={`rounded-lg ${style.bgColor} px-4 py-3`}>
+                  <p className={`text-sm font-medium ${style.textColor}`}>{service.summary.status}</p>
+                </div>
+              )}
+              {(service.summary?.contracts?.length ?? 0) > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Contracts</p>
+                  {service.summary!.contracts!.map((c) => (
+                    <div key={c.id} className="py-1.5 px-3 rounded-lg bg-muted/30">
+                      <p className="text-sm text-foreground truncate">{c.contractName || "Contract"}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        {c.company || "—"}{c.contractStatus ? ` · ${c.contractStatus}` : ""}{c.endDate ? ` · ends ${c.endDate}` : ""}{c.contractValue ? ` · ${c.contractValue}` : ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-[11px] text-muted-foreground">
+                Use <span className="font-mono font-semibold">@ZohoContracts</span> in chat for more
+              </p>
+            </div>
+          )}
         </div>
 
         {externalUrl !== "#" && (
@@ -1297,6 +1432,8 @@ export default function DashboardPage({
     { key: "jira", name: "JIRA", connected: false },
     { key: "zoho_people", name: "Zoho People", connected: false },
     { key: "zoho_crm", name: "Zoho CRM", connected: false },
+    { key: "zoho_recruit", name: "Zoho Recruit", connected: false },
+    { key: "zoho_contracts", name: "Zoho Contracts", connected: false },
     { key: "sts", name: "STS", connected: false },
     { key: "teamwork", name: "Teamwork", connected: false },
   ];
