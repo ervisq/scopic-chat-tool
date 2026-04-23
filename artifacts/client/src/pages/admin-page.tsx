@@ -61,11 +61,29 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 type Tab = "users" | "usage";
+type Range = "today" | "week" | "month" | "quarter" | "year";
+
+const RANGE_OPTIONS: { value: Range; label: string }[] = [
+  { value: "today", label: "Today" },
+  { value: "week", label: "This Week" },
+  { value: "month", label: "This Month" },
+  { value: "quarter", label: "This Quarter" },
+  { value: "year", label: "This Year" },
+];
+
+const RANGE_LABELS: Record<Range, string> = {
+  today: "today",
+  week: "this week",
+  month: "this month",
+  quarter: "this quarter",
+  year: "this year",
+};
 
 export default function AdminPage({ userRole }: AdminPageProps) {
   const [activeTab, setActiveTab] = useState<Tab>("users");
   const [usageData, setUsageData] = useState<UsageData | null>(null);
   const [usageLoading, setUsageLoading] = useState(false);
+  const [usageRange, setUsageRange] = useState<Range>("today");
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [accessDenied, setAccessDenied] = useState(false);
@@ -98,12 +116,12 @@ export default function AdminPage({ userRole }: AdminPageProps) {
     }
   }, []);
 
-  const fetchUsage = useCallback(async () => {
+  const fetchUsage = useCallback(async (range: Range) => {
     setUsageLoading(true);
     try {
       const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
       const token = localStorage.getItem("auth_token");
-      const res = await fetch(`${baseUrl}/api/admin/usage`, {
+      const res = await fetch(`${baseUrl}/api/admin/usage?range=${range}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -121,10 +139,10 @@ export default function AdminPage({ userRole }: AdminPageProps) {
   }, [fetchUsers]);
 
   useEffect(() => {
-    if (activeTab === "usage" && !usageData) {
-      fetchUsage();
+    if (activeTab === "usage") {
+      fetchUsage(usageRange);
     }
-  }, [activeTab, usageData, fetchUsage]);
+  }, [activeTab, usageRange, fetchUsage]);
 
   const handleRoleChange = useCallback(async (userId: number, newRole: string) => {
     setUpdatingUserId(userId);
@@ -189,7 +207,7 @@ export default function AdminPage({ userRole }: AdminPageProps) {
       }))
     : [];
 
-  const timelineData = usageData ? buildTimeline(usageData.log) : [];
+  const timelineData = usageData ? buildTimeline(usageData.log, usageRange) : [];
 
   if (accessDenied) {
     return (
@@ -233,7 +251,7 @@ export default function AdminPage({ userRole }: AdminPageProps) {
           </div>
         </div>
         <button
-          onClick={activeTab === "users" ? fetchUsers : fetchUsage}
+          onClick={activeTab === "users" ? fetchUsers : () => fetchUsage(usageRange)}
           disabled={activeTab === "users" ? usersLoading : usageLoading}
           className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50"
         >
@@ -262,6 +280,8 @@ export default function AdminPage({ userRole }: AdminPageProps) {
             <UsageTab
               data={usageData}
               loading={usageLoading}
+              range={usageRange}
+              onRangeChange={setUsageRange}
               toolChartData={toolChartData}
               userChartData={userChartData}
               timelineData={timelineData}
@@ -404,26 +424,52 @@ function UsersTab({
 function UsageTab({
   data,
   loading,
+  range,
+  onRangeChange,
   toolChartData,
   userChartData,
   timelineData,
 }: {
   data: UsageData | null;
   loading: boolean;
+  range: Range;
+  onRangeChange: (r: Range) => void;
   toolChartData: { name: string; count: number; fill: string }[];
   userChartData: { name: string; count: number }[];
   timelineData: { time: string; count: number }[];
 }) {
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
+  const rangeLabel = RANGE_LABELS[range];
+  const showLoadingOverlay = loading && !data;
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap items-center gap-1.5 bg-muted/50 rounded-lg p-1 w-fit">
+        {RANGE_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onRangeChange(opt.value)}
+            disabled={loading && opt.value === range}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              range === opt.value
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+        {loading && (
+          <div className="w-3 h-3 ml-1 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        )}
+      </div>
+
+      {showLoadingOverlay ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : (
+      <>
       <div className="grid grid-cols-3 gap-4">
         <StatCard
           icon={<BarChart3 className="w-4 h-4" />}
@@ -491,7 +537,7 @@ function UsageTab({
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <EmptyChart label="No user activity yet" />
+            <EmptyChart label={`No user activity ${rangeLabel}`} />
           )}
         </div>
       </div>
@@ -522,9 +568,11 @@ function UsageTab({
             </LineChart>
           </ResponsiveContainer>
         ) : (
-          <EmptyChart label="Need more data for timeline" />
+          <EmptyChart label={`Not enough data for timeline ${rangeLabel}`} />
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }
@@ -557,14 +605,60 @@ function EmptyChart({ label }: { label: string }) {
   );
 }
 
-function buildTimeline(log: UsageEntry[]) {
+const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const MONTH_LABELS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+function pad2(n: number) {
+  return n.toString().padStart(2, "0");
+}
+
+function buildTimeline(log: UsageEntry[], range: Range) {
+  const order: string[] = [];
   const buckets: Record<string, number> = {};
+  const ensure = (k: string) => {
+    if (!(k in buckets)) {
+      buckets[k] = 0;
+      order.push(k);
+    }
+  };
+
+  if (range === "today") {
+    for (let h = 0; h < 24; h++) ensure(`${pad2(h)}:00`);
+  } else if (range === "week") {
+    for (const w of WEEKDAY_LABELS) ensure(w);
+  } else if (range === "month") {
+    const now = new Date();
+    const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    for (let d = 1; d <= days; d++) ensure(pad2(d));
+  } else if (range === "quarter") {
+    const now = new Date();
+    const qStart = now.getMonth() - (now.getMonth() % 3);
+    for (let i = 0; i < 3; i++) ensure(MONTH_LABELS[qStart + i]);
+  } else if (range === "year") {
+    for (const m of MONTH_LABELS) ensure(m);
+  }
+
   for (const entry of log) {
     const d = new Date(entry.timestamp);
-    const key = `${d.getHours().toString().padStart(2, "0")}:${(Math.floor(d.getMinutes() / 5) * 5).toString().padStart(2, "0")}`;
+    let key: string;
+    if (range === "today") {
+      key = `${pad2(d.getHours())}:00`;
+    } else if (range === "week") {
+      const day = d.getDay();
+      key = WEEKDAY_LABELS[day === 0 ? 6 : day - 1];
+    } else if (range === "month") {
+      key = pad2(d.getDate());
+    } else if (range === "quarter") {
+      key = MONTH_LABELS[d.getMonth()];
+    } else {
+      key = MONTH_LABELS[d.getMonth()];
+    }
+    ensure(key);
     buckets[key] = (buckets[key] || 0) + 1;
   }
-  return Object.entries(buckets)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([time, count]) => ({ time, count }));
+
+  return order.map((time) => ({ time, count: buckets[time] }));
 }

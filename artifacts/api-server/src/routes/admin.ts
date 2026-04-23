@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { getUsageLog, getUsageStats } from "../lib/usage-tracker";
+import { getUsageLog, getUsageStats, ALL_RANGES, type Range } from "../lib/usage-tracker";
 import { getAuthUser, requireAdmin } from "../middlewares/auth";
 import { db } from "@workspace/db";
 import { users } from "@workspace/db/schema";
@@ -7,8 +7,10 @@ import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
-router.get("/usage", (_req, res) => {
-  res.json({ log: getUsageLog(), stats: getUsageStats() });
+router.get("/usage", (req, res) => {
+  const raw = String(req.query.range ?? "");
+  const range: Range = (ALL_RANGES as string[]).includes(raw) ? (raw as Range) : "today";
+  res.json({ range, log: getUsageLog(range), stats: getUsageStats(range) });
 });
 
 router.get("/users", async (_req, res) => {
