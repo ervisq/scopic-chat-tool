@@ -80,8 +80,11 @@ function AuthGate() {
       if (currentEmail !== lastAuthUser) {
         setLastAuthUser(currentEmail);
         const validPages: Page[] = ["dashboard", "chat", "admin", "connections", "account"];
-        if (user.defaultPage && validPages.includes(user.defaultPage as Page)) {
-          setPage(user.defaultPage as Page);
+        const candidate = user.defaultPage as Page | undefined;
+        if (candidate === "admin" && user.role !== "super_admin") {
+          setPage("dashboard");
+        } else if (candidate && validPages.includes(candidate)) {
+          setPage(candidate);
         } else {
           setPage("dashboard");
         }
