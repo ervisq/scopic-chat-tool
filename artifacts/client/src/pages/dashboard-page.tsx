@@ -212,6 +212,7 @@ interface ServiceData {
     openPositions?: number;
     candidateCount?: number;
     contracts?: ContractSummary[];
+    expiringContracts?: ContractSummary[];
     activeCount?: number;
     expiringCount?: number;
     totalContracts?: number;
