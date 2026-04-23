@@ -8,12 +8,6 @@ interface BrandLogoProps {
   size?: "sm" | "md" | "lg";
 }
 
-const FULL_SIZE_CLASSES: Record<NonNullable<BrandLogoProps["size"]>, string> = {
-  sm: "h-6",
-  md: "h-7",
-  lg: "h-9",
-};
-
 const MARK_SIZE_CLASSES: Record<NonNullable<BrandLogoProps["size"]>, string> = {
   sm: "w-7 h-7",
   md: "w-8 h-8",
@@ -32,56 +26,66 @@ const BADGE_ICON_CLASSES: Record<NonNullable<BrandLogoProps["size"]>, string> = 
   lg: "w-2.5 h-2.5",
 };
 
+const WORDMARK_TEXT_CLASSES: Record<NonNullable<BrandLogoProps["size"]>, string> = {
+  sm: "text-sm",
+  md: "text-base",
+  lg: "text-xl",
+};
+
+const WORDMARK_GAP_CLASSES: Record<NonNullable<BrandLogoProps["size"]>, string> = {
+  sm: "gap-1.5",
+  md: "gap-2",
+  lg: "gap-2.5",
+};
+
+function Mark({ size, ringClass }: { size: NonNullable<BrandLogoProps["size"]>; ringClass: string }) {
+  return (
+    <div className={cn("relative inline-block shrink-0", MARK_SIZE_CLASSES[size])}>
+      <div className="absolute inset-0 overflow-hidden">
+        <img
+          src={scopicLogo}
+          alt=""
+          aria-hidden="true"
+          className="absolute left-0 top-0 h-full w-auto max-w-none"
+          draggable={false}
+        />
+      </div>
+      <span
+        className={cn(
+          "absolute -bottom-0.5 -right-0.5 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground ring-2",
+          ringClass,
+          BADGE_SIZE_CLASSES[size],
+        )}
+      >
+        <MessageCircle className={cn("fill-current", BADGE_ICON_CLASSES[size])} strokeWidth={0} />
+      </span>
+    </div>
+  );
+}
+
 export function BrandLogo({ variant = "full", className, size = "md" }: BrandLogoProps) {
   if (variant === "mark") {
     return (
-      <div
-        role="img"
-        aria-label="AI Chat"
-        className={cn("relative inline-block shrink-0", MARK_SIZE_CLASSES[size], className)}
-      >
-        <div className="absolute inset-0 overflow-hidden">
-          <img
-            src={scopicLogo}
-            alt=""
-            aria-hidden="true"
-            className="absolute left-0 top-0 h-full w-auto max-w-none"
-          />
-        </div>
-        <span
-          className={cn(
-            "absolute -bottom-0.5 -right-0.5 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground ring-2 ring-card",
-            BADGE_SIZE_CLASSES[size],
-          )}
-        >
-          <MessageCircle className={cn("fill-current", BADGE_ICON_CLASSES[size])} strokeWidth={0} />
-        </span>
+      <div role="img" aria-label="AI Chat" className={cn("inline-block", className)}>
+        <Mark size={size} ringClass="ring-card" />
       </div>
     );
   }
 
   return (
     <div
-      className={cn("relative inline-flex items-center shrink-0", className)}
+      role="img"
       aria-label="AI Chat"
+      className={cn("inline-flex items-center", WORDMARK_GAP_CLASSES[size], className)}
     >
-      <img
-        src={scopicLogo}
-        alt="AI Chat"
-        className={cn("w-auto select-none", FULL_SIZE_CLASSES[size])}
-        draggable={false}
-      />
+      <Mark size={size} ringClass="ring-background" />
       <span
         className={cn(
-          "absolute inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground ring-2 ring-background",
-          BADGE_SIZE_CLASSES[size],
+          "font-bold tracking-tight text-foreground whitespace-nowrap",
+          WORDMARK_TEXT_CLASSES[size],
         )}
-        style={{
-          left: size === "lg" ? "1.65rem" : size === "md" ? "1.3rem" : "1.1rem",
-          bottom: "-0.15rem",
-        }}
       >
-        <MessageCircle className={cn("fill-current", BADGE_ICON_CLASSES[size])} strokeWidth={0} />
+        AI Chat
       </span>
     </div>
   );
