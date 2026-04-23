@@ -365,7 +365,7 @@ function UsersTab({
                       <span className="text-sm text-muted-foreground">{u.email}</span>
                     </td>
                     <td className="px-4 py-3">
-                      {isSuperAdmin && u.role !== "super_admin" ? (
+                      {isSuperAdmin && u.email.toLowerCase() !== "ervis.q@scopicsoftware.com" ? (
                         <div className="relative inline-block">
                           <select
                             value={u.role}
