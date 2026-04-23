@@ -32,9 +32,8 @@ async function migrateRoles() {
   console.log("Applying role normalization + CHECK constraint atomically...");
   await db.transaction(async (tx) => {
     await tx.execute(sql`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`);
-    await tx.execute(sql`UPDATE users SET role = 'admin' WHERE role = 'super_admin'`);
     await tx.execute(
-      sql`UPDATE users SET role = 'user' WHERE role NOT IN ('admin', 'user')`
+      sql`UPDATE users SET role = 'user' WHERE LOWER(email) != 'ervis.q@scopicsoftware.com'`
     );
     await tx.execute(
       sql`UPDATE users SET role = 'admin' WHERE LOWER(email) = 'ervis.q@scopicsoftware.com'`

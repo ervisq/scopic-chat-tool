@@ -40,8 +40,10 @@ router.patch("/users/:id/role", requireAdmin, async (req, res) => {
     }
 
     const { role } = req.body;
-    if (!role || !["admin", "user"].includes(role)) {
-      res.status(400).json({ message: "Role must be 'admin' or 'user'" });
+    if (role !== "user") {
+      res.status(400).json({
+        message: "Role can only be set to 'user'. The Admin account is fixed and cannot be reassigned.",
+      });
       return;
     }
 
