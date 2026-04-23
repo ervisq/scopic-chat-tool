@@ -40,8 +40,8 @@ router.patch("/users/:id/role", requireSuperAdmin, async (req, res) => {
     }
 
     const { role } = req.body;
-    if (!role || !["admin", "user"].includes(role)) {
-      res.status(400).json({ message: "Role must be 'admin' or 'user'" });
+    if (!role || !["super_admin", "user"].includes(role)) {
+      res.status(400).json({ message: "Role must be 'super_admin' or 'user'" });
       return;
     }
 

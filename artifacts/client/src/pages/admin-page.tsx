@@ -52,13 +52,11 @@ const DEFAULT_COLOR = "#6b7280";
 
 const ROLE_LABELS: Record<string, string> = {
   super_admin: "Super Admin",
-  admin: "Admin",
   user: "User",
 };
 
 const ROLE_COLORS: Record<string, string> = {
   super_admin: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
-  admin: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
   user: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
 };
 
@@ -169,7 +167,7 @@ export default function AdminPage({ userRole }: AdminPageProps) {
   }, [managedUsers, searchQuery, roleFilter]);
 
   const roleCounts = useMemo(() => {
-    const counts = { super_admin: 0, admin: 0, user: 0 };
+    const counts = { super_admin: 0, user: 0 };
     for (const u of managedUsers) {
       if (u.role in counts) counts[u.role as keyof typeof counts]++;
     }
@@ -297,7 +295,7 @@ function UsersTab({
   onRoleFilterChange: (r: string) => void;
   onRoleChange: (id: number, role: string) => void;
   updatingUserId: number | null;
-  roleCounts: { super_admin: number; admin: number; user: number };
+  roleCounts: { super_admin: number; user: number };
   totalCount: number;
 }) {
   return (
@@ -305,7 +303,6 @@ function UsersTab({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard icon={<Users className="w-4 h-4" />} label="Total Users" value={totalCount} />
         <StatCard icon={<Shield className="w-4 h-4 text-amber-500" />} label="Super Admins" value={roleCounts.super_admin} />
-        <StatCard icon={<Shield className="w-4 h-4 text-blue-500" />} label="Admins" value={roleCounts.admin} />
         <StatCard icon={<Users className="w-4 h-4 text-gray-500" />} label="Users" value={roleCounts.user} />
       </div>
 
@@ -328,7 +325,6 @@ function UsersTab({
           >
             <option value="all">All Roles</option>
             <option value="super_admin">Super Admin</option>
-            <option value="admin">Admin</option>
             <option value="user">User</option>
           </select>
           <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
@@ -379,7 +375,7 @@ function UsersTab({
                               ROLE_COLORS[u.role] || ROLE_COLORS.user
                             } ${updatingUserId === u.id ? "opacity-50" : ""}`}
                           >
-                            <option value="admin">Admin</option>
+                            <option value="super_admin">Super Admin</option>
                             <option value="user">User</option>
                           </select>
                           <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 pointer-events-none" />
