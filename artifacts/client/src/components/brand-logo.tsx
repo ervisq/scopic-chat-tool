@@ -37,7 +37,7 @@ export function BrandLogo({ variant = "full", className, size = "md" }: BrandLog
     return (
       <div
         role="img"
-        aria-label="Scopic Chat"
+        aria-label="AI Chat"
         className={cn("relative inline-block shrink-0", MARK_SIZE_CLASSES[size], className)}
       >
         <div className="absolute inset-0 overflow-hidden">
@@ -63,11 +63,11 @@ export function BrandLogo({ variant = "full", className, size = "md" }: BrandLog
   return (
     <div
       className={cn("relative inline-flex items-center shrink-0", className)}
-      aria-label="Scopic Chat"
+      aria-label="AI Chat"
     >
       <img
         src={scopicLogo}
-        alt="Scopic Chat"
+        alt="AI Chat"
         className={cn("w-auto select-none", FULL_SIZE_CLASSES[size])}
         draggable={false}
       />
