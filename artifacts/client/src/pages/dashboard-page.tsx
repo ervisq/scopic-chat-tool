@@ -123,6 +123,58 @@ interface ContractSummary {
   contractValue: string;
 }
 
+interface PeopleLeaveSummary {
+  employee: string;
+  leaveType: string;
+  from: string;
+  to: string;
+  dayCount: string;
+}
+
+interface PeopleJoinerSummary {
+  id: string;
+  name: string;
+  designation: string;
+  department: string;
+  dateOfJoining: string;
+}
+
+interface CrmDealSummary {
+  id: string;
+  name: string;
+  stage: string;
+  amount: string;
+  closingDate: string;
+  account: string;
+}
+
+interface CrmLeadSummary {
+  id: string;
+  name: string;
+  company: string;
+  leadStatus: string;
+  email: string;
+}
+
+interface CrmTaskSummary {
+  id: string;
+  subject: string;
+  status: string;
+  priority: string;
+  relatedTo: string;
+}
+
+interface InterviewSummary {
+  id: string;
+  interviewName: string;
+  candidateName: string;
+  interviewDate: string;
+  from: string;
+  to: string;
+  jobOpeningName: string;
+  status: string;
+}
+
 interface TeamworkTaskSummary {
   id: number;
   title: string;
@@ -163,8 +215,45 @@ interface ServiceData {
     activeCount?: number;
     expiringCount?: number;
     totalContracts?: number;
+    onLeaveToday?: PeopleLeaveSummary[];
+    recentJoiners?: PeopleJoinerSummary[];
+    onLeaveTodayCount?: number;
+    recentJoinersCount?: number;
+    employeeCount?: number;
+    openDeals?: CrmDealSummary[];
+    recentLeads?: CrmLeadSummary[];
+    tasksDueToday?: CrmTaskSummary[];
+    openPipelineFormatted?: string;
+    openDealsCount?: number;
+    closingThisMonthCount?: number;
+    recentLeadsCount?: number;
+    tasksDueTodayCount?: number;
+    leadCount?: number;
+    upcomingInterviews?: InterviewSummary[];
+    upcomingInterviewsCount?: number;
+    dueTodayCount?: number;
+    overdueCount?: number;
+    unreadCount?: number;
+    todayCount?: number;
+    nextEventInMinutes?: number;
+    lastWeekHours?: number;
   };
   error?: string;
+}
+
+function CountBadge({ label, value, tone }: { label: string; value: number; tone: "amber" | "rose" | "sky" }) {
+  if (!value) return null;
+  const toneClass =
+    tone === "rose"
+      ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
+      : tone === "amber"
+        ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+        : "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300";
+  return (
+    <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${toneClass}`}>
+      {value} {label}
+    </span>
+  );
 }
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
@@ -691,6 +780,17 @@ function WeeklyHoursPanel({ service }: { service: ServiceData | undefined }) {
               {service?.summary?.daysSummary && (
                 <p className="text-xs text-muted-foreground mt-2">{service.summary.daysSummary}</p>
               )}
+              {service?.summary?.lastWeekHours !== undefined && (() => {
+                const last = service.summary!.lastWeekHours!;
+                const diff = totalHours - last;
+                const arrow = diff > 0 ? "▲" : diff < 0 ? "▼" : "•";
+                const tone = diff > 0 ? "text-emerald-600 dark:text-emerald-400" : diff < 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground";
+                return (
+                  <p className={`text-xs mt-1 ${tone}`}>
+                    {arrow} {Math.abs(diff).toFixed(1)}h vs last week ({last.toFixed(1)}h)
+                  </p>
+                );
+              })()}
             </div>
 
             {byProject.length > 0 && (
@@ -744,6 +844,15 @@ function OutlookPanel({
   const emails = emailService?.summary?.emails || [];
   const isCalConnected = calendarService?.connected ?? false;
   const isEmailConnected = emailService?.connected ?? false;
+  const unreadCount = emailService?.summary?.unreadCount ?? 0;
+  const todayCount = calendarService?.summary?.todayCount ?? 0;
+  const nextEventInMinutes = calendarService?.summary?.nextEventInMinutes;
+  const formatNext = (mins: number) => {
+    if (mins < 60) return `in ${mins}m`;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m ? `in ${h}h ${m}m` : `in ${h}h`;
+  };
   const isConnected = isCalConnected || isEmailConnected;
   const notConfiguredMsg = !isConnected
     ? (calendarService?.summary?.status || emailService?.summary?.status || "Microsoft Outlook is not configured on this server.")
@@ -793,6 +902,11 @@ function OutlookPanel({
               >
                 <Mail className="w-3.5 h-3.5" />
                 Recent Emails
+                {unreadCount > 0 && (
+                  <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-sky-500 text-white text-[10px] font-semibold leading-none">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
               </button>
               <button
                 onClick={() => setActiveTab("events")}
@@ -804,6 +918,11 @@ function OutlookPanel({
               >
                 <Calendar className="w-3.5 h-3.5" />
                 Recent Events
+                {todayCount > 0 && (
+                  <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-500 text-white text-[10px] font-semibold leading-none">
+                    {todayCount}
+                  </span>
+                )}
               </button>
             </div>
 
@@ -855,6 +974,11 @@ function OutlookPanel({
 
             {activeTab === "events" && (
               <div>
+                {isCalConnected && !calendarService?.error && nextEventInMinutes !== undefined && (
+                  <div className="mb-2 px-3 py-1.5 rounded-lg bg-indigo-500/10 text-xs font-medium text-indigo-600 dark:text-indigo-400">
+                    Next event {formatNext(nextEventInMinutes)}
+                  </div>
+                )}
                 {!isCalConnected ? (
                   <p className="text-sm text-muted-foreground italic">Calendar not connected</p>
                 ) : calendarService?.error ? (
@@ -1013,6 +1137,25 @@ function ServiceCard({
                 <p className={`text-sm font-medium ${service.error ? "text-muted-foreground italic" : style.textColor}`}>
                   {summaryText}
                 </p>
+              </div>
+            )}
+
+            {service.key === "teamwork" && !service.error && ((service.summary?.overdueCount ?? 0) > 0 || (service.summary?.dueTodayCount ?? 0) > 0) && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <CountBadge label="overdue" value={service.summary?.overdueCount ?? 0} tone="rose" />
+                <CountBadge label="due today" value={service.summary?.dueTodayCount ?? 0} tone="amber" />
+              </div>
+            )}
+
+            {service.key === "zoho_recruit" && !service.error && (service.summary?.upcomingInterviewsCount ?? 0) > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <CountBadge label="interviews this week" value={service.summary?.upcomingInterviewsCount ?? 0} tone="rose" />
+              </div>
+            )}
+
+            {service.key === "zoho_contracts" && !service.error && (service.summary?.expiringCount ?? 0) > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <CountBadge label="expiring in 30d" value={service.summary?.expiringCount ?? 0} tone="amber" />
               </div>
             )}
 
@@ -1313,13 +1456,96 @@ function ServiceDrawer({
             </div>
           )}
 
-          {(service.key === "zoho_people" || service.key === "zoho_crm") && (
+          {service.key === "zoho_people" && (
             <div className="space-y-3">
-              <div className={`rounded-lg ${style.bgColor} px-4 py-3`}>
-                <p className={`text-sm font-medium ${style.textColor}`}>{service.summary?.status || "Connected"}</p>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Use <span className="font-mono font-semibold">@{service.key === "zoho_people" ? "ZohoPeople" : "ZohoCRM"}</span> in chat to query data
+              {service.summary?.status && (
+                <div className={`rounded-lg ${style.bgColor} px-4 py-3`}>
+                  <p className={`text-sm font-medium ${style.textColor}`}>{service.summary.status}</p>
+                </div>
+              )}
+              {(service.summary?.onLeaveToday?.length ?? 0) > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">On Leave Today</p>
+                  {service.summary!.onLeaveToday!.map((l, i) => (
+                    <div key={i} className="py-1.5 px-3 rounded-lg bg-muted/30">
+                      <p className="text-sm text-foreground truncate">{l.employee || "—"}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        {l.leaveType || "Leave"}{l.from ? ` · ${l.from}${l.to && l.to !== l.from ? ` → ${l.to}` : ""}` : ""}{l.dayCount ? ` · ${l.dayCount} day${l.dayCount !== "1" ? "s" : ""}` : ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {(service.summary?.recentJoiners?.length ?? 0) > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Recent Joiners (this month)</p>
+                  {service.summary!.recentJoiners!.map((e) => (
+                    <div key={e.id} className="py-1.5 px-3 rounded-lg bg-muted/30">
+                      <p className="text-sm text-foreground truncate">{e.name || "—"}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        {e.designation || "—"}{e.department ? ` · ${e.department}` : ""}{e.dateOfJoining ? ` · joined ${e.dateOfJoining}` : ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-[11px] text-muted-foreground">
+                Use <span className="font-mono font-semibold">@ZohoPeople</span> in chat to query data
+              </p>
+            </div>
+          )}
+
+          {service.key === "zoho_crm" && (
+            <div className="space-y-3">
+              {service.summary?.status && (
+                <div className={`rounded-lg ${style.bgColor} px-4 py-3`}>
+                  <p className={`text-sm font-medium ${style.textColor}`}>{service.summary.status}</p>
+                </div>
+              )}
+              {(service.summary?.openDeals?.length ?? 0) > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Top Open Deals</p>
+                  {service.summary!.openDeals!.map((d) => (
+                    <div key={d.id} className="py-1.5 px-3 rounded-lg bg-muted/30">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm text-foreground truncate flex-1">{d.name || "Deal"}</p>
+                        {d.amount && <span className="text-xs font-semibold text-foreground shrink-0">{d.amount}</span>}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        {d.account || "—"}{d.stage ? ` · ${d.stage}` : ""}{d.closingDate ? ` · close ${d.closingDate}` : ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {(service.summary?.recentLeads?.length ?? 0) > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Recent Leads (last 7 days)</p>
+                  {service.summary!.recentLeads!.map((l) => (
+                    <div key={l.id} className="py-1.5 px-3 rounded-lg bg-muted/30">
+                      <p className="text-sm text-foreground truncate">{l.name || l.email || "Lead"}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        {l.company || "—"}{l.leadStatus ? ` · ${l.leadStatus}` : ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {(service.summary?.tasksDueToday?.length ?? 0) > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Tasks Due Today</p>
+                  {service.summary!.tasksDueToday!.map((t) => (
+                    <div key={t.id} className="py-1.5 px-3 rounded-lg bg-muted/30">
+                      <p className="text-sm text-foreground truncate">{t.subject || "Task"}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        {t.priority || "—"}{t.status ? ` · ${t.status}` : ""}{t.relatedTo ? ` · ${t.relatedTo}` : ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-[11px] text-muted-foreground">
+                Use <span className="font-mono font-semibold">@ZohoCRM</span> in chat to query data
               </p>
             </div>
           )}
@@ -1339,6 +1565,19 @@ function ServiceDrawer({
                       <p className="text-sm text-foreground truncate">{j.title}</p>
                       <p className="text-[11px] text-muted-foreground truncate">
                         {j.department || "—"}{j.positions ? ` · ${j.positions} position${j.positions !== "1" ? "s" : ""}` : ""}{j.status ? ` · ${j.status}` : ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {(service.summary?.upcomingInterviews?.length ?? 0) > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Interviews this week</p>
+                  {service.summary!.upcomingInterviews!.map((iv) => (
+                    <div key={iv.id} className="py-1.5 px-3 rounded-lg bg-muted/30">
+                      <p className="text-sm text-foreground truncate">{iv.candidateName || iv.interviewName || "Interview"}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        {iv.interviewDate || "—"}{iv.from ? ` · ${iv.from}${iv.to ? `–${iv.to}` : ""}` : ""}{iv.jobOpeningName ? ` · ${iv.jobOpeningName}` : ""}{iv.status ? ` · ${iv.status}` : ""}
                       </p>
                     </div>
                   ))}
