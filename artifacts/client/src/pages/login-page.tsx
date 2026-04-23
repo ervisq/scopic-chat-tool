@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { LogIn, UserPlus, ShieldCheck, ArrowLeft } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 
 interface LoginPageProps {
   onLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string; requires2fa?: boolean }>;
@@ -59,6 +60,7 @@ export default function LoginPage({ onLogin, onRegister, onVerify2fa, onCancel2f
       <div className="min-h-dvh flex items-center justify-center bg-background px-4">
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
+            <BrandLogo variant="full" size="lg" className="mx-auto mb-6" />
             <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
               <ShieldCheck className="w-6 h-6 text-primary" />
             </div>
@@ -128,6 +130,7 @@ export default function LoginPage({ onLogin, onRegister, onVerify2fa, onCancel2f
     <div className="min-h-dvh flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
+          <BrandLogo variant="full" size="lg" className="mx-auto mb-6" />
           <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
             {isRegister ? (
               <UserPlus className="w-6 h-6 text-primary" />

@@ -9,6 +9,7 @@ import {
   UserCircle,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { BrandLogo } from "./brand-logo";
 
 export type Page = "dashboard" | "chat" | "admin" | "connections" | "account";
 
@@ -55,22 +56,31 @@ export default function Sidebar({ activePage, onNavigate, user, onLogout }: Side
         collapsed ? "w-[60px]" : "w-[200px]"
       }`}
     >
-      <div className={`h-14 shrink-0 flex items-center border-b border-border/50 ${collapsed ? "justify-center px-0" : "px-4"}`}>
-        {!collapsed && (
-          <span className="text-sm font-bold text-foreground tracking-tight truncate">
-            WorkHub
-          </span>
+      <div className={`h-14 shrink-0 flex items-center border-b border-border/50 ${collapsed ? "justify-center px-0" : "px-3"}`}>
+        {collapsed ? (
+          <BrandLogo variant="mark" size="sm" />
+        ) : (
+          <>
+            <BrandLogo variant="full" size="md" />
+            <button
+              onClick={() => setManualCollapse(!collapsed)}
+              className="ml-auto flex items-center justify-center w-7 h-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              title="Collapse sidebar"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+          </>
         )}
-        <button
-          onClick={() => setManualCollapse(!collapsed)}
-          className={`flex items-center justify-center w-7 h-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors ${
-            collapsed ? "" : "ml-auto"
-          }`}
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-        </button>
       </div>
+      {collapsed && (
+        <button
+          onClick={() => setManualCollapse(false)}
+          className="mx-auto mt-1 flex items-center justify-center w-7 h-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+          title="Expand sidebar"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      )}
 
       <nav className="flex-1 py-2 px-2 space-y-1">
         {NAV_ITEMS.filter(({ adminOnly }) => !adminOnly || user?.role === "admin").map(({ page, label, icon: Icon }) => {
