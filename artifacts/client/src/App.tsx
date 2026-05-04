@@ -113,6 +113,12 @@ function AuthGate() {
     } else if (!isAuthenticated) {
       setLastAuthUser(null);
       setShowTour(false);
+      // Clear sticky forgot-password mode whenever we transition back to
+      // logged-out state (e.g. after a successful reset + logout, or any
+      // remount); the next visit to the login screen should start in
+      // normal sign-in mode unless the user explicitly clicks
+      // "Forgot password?" again.
+      setForgotRequested(false);
     }
     return () => {
       if (tourTimer) clearTimeout(tourTimer);

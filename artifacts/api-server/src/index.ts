@@ -10,7 +10,7 @@ import { getPasswordResetMailerStatus } from "./services/passwordResetMailer";
   if (!mailerStatus.ok) {
     console.warn(
       `[boot] Password reset emails are DISABLED: ${mailerStatus.reason}. ` +
-      `Set MICROSOFT_TENANT_ID/CLIENT_ID/CLIENT_SECRET and PASSWORD_RESET_FROM_EMAIL to enable.`
+      `Set MICROSOFT_TENANT_ID, MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET, and PASSWORD_RESET_FROM_EMAIL to enable.`
     );
   }
   if (!process.env.PUBLIC_APP_URL) {
