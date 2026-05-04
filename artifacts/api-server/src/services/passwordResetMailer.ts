@@ -74,6 +74,10 @@ ${resetUrl}
 If you didn't request a password reset, you can safely ignore this email — your password will not be changed.`;
 }
 
+function escapeHtmlText(s: string): string {
+  return escapeHtml(s).replace(/\n/g, "<br />");
+}
+
 export async function sendPasswordResetEmail(toEmail: string, resetUrl: string): Promise<void> {
   const status = getPasswordResetMailerStatus();
   if (!status.ok) {
@@ -81,10 +85,17 @@ export async function sendPasswordResetEmail(toEmail: string, resetUrl: string):
   }
 
   const client = getGraphClient();
+  // Microsoft Graph sendMail only supports a single body contentType per
+  // message, so we embed the plain-text version inside the HTML in a
+  // visually-hidden block. Email clients that strip HTML / force plain text
+  // (e.g. accessibility readers, low-bandwidth modes) will still get a
+  // readable reset link.
+  const html = buildHtml(resetUrl) +
+    `<div style="display:none;max-height:0;overflow:hidden;font-size:0;line-height:0;color:transparent;">${escapeHtmlText(buildText(resetUrl))}</div>`;
   const message = {
     message: {
       subject: "Reset your AI Chat password",
-      body: { contentType: "HTML", content: buildHtml(resetUrl) },
+      body: { contentType: "HTML", content: html },
       toRecipients: [{ emailAddress: { address: toEmail } }],
     },
     saveToSentItems: false,

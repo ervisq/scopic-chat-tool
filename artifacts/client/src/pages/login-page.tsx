@@ -58,20 +58,17 @@ export default function LoginPage({
     setForgotSubmitting(true);
     try {
       const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
-      const res = await fetch(`${baseUrl}/api/auth/forgot-password`, {
+      await fetch(`${baseUrl}/api/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(data.message || "Couldn't send the reset link. Please try again.");
-        return;
-      }
-      setForgotSent(true);
-    } catch {
-      setError("Network error. Please check your connection and try again.");
+      }).catch(() => null);
     } finally {
+      // Always show the generic confirmation panel, regardless of whether the
+      // request succeeded, failed, or the network was offline. This matches
+      // the server's intentionally-uniform response and prevents account
+      // enumeration via UI state differences.
+      setForgotSent(true);
       setForgotSubmitting(false);
     }
   };

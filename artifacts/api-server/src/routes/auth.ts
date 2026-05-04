@@ -221,6 +221,9 @@ router.post("/auth/verify-2fa", async (req, res) => {
 });
 
 router.post("/auth/forgot-password", async (req, res) => {
+  // Always respond with the same generic 200 — never leak whether the
+  // email maps to a real account, whether mail config is missing, or
+  // whether the upstream mailer failed. All diagnostics go to logs.
   const GENERIC_RESPONSE = {
     message: "If an account with that email exists, a reset link has been sent.",
   };
@@ -230,7 +233,8 @@ router.post("/auth/forgot-password", async (req, res) => {
     const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
 
     if (!normalizedEmail) {
-      res.status(400).json({ message: "Email is required" });
+      console.info("[forgot-password] empty email submitted");
+      res.json(GENERIC_RESPONSE);
       return;
     }
 
@@ -261,19 +265,15 @@ router.post("/auth/forgot-password", async (req, res) => {
 
     const mailerStatus = getPasswordResetMailerStatus();
     if (!mailerStatus.ok) {
-      console.error(`[forgot-password] cannot send: ${mailerStatus.reason}`);
-      res.status(500).json({
-        message: "Password reset is temporarily unavailable. Please contact your administrator.",
-      });
+      console.error(`[forgot-password] cannot send for ${redactEmail(user.email)}: ${mailerStatus.reason}`);
+      res.json(GENERIC_RESPONSE);
       return;
     }
 
     const publicAppUrl = (process.env.PUBLIC_APP_URL || "").replace(/\/+$/, "");
     if (!publicAppUrl) {
-      console.error("[forgot-password] PUBLIC_APP_URL is not set; cannot build reset link");
-      res.status(500).json({
-        message: "Password reset is temporarily unavailable. Please contact your administrator.",
-      });
+      console.error(`[forgot-password] PUBLIC_APP_URL not set; cannot send reset link for ${redactEmail(user.email)}`);
+      res.json(GENERIC_RESPONSE);
       return;
     }
 
@@ -281,31 +281,29 @@ router.post("/auth/forgot-password", async (req, res) => {
     const tokenHash = hashToken(rawToken);
     const expiresAt = new Date(now.getTime() + RESET_TOKEN_TTL_MS);
 
-    await db.insert(passwordResetTokens).values({
-      userId: user.id,
-      tokenHash,
-      expiresAt,
-    });
-
-    const resetUrl = `${publicAppUrl}/reset-password?token=${rawToken}`;
-
     try {
+      await db.insert(passwordResetTokens).values({
+        userId: user.id,
+        tokenHash,
+        expiresAt,
+      });
+
+      const resetUrl = `${publicAppUrl}/reset-password?token=${rawToken}`;
       await sendPasswordResetEmail(user.email, resetUrl);
       console.info(`[forgot-password] sent reset email to ${redactEmail(user.email)} (expires ${expiresAt.toISOString()})`);
     } catch (sendErr: unknown) {
       const msg = sendErr instanceof Error ? sendErr.message : String(sendErr);
       console.error(`[forgot-password] sendMail failed for ${redactEmail(user.email)}:`, msg);
-      res.status(500).json({
-        message: "We couldn't send the reset email. Please try again later or contact your administrator.",
-      });
-      return;
+      // Still return generic 200 so an attacker can't tell that the email
+      // exists from a 500 vs 200 response.
     }
 
     res.json(GENERIC_RESPONSE);
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error("[forgot-password] unexpected error:", msg);
-    res.status(500).json({ message: "Something went wrong. Please try again." });
+    // Generic 200 even on unexpected failures, for the same reason.
+    res.json(GENERIC_RESPONSE);
   }
 });
 
