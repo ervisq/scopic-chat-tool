@@ -2,16 +2,34 @@ import { Router, type IRouter } from "express";
 import { LoginBody, LoginResponse, GetMeResponse } from "@workspace/api-zod";
 import { signToken, sign2faPendingToken, verifyToken, requireAuth, getAuthUser } from "../middlewares/auth";
 import { db } from "@workspace/db";
-import { users } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { users, passwordResetTokens } from "@workspace/db/schema";
+import { eq, and, isNull, gt, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { decrypt } from "../lib/crypto";
 import * as OTPAuth from "otpauth";
 import type { User } from "@workspace/db/schema";
+import {
+  sendPasswordResetEmail,
+  getPasswordResetMailerStatus,
+} from "../services/passwordResetMailer";
 
 const router: IRouter = Router();
 
 const ALLOWED_EMAIL_DOMAIN = "@scopicsoftware.com";
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
+const MAX_OUTSTANDING_TOKENS_PER_USER = 3;
+
+function redactEmail(email: string): string {
+  const [local, domain] = email.split("@");
+  if (!local || !domain) return "***";
+  const visible = local.slice(0, 1);
+  return `${visible}${"*".repeat(Math.max(1, local.length - 1))}@${domain}`;
+}
+
+function hashToken(rawToken: string): string {
+  return crypto.createHash("sha256").update(rawToken).digest("hex");
+}
 
 function getTotpFrequencyMs(frequency: string | null): number {
   switch (frequency) {
@@ -199,6 +217,185 @@ router.post("/auth/verify-2fa", async (req, res) => {
     const msg = error instanceof Error ? error.message : String(error);
     console.error("2FA verify error:", msg);
     res.status(500).json({ message: "Verification failed. Please try again." });
+  }
+});
+
+router.post("/auth/forgot-password", async (req, res) => {
+  const GENERIC_RESPONSE = {
+    message: "If an account with that email exists, a reset link has been sent.",
+  };
+
+  try {
+    const { email } = req.body || {};
+    const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+
+    if (!normalizedEmail) {
+      res.status(400).json({ message: "Email is required" });
+      return;
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
+
+    if (!user) {
+      console.info(`[forgot-password] no account for ${redactEmail(normalizedEmail)}`);
+      res.json(GENERIC_RESPONSE);
+      return;
+    }
+
+    const now = new Date();
+    const outstanding = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(passwordResetTokens)
+      .where(and(
+        eq(passwordResetTokens.userId, user.id),
+        isNull(passwordResetTokens.usedAt),
+        gt(passwordResetTokens.expiresAt, now),
+      ));
+
+    const outstandingCount = outstanding[0]?.count ?? 0;
+    if (outstandingCount >= MAX_OUTSTANDING_TOKENS_PER_USER) {
+      console.warn(`[forgot-password] rate-limited ${redactEmail(normalizedEmail)} (${outstandingCount} outstanding tokens)`);
+      res.json(GENERIC_RESPONSE);
+      return;
+    }
+
+    const mailerStatus = getPasswordResetMailerStatus();
+    if (!mailerStatus.ok) {
+      console.error(`[forgot-password] cannot send: ${mailerStatus.reason}`);
+      res.status(500).json({
+        message: "Password reset is temporarily unavailable. Please contact your administrator.",
+      });
+      return;
+    }
+
+    const publicAppUrl = (process.env.PUBLIC_APP_URL || "").replace(/\/+$/, "");
+    if (!publicAppUrl) {
+      console.error("[forgot-password] PUBLIC_APP_URL is not set; cannot build reset link");
+      res.status(500).json({
+        message: "Password reset is temporarily unavailable. Please contact your administrator.",
+      });
+      return;
+    }
+
+    const rawToken = crypto.randomBytes(32).toString("base64url");
+    const tokenHash = hashToken(rawToken);
+    const expiresAt = new Date(now.getTime() + RESET_TOKEN_TTL_MS);
+
+    await db.insert(passwordResetTokens).values({
+      userId: user.id,
+      tokenHash,
+      expiresAt,
+    });
+
+    const resetUrl = `${publicAppUrl}/reset-password?token=${rawToken}`;
+
+    try {
+      await sendPasswordResetEmail(user.email, resetUrl);
+      console.info(`[forgot-password] sent reset email to ${redactEmail(user.email)} (expires ${expiresAt.toISOString()})`);
+    } catch (sendErr: unknown) {
+      const msg = sendErr instanceof Error ? sendErr.message : String(sendErr);
+      console.error(`[forgot-password] sendMail failed for ${redactEmail(user.email)}:`, msg);
+      res.status(500).json({
+        message: "We couldn't send the reset email. Please try again later or contact your administrator.",
+      });
+      return;
+    }
+
+    res.json(GENERIC_RESPONSE);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("[forgot-password] unexpected error:", msg);
+    res.status(500).json({ message: "Something went wrong. Please try again." });
+  }
+});
+
+router.post("/auth/reset-password", async (req, res) => {
+  try {
+    const { token, newPassword } = req.body || {};
+
+    if (typeof token !== "string" || !token) {
+      res.status(400).json({ message: "Reset token is required" });
+      return;
+    }
+
+    if (typeof newPassword !== "string" || newPassword.length < 6) {
+      res.status(400).json({ message: "Password must be at least 6 characters" });
+      return;
+    }
+
+    const tokenHash = hashToken(token);
+    const now = new Date();
+
+    // First inspect (for accurate error messages on already-used/expired/invalid).
+    const [row] = await db
+      .select()
+      .from(passwordResetTokens)
+      .where(eq(passwordResetTokens.tokenHash, tokenHash))
+      .limit(1);
+
+    if (!row) {
+      console.warn(`[reset-password] invalid token (no match)`);
+      res.status(400).json({ message: "This reset link is invalid. Please request a new one." });
+      return;
+    }
+
+    if (row.usedAt) {
+      console.warn(`[reset-password] token already used (user ${row.userId})`);
+      res.status(400).json({ message: "This reset link has already been used. Please request a new one." });
+      return;
+    }
+
+    if (row.expiresAt.getTime() <= now.getTime()) {
+      console.warn(`[reset-password] token expired (user ${row.userId})`);
+      res.status(400).json({ message: "This reset link has expired. Please request a new one." });
+      return;
+    }
+
+    // Atomic claim: only proceed if THIS row is still unused & unexpired.
+    // Prevents a race where two concurrent requests both pass the checks above
+    // and both succeed at resetting the password.
+    const claimed = await db
+      .update(passwordResetTokens)
+      .set({ usedAt: now })
+      .where(and(
+        eq(passwordResetTokens.id, row.id),
+        isNull(passwordResetTokens.usedAt),
+        gt(passwordResetTokens.expiresAt, now),
+      ))
+      .returning({ id: passwordResetTokens.id });
+
+    if (claimed.length === 0) {
+      console.warn(`[reset-password] race condition: token ${row.id} was claimed by a concurrent request`);
+      res.status(400).json({ message: "This reset link has already been used. Please request a new one." });
+      return;
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.id, row.userId)).limit(1);
+    if (!user) {
+      console.warn(`[reset-password] token references missing user ${row.userId}`);
+      res.status(400).json({ message: "This reset link is invalid. Please request a new one." });
+      return;
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    await db.update(users).set({ passwordHash }).where(eq(users.id, user.id));
+
+    // Invalidate any other outstanding tokens for the user (defense in depth).
+    await db
+      .update(passwordResetTokens)
+      .set({ usedAt: now })
+      .where(and(
+        eq(passwordResetTokens.userId, user.id),
+        isNull(passwordResetTokens.usedAt),
+      ));
+
+    console.info(`[reset-password] password updated for ${redactEmail(user.email)}`);
+    res.json({ success: true });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("[reset-password] unexpected error:", msg);
+    res.status(500).json({ message: "Something went wrong. Please try again." });
   }
 });
 

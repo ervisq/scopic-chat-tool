@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ShieldCheck, ArrowLeft } from "lucide-react";
+import { ShieldCheck, ArrowLeft, Mail } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 
 interface LoginPageProps {
@@ -9,15 +9,23 @@ interface LoginPageProps {
   onCancel2fa: () => void;
   isLoading: boolean;
   requires2fa: boolean;
+  initialMode?: "login" | "register" | "forgot";
 }
 
-export default function LoginPage({ onLogin, onRegister, onVerify2fa, onCancel2fa, isLoading, requires2fa }: LoginPageProps) {
-  const [mode, setMode] = useState<"login" | "register">("login");
+type Mode = "login" | "register" | "forgot";
+
+export default function LoginPage({
+  onLogin, onRegister, onVerify2fa, onCancel2fa, isLoading, requires2fa,
+  initialMode = "login",
+}: LoginPageProps) {
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [totpCode, setTotpCode] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotSubmitting, setForgotSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,6 +48,34 @@ export default function LoginPage({ onLogin, onRegister, onVerify2fa, onCancel2f
     }
   };
 
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    if (!email.trim()) {
+      setError("Email is required");
+      return;
+    }
+    setForgotSubmitting(true);
+    try {
+      const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const res = await fetch(`${baseUrl}/api/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.message || "Couldn't send the reset link. Please try again.");
+        return;
+      }
+      setForgotSent(true);
+    } catch {
+      setError("Network error. Please check your connection and try again.");
+    } finally {
+      setForgotSubmitting(false);
+    }
+  };
+
   const handle2faSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -53,6 +89,12 @@ export default function LoginPage({ onLogin, onRegister, onVerify2fa, onCancel2f
     if (!result.success) {
       setError(result.error || "Verification failed");
     }
+  };
+
+  const goToMode = (next: Mode) => {
+    setMode(next);
+    setError("");
+    setForgotSent(false);
   };
 
   if (requires2fa) {
@@ -124,6 +166,84 @@ export default function LoginPage({ onLogin, onRegister, onVerify2fa, onCancel2f
     );
   }
 
+  if (mode === "forgot") {
+    return (
+      <div className="min-h-dvh flex items-center justify-center bg-background px-4">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            <BrandLogo variant="full" size="xl" className="mx-auto mb-6" />
+            <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <Mail className="w-6 h-6 text-primary" />
+            </div>
+            <h1 className="text-2xl font-bold text-foreground">Forgot your password?</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              {forgotSent
+                ? "Check your inbox for a reset link."
+                : "Enter your email and we'll send you a reset link."}
+            </p>
+          </div>
+
+          {forgotSent ? (
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 text-sm text-foreground">
+                If an account with <span className="font-medium">{email}</span> exists,
+                we've sent a reset link. The link expires in 1 hour.
+              </div>
+              <button
+                type="button"
+                onClick={() => goToMode("login")}
+                className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors text-[15px]"
+              >
+                Back to sign in
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleForgotSubmit} className="space-y-4">
+              {error && (
+                <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+                  {error}
+                </div>
+              )}
+
+              <div>
+                <label htmlFor="forgot-email" className="block text-sm font-medium text-foreground mb-1.5">
+                  Email
+                </label>
+                <input
+                  id="forgot-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@scopicsoftware.com"
+                  required
+                  autoFocus
+                  className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all text-[15px]"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={forgotSubmitting}
+                className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-[15px]"
+              >
+                {forgotSubmitting ? "Sending..." : "Send reset link"}
+              </button>
+            </form>
+          )}
+
+          <button
+            type="button"
+            onClick={() => goToMode("login")}
+            className="flex items-center gap-1.5 mx-auto mt-6 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to sign in
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const isRegister = mode === "register";
 
   return (
@@ -179,9 +299,20 @@ export default function LoginPage({ onLogin, onRegister, onVerify2fa, onCancel2f
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-foreground mb-1.5">
-              Password
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label htmlFor="password" className="block text-sm font-medium text-foreground">
+                Password
+              </label>
+              {!isRegister && (
+                <button
+                  type="button"
+                  onClick={() => goToMode("forgot")}
+                  className="text-xs text-primary hover:underline font-medium"
+                >
+                  Forgot password?
+                </button>
+              )}
+            </div>
             <input
               id="password"
               type="password"
@@ -209,10 +340,7 @@ export default function LoginPage({ onLogin, onRegister, onVerify2fa, onCancel2f
           {isRegister ? "Already have an account?" : "Don't have an account?"}{" "}
           <button
             type="button"
-            onClick={() => {
-              setMode(isRegister ? "login" : "register");
-              setError("");
-            }}
+            onClick={() => goToMode(isRegister ? "login" : "register")}
             className="text-primary hover:underline font-medium"
           >
             {isRegister ? "Sign in" : "Create one"}

@@ -6,6 +6,7 @@ import { type Page } from "@/components/sidebar";
 import DashboardPage from "@/pages/dashboard-page";
 import ChatPage from "@/pages/chat-page";
 import LoginPage from "@/pages/login-page";
+import ResetPasswordPage from "@/pages/reset-password-page";
 import AdminPage from "@/pages/admin-page";
 import ConnectionsPage from "@/pages/connections-page";
 import AccountPage from "@/pages/account-page";
@@ -63,12 +64,29 @@ const queryClient = new QueryClient({
   },
 });
 
+function getResetTokenFromUrl(): { isResetRoute: boolean; token: string } {
+  if (typeof window === "undefined") return { isResetRoute: false, token: "" };
+  const base = (import.meta.env.BASE_URL || "/").replace(/\/+$/, "");
+  const path = window.location.pathname;
+  const isResetRoute = path === `${base}/reset-password` || path === `${base}/reset-password/`;
+  const token = new URLSearchParams(window.location.search).get("token") || "";
+  return { isResetRoute, token };
+}
+
+function clearResetRouteFromUrl() {
+  if (typeof window === "undefined") return;
+  const base = (import.meta.env.BASE_URL || "/").replace(/\/+$/, "") || "/";
+  window.history.replaceState({}, "", base);
+}
+
 function AuthGate() {
   const {
     isAuthenticated, user, token,
     login, register, logout, verify2fa, cancel2fa,
     isLoading, requires2fa, updateUser,
   } = useAuth();
+  const [resetRoute, setResetRoute] = useState(() => getResetTokenFromUrl());
+  const [forgotRequested, setForgotRequested] = useState(false);
   const [page, setPage] = useState<Page>("dashboard");
   const [lastAuthUser, setLastAuthUser] = useState<string | null>(null);
   const [showTour, setShowTour] = useState(false);
@@ -110,6 +128,23 @@ function AuthGate() {
   }
 
   if (!isAuthenticated) {
+    if (resetRoute.isResetRoute) {
+      return (
+        <ResetPasswordPage
+          token={resetRoute.token}
+          onDone={() => {
+            clearResetRouteFromUrl();
+            setResetRoute({ isResetRoute: false, token: "" });
+            setForgotRequested(false);
+          }}
+          onRequestNewLink={() => {
+            clearResetRouteFromUrl();
+            setResetRoute({ isResetRoute: false, token: "" });
+            setForgotRequested(true);
+          }}
+        />
+      );
+    }
     return (
       <LoginPage
         onLogin={login}
@@ -118,6 +153,7 @@ function AuthGate() {
         onCancel2fa={cancel2fa}
         isLoading={isLoading}
         requires2fa={requires2fa}
+        initialMode={forgotRequested ? "forgot" : "login"}
       />
     );
   }
