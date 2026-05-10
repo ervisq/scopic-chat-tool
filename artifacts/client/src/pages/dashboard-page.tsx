@@ -725,7 +725,7 @@ function ExpandableEventRow({ event }: { event: OutlookEventSummary }) {
   );
 }
 
-function WeeklyHoursPanel({ service }: { service: ServiceData | undefined }) {
+function WeeklyHoursPanel({ service, onConnect }: { service: ServiceData | undefined; onConnect: () => void }) {
   const totalHours = service?.summary?.totalHours ?? 0;
   const maxHours = 40;
   const percentage = Math.min((totalHours / maxHours) * 100, 100);
@@ -816,15 +816,25 @@ function WeeklyHoursPanel({ service }: { service: ServiceData | undefined }) {
           <p className="text-sm text-muted-foreground">Connect STS to track your weekly hours.</p>
         ) : null}
 
-        <a
-          href={stsUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-center gap-2 w-full mt-4 py-2.5 rounded-xl text-sm font-medium transition-colors bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:opacity-80"
-        >
-          Open STS
-          <ExternalLink className="w-3.5 h-3.5" />
-        </a>
+        {isConnected ? (
+          <a
+            href={stsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 w-full mt-4 py-2.5 rounded-xl text-sm font-medium transition-colors bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:opacity-80"
+          >
+            Open STS
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        ) : (
+          <button
+            onClick={onConnect}
+            className="flex items-center justify-center gap-2 w-full mt-4 py-2.5 rounded-xl text-sm font-medium transition-colors bg-emerald-500 text-white hover:opacity-90"
+          >
+            <Link2 className="w-4 h-4" />
+            Connect STS
+          </button>
+        )}
       </div>
     </div>
   );
@@ -1025,8 +1035,8 @@ function OutlookPanel({
           </>
         )}
 
-        <div className="flex gap-2 mt-4">
-          {isConnected && (
+        {isConnected && (
+          <div className="flex gap-2 mt-4">
             <button
               onClick={onViewMore}
               className="flex items-center justify-center gap-2 flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:opacity-80"
@@ -1034,16 +1044,16 @@ function OutlookPanel({
               <Eye className="w-4 h-4" />
               View more
             </button>
-          )}
-          <a
-            href="https://outlook.office.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`flex items-center justify-center gap-2 ${isConnected ? "px-4" : "flex-1"} py-2.5 rounded-xl text-sm font-medium transition-colors bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:opacity-80`}
-          >
-            {isConnected ? <ExternalLink className="w-4 h-4" /> : <>Open Outlook <ExternalLink className="w-3.5 h-3.5" /></>}
-          </a>
-        </div>
+            <a
+              href="https://outlook.office.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:opacity-80"
+            >
+              <ExternalLink className="w-4 h-4" />
+            </a>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1861,7 +1871,7 @@ export default function DashboardPage({
 
               {(showStsPanel || showOutlookPanel) && (
                 <div className="w-full lg:w-[340px] shrink-0 space-y-5">
-                  {showStsPanel && <WeeklyHoursPanel service={stsService} />}
+                  {showStsPanel && <WeeklyHoursPanel service={stsService} onConnect={onOpenConnections} />}
                   {showOutlookPanel && (
                     <OutlookPanel
                       calendarService={calendarService}

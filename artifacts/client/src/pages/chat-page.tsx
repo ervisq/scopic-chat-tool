@@ -11,9 +11,14 @@ import {
 } from "@/components/chat/tool-autocomplete";
 import { ToolVisibilityModal } from "@/components/tool-visibility-panel";
 
-export default function ChatPage() {
+interface ChatPageProps {
+  onOpenConnections?: () => void;
+}
+
+export default function ChatPage({ onOpenConnections }: ChatPageProps = {}) {
   const { messages, sendMessage, isTyping } = useChat();
   const [inputValue, setInputValue] = useState("");
+  const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const [autocompleteIndex, setAutocompleteIndex] = useState(0);
   const [toolSettingsOpen, setToolSettingsOpen] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -44,7 +49,54 @@ export default function ChatPage() {
   const handleAutocompleteSelect = useCallback(
     (toolName: string) => {
       setInputValue(`@${toolName} `);
+      setSelectedTool(toolName);
       textareaRef.current?.focus();
+    },
+    [],
+  );
+
+  const stripLeadingMention = (value: string, toolName: string): string => {
+    const prefix = `@${toolName} `;
+    if (value.startsWith(prefix)) return value.slice(prefix.length);
+    if (value === `@${toolName}`) return "";
+    return value;
+  };
+
+  const replaceLeadingMention = (
+    value: string,
+    fromTool: string | null,
+    toTool: string,
+  ): string => {
+    if (fromTool) {
+      const stripped = stripLeadingMention(value, fromTool);
+      if (stripped !== value) {
+        return `@${toTool} ${stripped}`;
+      }
+    }
+    if (value.startsWith(`@${toTool} `) || value === `@${toTool}`) return value;
+    return value.length > 0 ? `@${toTool} ${value}` : `@${toTool} `;
+  };
+
+  const handleToolSelectChange = useCallback(
+    (next: string | null) => {
+      setSelectedTool((prev) => {
+        if (next === null) {
+          if (prev) {
+            setInputValue((v) => stripLeadingMention(v, prev));
+          }
+          return null;
+        }
+        setInputValue((v) => replaceLeadingMention(v, prev, next));
+        return next;
+      });
+      requestAnimationFrame(() => {
+        const ta = textareaRef.current;
+        if (ta) {
+          ta.focus();
+          const len = ta.value.length;
+          ta.setSelectionRange(len, len);
+        }
+      });
     },
     [],
   );
@@ -54,6 +106,7 @@ export default function ChatPage() {
     if (!trimmed || isTyping) return;
     sendMessage(trimmed);
     setInputValue("");
+    setSelectedTool(null);
     textareaRef.current?.focus();
   }, [inputValue, isTyping, sendMessage]);
 
@@ -139,8 +192,11 @@ export default function ChatPage() {
       <div className="shrink-0 border-t border-border/50 bg-background px-4 md:px-6 py-3">
         <div className="max-w-3xl mx-auto">
           <ToolPills
+            selected={selectedTool}
+            onSelectChange={handleToolSelectChange}
             onPresetSelect={handlePresetSelect}
             onOpenSettings={() => setToolSettingsOpen(true)}
+            onOpenConnections={onOpenConnections}
             disabled={isTyping}
           />
           <div className="relative">

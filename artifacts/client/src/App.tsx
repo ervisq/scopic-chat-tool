@@ -172,7 +172,7 @@ function AuthGate() {
   } else if (page === "connections") {
     content = <ConnectionsPage token={token} />;
   } else if (page === "chat") {
-    content = <ChatPage />;
+    content = <ChatPage onOpenConnections={() => setPage("connections")} />;
   } else if (page === "account") {
     content = <AccountPage token={token} onUpdateUser={updateUser} onSetToken={setToken} onRestartTour={() => setShowTour(true)} userEmail={user?.email} />;
   } else {

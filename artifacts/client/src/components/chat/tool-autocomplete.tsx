@@ -11,7 +11,7 @@ interface ToolAutocompleteProps {
 }
 
 export function useToolAutocomplete(inputValue: string) {
-  const { visibleTools } = useToolVisibility();
+  const { visibleTools, connectedTools } = useToolVisibility();
   const trimmed = inputValue.trim();
 
   if (!trimmed.startsWith("@")) {
@@ -24,8 +24,8 @@ export function useToolAutocomplete(inputValue: string) {
     return { suggestions: [], visible: false };
   }
 
-  const suggestions = visibleTools.filter((t) =>
-    t.name.toLowerCase().startsWith(afterAt),
+  const suggestions = visibleTools.filter(
+    (t) => connectedTools.has(t.name) && t.name.toLowerCase().startsWith(afterAt),
   );
 
   return { suggestions, visible: suggestions.length > 0 };

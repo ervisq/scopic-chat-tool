@@ -19,7 +19,19 @@ interface ToolVisibilityContextValue {
   saving: boolean;
   justSaved: boolean;
   error: string | null;
+  connectedTools: Set<string>;
+  connectedToolsLoaded: boolean;
+  refreshConnectedTools: () => void;
 }
+
+const PROVIDER_TO_TOOL_NAMES: Record<string, string[]> = {
+  jira: ["JIRA"],
+  zoho: ["ZohoPeople", "ZohoCRM", "ZohoRecruit", "ZohoContracts"],
+  sts: ["STS"],
+  teamwork: ["Teamwork"],
+};
+
+const ALWAYS_CONNECTED_TOOLS = ["Outlook"];
 
 const ToolVisibilityContext = createContext<ToolVisibilityContextValue | null>(null);
 
@@ -40,6 +52,11 @@ export function ToolVisibilityProvider({
   const [saving, setSaving] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [connectedTools, setConnectedTools] = useState<Set<string>>(
+    () => new Set(ALWAYS_CONNECTED_TOOLS),
+  );
+  const [connectedToolsLoaded, setConnectedToolsLoaded] = useState(false);
+  const [connRefreshTick, setConnRefreshTick] = useState(0);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchedRef = useRef(false);
@@ -106,6 +123,40 @@ export function ToolVisibilityProvider({
       .catch(() => {});
     return () => ctrl.abort();
   }, [token, baseUrl]);
+
+  useEffect(() => {
+    if (!token) {
+      setConnectedTools(new Set(ALWAYS_CONNECTED_TOOLS));
+      setConnectedToolsLoaded(false);
+      return;
+    }
+    const ctrl = new AbortController();
+    fetch(`${baseUrl}/api/credentials`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: ctrl.signal,
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!mountedRef.current) return;
+        const next = new Set<string>(ALWAYS_CONNECTED_TOOLS);
+        const conns = (data?.connections ?? []) as Array<{ provider: string; connected: boolean }>;
+        for (const c of conns) {
+          if (!c.connected) continue;
+          const tools = PROVIDER_TO_TOOL_NAMES[c.provider];
+          if (tools) tools.forEach((t) => next.add(t));
+        }
+        setConnectedTools(next);
+        setConnectedToolsLoaded(true);
+      })
+      .catch(() => {
+        if (mountedRef.current) setConnectedToolsLoaded(true);
+      });
+    return () => ctrl.abort();
+  }, [token, baseUrl, connRefreshTick]);
+
+  const refreshConnectedTools = useCallback(() => {
+    setConnRefreshTick((n) => n + 1);
+  }, []);
 
   const setHidden = useCallback(
     async (toolName: string, hidden: boolean) => {
@@ -181,8 +232,11 @@ export function ToolVisibilityProvider({
       saving,
       justSaved,
       error,
+      connectedTools,
+      connectedToolsLoaded,
+      refreshConnectedTools,
     }),
-    [hiddenTools, visibleTools, setHidden, saving, justSaved, error],
+    [hiddenTools, visibleTools, setHidden, saving, justSaved, error, connectedTools, connectedToolsLoaded, refreshConnectedTools],
   );
 
   return (

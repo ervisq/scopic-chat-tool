@@ -1,66 +1,99 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, Settings, X } from "lucide-react";
+import { ChevronDown, Settings, X, Link2 } from "lucide-react";
 import { type ToolConfig } from "@/lib/tool-config";
 import { getPresetsForTool } from "@/lib/tool-presets";
 import { useToolVisibility } from "@/lib/tool-visibility";
 import { cn } from "@/lib/utils";
 
 interface ToolPillsProps {
+  selected: string | null;
+  onSelectChange: (next: string | null) => void;
   onPresetSelect: (query: string) => void;
   onOpenSettings?: () => void;
+  onOpenConnections?: () => void;
   disabled?: boolean;
 }
 
-export function ToolPills({ onPresetSelect, onOpenSettings, disabled }: ToolPillsProps) {
-  const { visibleTools } = useToolVisibility();
-  const [selected, setSelected] = useState<string | null>(null);
+export function ToolPills({
+  selected,
+  onSelectChange,
+  onPresetSelect,
+  onOpenSettings,
+  onOpenConnections,
+  disabled,
+}: ToolPillsProps) {
+  const { visibleTools, connectedTools } = useToolVisibility();
+
+  const availableTools = useMemo(
+    () => visibleTools.filter((t) => connectedTools.has(t.name)),
+    [visibleTools, connectedTools],
+  );
 
   useEffect(() => {
-    if (selected && !visibleTools.some((t) => t.name === selected)) {
-      setSelected(null);
+    if (selected && !availableTools.some((t) => t.name === selected)) {
+      onSelectChange(null);
     }
-  }, [visibleTools, selected]);
+  }, [availableTools, selected, onSelectChange]);
 
   useEffect(() => {
     if (!selected) return;
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        setSelected(null);
+        onSelectChange(null);
       }
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [selected]);
+  }, [selected, onSelectChange]);
 
   const selectedTool: ToolConfig | undefined = selected
-    ? visibleTools.find((t) => t.name === selected)
+    ? availableTools.find((t) => t.name === selected)
     : undefined;
   const presets = selectedTool ? getPresetsForTool(selectedTool.name) : [];
 
   const handlePillClick = (name: string) => {
-    setSelected((prev) => (prev === name ? null : name));
+    onSelectChange(selected === name ? null : name);
   };
 
   const handlePresetClick = (query: string) => {
     if (disabled) return;
     onPresetSelect(query);
-    setSelected(null);
+    onSelectChange(null);
   };
 
-  if (visibleTools.length === 0) {
+  if (availableTools.length === 0) {
+    if (visibleTools.length === 0) {
+      return (
+        <div className="mb-2">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground px-3 py-2 rounded-lg bg-muted/30">
+            <span>All tools hidden — visit settings to re-enable</span>
+            {onOpenSettings && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="inline-flex items-center gap-1 text-primary hover:underline font-medium"
+              >
+                <Settings className="w-3 h-3" />
+                Settings
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="mb-2">
         <div className="flex items-center gap-2 text-xs text-muted-foreground px-3 py-2 rounded-lg bg-muted/30">
-          <span>All tools hidden — visit settings to re-enable</span>
-          {onOpenSettings && (
+          <span>No tools connected yet — connect a service to use it in chat.</span>
+          {onOpenConnections && (
             <button
               type="button"
-              onClick={onOpenSettings}
+              onClick={onOpenConnections}
               className="inline-flex items-center gap-1 text-primary hover:underline font-medium"
             >
-              <Settings className="w-3 h-3" />
-              Settings
+              <Link2 className="w-3 h-3" />
+              Connect
             </button>
           )}
         </div>
@@ -71,7 +104,7 @@ export function ToolPills({ onPresetSelect, onOpenSettings, disabled }: ToolPill
   return (
     <div className="mb-2">
       <div className="flex gap-2 overflow-x-auto scrollbar-thin pb-1 -mx-1 px-1">
-        {visibleTools.map((tool) => {
+        {availableTools.map((tool) => {
           const Icon = tool.icon;
           const isActive = selected === tool.name;
           return (
@@ -137,7 +170,7 @@ export function ToolPills({ onPresetSelect, onOpenSettings, disabled }: ToolPill
                 </div>
                 <button
                   type="button"
-                  onClick={() => setSelected(null)}
+                  onClick={() => onSelectChange(null)}
                   className="p-1 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
                   aria-label="Close presets"
                 >
