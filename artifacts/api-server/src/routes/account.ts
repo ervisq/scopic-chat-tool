@@ -7,6 +7,14 @@ import bcrypt from "bcryptjs";
 import { encrypt, decrypt } from "../lib/crypto";
 import * as OTPAuth from "otpauth";
 import QRCode from "qrcode";
+import { sendPasswordChangedNotice } from "../services/passwordResetMailer";
+
+function redactEmail(email: string): string {
+  const [local, domain] = email.split("@");
+  if (!local || !domain) return "***";
+  const visible = local.slice(0, 1);
+  return `${visible}${"*".repeat(Math.max(1, local.length - 1))}@${domain}`;
+}
 
 interface ProfileUpdates {
   name?: string;
@@ -121,19 +129,43 @@ router.put("/account/password", async (req, res) => {
       return;
     }
 
+    if (currentPassword === newPassword) {
+      res.status(400).json({ message: "New password must be different from your current password" });
+      return;
+    }
+
     const passwordHash = await bcrypt.hash(newPassword, 10);
+    const now = new Date();
     await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
 
-    // Invalidate any outstanding password reset tokens for this user so a
-    // stolen/in-flight reset link can't be used after the owner has just
-    // rotated their password.
-    await db
-      .update(passwordResetTokens)
-      .set({ usedAt: new Date() })
-      .where(and(
-        eq(passwordResetTokens.userId, userId),
-        isNull(passwordResetTokens.usedAt),
-      ));
+    // Invalidate any outstanding password reset tokens (defense in depth: an
+    // attacker who triggered a reset link can no longer use it after the
+    // owner changes their password).
+    try {
+      await db
+        .update(passwordResetTokens)
+        .set({ usedAt: now })
+        .where(and(
+          eq(passwordResetTokens.userId, userId),
+          isNull(passwordResetTokens.usedAt),
+        ));
+    } catch (invalidateErr: unknown) {
+      const msg = invalidateErr instanceof Error ? invalidateErr.message : String(invalidateErr);
+      console.error(`[change-password] failed to invalidate reset tokens for user ${userId}:`, msg);
+    }
+
+    console.info(`[change-password] password updated for ${redactEmail(user.email)}`);
+
+    // Out-of-band confirmation email so the account holder is notified even
+    // if the change was made by an attacker who has hijacked the session.
+    // Failure to send must not fail the password change itself.
+    try {
+      await sendPasswordChangedNotice(user.email);
+      console.info(`[change-password] sent password-changed notice to ${redactEmail(user.email)}`);
+    } catch (noticeErr: unknown) {
+      const noticeMsg = noticeErr instanceof Error ? noticeErr.message : String(noticeErr);
+      console.error(`[change-password] failed to send password-changed notice to ${redactEmail(user.email)}:`, noticeMsg);
+    }
 
     res.json({ message: "Password updated successfully" });
   } catch (err) {
