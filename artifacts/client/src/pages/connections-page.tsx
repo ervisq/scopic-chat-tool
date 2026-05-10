@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Check, X, Loader2, ExternalLink, Settings } from "lucide-react";
+import { useToolVisibility } from "@/lib/tool-visibility";
 
 interface ConnectionsPageProps {
   token: string | null;
@@ -71,6 +72,7 @@ const PROVIDERS: ProviderConfig[] = [
 ];
 
 export default function ConnectionsPage({ token }: ConnectionsPageProps) {
+  const { refreshConnectedTools } = useToolVisibility();
   const [connections, setConnections] = useState<Connection[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
@@ -90,6 +92,7 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
     if (params.get("jira_success") === "true") {
       setMessage({ type: "success", text: "Jira connected successfully! Use @JIRA in chat to query tickets and issues." });
       setExpandedProvider("jira");
+      refreshConnectedTools();
       window.history.replaceState({}, "", window.location.pathname);
     } else if (params.get("jira_error")) {
       const errorMap: Record<string, string> = {
@@ -108,6 +111,7 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
     if (params.get("zoho_success") === "true") {
       setMessage({ type: "success", text: "Zoho connected successfully! Use @ZohoPeople, @ZohoCRM, @ZohoRecruit, and @ZohoContracts in chat." });
       setExpandedProvider("zoho");
+      refreshConnectedTools();
       window.history.replaceState({}, "", window.location.pathname);
     } else if (params.get("zoho_error")) {
       const errorMap: Record<string, string> = {
@@ -213,6 +217,7 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
           [provider.key]: provider.key === "sts" ? "https://time.scopicsoftware.com" : "",
         }));
         await fetchConnections();
+        refreshConnectedTools();
       } else {
         const err = await res.json();
         setMessage({ type: "error", text: err.message || "Failed to save" });
@@ -234,6 +239,7 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
       if (res.ok) {
         setMessage({ type: "success", text: `${providerName} disconnected` });
         await fetchConnections();
+        refreshConnectedTools();
       }
     } catch {
       setMessage({ type: "error", text: "Failed to disconnect" });
