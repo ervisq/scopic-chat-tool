@@ -14,6 +14,7 @@ import {
   sendPasswordChangedNotice,
   getPasswordResetMailerStatus,
 } from "../services/passwordResetMailer";
+import { recordFailedSignup } from "../lib/failed-signups";
 
 const router: IRouter = Router();
 
@@ -50,6 +51,7 @@ function needs2fa(user: User): boolean {
 }
 
 router.post("/auth/register", async (req, res) => {
+  const ip = (req.ip || req.socket.remoteAddress || "unknown").toString();
   try {
     const { email, password, name } = req.body;
     const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
@@ -61,25 +63,33 @@ router.post("/auth/register", async (req, res) => {
         !password && "password",
         !name && "name",
       ].filter(Boolean).join(", ");
-      console.warn(`[register] rejected ${emailForLog}: missing fields (${missing})`);
+      const reason = `missing fields (${missing})`;
+      console.warn(`[register] rejected ${emailForLog}: ${reason}`);
+      recordFailedSignup({ redactedEmail: emailForLog, reason, ip });
       res.status(400).json({ message: "Email, password, and name are required", field: !email ? "email" : !name ? "name" : "password" });
       return;
     }
 
     if (!normalizedEmail || !normalizedEmail.endsWith(ALLOWED_EMAIL_DOMAIN)) {
-      console.warn(`[register] rejected ${emailForLog}: wrong email domain (must end with ${ALLOWED_EMAIL_DOMAIN})`);
+      const reason = `wrong email domain (must end with ${ALLOWED_EMAIL_DOMAIN})`;
+      console.warn(`[register] rejected ${emailForLog}: ${reason}`);
+      recordFailedSignup({ redactedEmail: emailForLog, reason, ip });
       res.status(400).json({ message: "Only @scopicsoftware.com email addresses are allowed to register", field: "email" });
       return;
     }
 
     if (typeof password !== "string" || password.length < 6) {
-      console.warn(`[register] rejected ${emailForLog}: password too short (length=${typeof password === "string" ? password.length : 0})`);
+      const reason = `password too short (length=${typeof password === "string" ? password.length : 0})`;
+      console.warn(`[register] rejected ${emailForLog}: ${reason}`);
+      recordFailedSignup({ redactedEmail: emailForLog, reason, ip });
       res.status(400).json({ message: "Password must be at least 6 characters", field: "password" });
       return;
     }
     const existing = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
     if (existing.length > 0) {
-      console.warn(`[register] rejected ${emailForLog}: account already exists`);
+      const reason = "account already exists";
+      console.warn(`[register] rejected ${emailForLog}: ${reason}`);
+      recordFailedSignup({ redactedEmail: emailForLog, reason, ip });
       res.status(409).json({ message: "An account with this email already exists. Try signing in instead.", field: "email" });
       return;
     }

@@ -4,8 +4,13 @@ import { getAuthUser, requireAdmin } from "../middlewares/auth";
 import { db } from "@workspace/db";
 import { users } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
+import { getFailedSignups } from "../lib/failed-signups";
 
 const router: IRouter = Router();
+
+router.get("/failed-signups", (_req, res) => {
+  res.json({ entries: getFailedSignups() });
+});
 
 router.get("/usage", (req, res) => {
   const raw = String(req.query.range ?? "");
