@@ -78,6 +78,79 @@ function escapeHtmlText(s: string): string {
   return escapeHtml(s).replace(/\n/g, "<br />");
 }
 
+function buildChangedHtml(): string {
+  return `<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background:#f4f6fa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1a1f2e;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fa;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="520" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:16px;padding:32px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+            <tr><td>
+              <h1 style="margin:0 0 16px;font-size:20px;font-weight:600;color:#1a1f2e;">Your AI Chat password was just changed</h1>
+              <p style="margin:0 0 16px;font-size:15px;line-height:1.55;color:#4a5568;">
+                This is a confirmation that the password for your AI Chat account was just changed successfully.
+              </p>
+              <p style="margin:0 0 16px;font-size:15px;line-height:1.55;color:#4a5568;">
+                <strong>If this wasn't you, contact your administrator immediately.</strong>
+              </p>
+              <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;" />
+              <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.5;">
+                You're receiving this email because someone (hopefully you) changed the password on your AI Chat account.
+              </p>
+            </td></tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
+function buildChangedText(): string {
+  return `Your AI Chat password was just changed
+
+This is a confirmation that the password for your AI Chat account was just changed successfully.
+
+If this wasn't you, contact your administrator immediately.`;
+}
+
+async function sendMailViaGraph(toEmail: string, subject: string, html: string): Promise<void> {
+  const client = getGraphClient();
+  const message = {
+    message: {
+      subject,
+      body: { contentType: "HTML", content: html },
+      toRecipients: [{ emailAddress: { address: toEmail } }],
+    },
+    saveToSentItems: false,
+  };
+
+  try {
+    await client.api(`/users/${encodeURIComponent(FROM_EMAIL)}/sendMail`).post(message);
+  } catch (err: unknown) {
+    const e = err as { statusCode?: number; code?: string; message?: string };
+    const status = e.statusCode || 0;
+    const code = e.code || "";
+    if (status === 403 || /Forbidden|Authorization|Permission/i.test(code) || /Mail\.Send/i.test(e.message || "")) {
+      throw new Error(
+        `Microsoft Graph rejected sendMail (${status} ${code}). The Azure app registration likely needs the 'Mail.Send' application permission, granted with admin consent in the Azure portal. Underlying error: ${e.message || code || "unknown"}`
+      );
+    }
+    throw err;
+  }
+}
+
+export async function sendPasswordChangedNotice(toEmail: string): Promise<void> {
+  const status = getPasswordResetMailerStatus();
+  if (!status.ok) {
+    throw new Error(`Password reset mailer not configured: ${status.reason}`);
+  }
+  const html = buildChangedHtml() +
+    `<div style="display:none;max-height:0;overflow:hidden;font-size:0;line-height:0;color:transparent;">${escapeHtmlText(buildChangedText())}</div>`;
+  await sendMailViaGraph(toEmail, "Your AI Chat password was just changed", html);
+}
+
 export async function sendPasswordResetEmail(toEmail: string, resetUrl: string): Promise<void> {
   const status = getPasswordResetMailerStatus();
   if (!status.ok) {

@@ -11,6 +11,7 @@ import * as OTPAuth from "otpauth";
 import type { User } from "@workspace/db/schema";
 import {
   sendPasswordResetEmail,
+  sendPasswordChangedNotice,
   getPasswordResetMailerStatus,
 } from "../services/passwordResetMailer";
 
@@ -410,6 +411,18 @@ router.post("/auth/reset-password", async (req, res) => {
       ));
 
     console.info(`[reset-password] password updated for ${redactEmail(user.email)}`);
+
+    // Send an out-of-band confirmation email so the account holder is notified
+    // even if the reset was triggered by an attacker who controls the session.
+    // Failure to send must not fail the password change itself.
+    try {
+      await sendPasswordChangedNotice(user.email);
+      console.info(`[reset-password] sent password-changed notice to ${redactEmail(user.email)}`);
+    } catch (noticeErr: unknown) {
+      const noticeMsg = noticeErr instanceof Error ? noticeErr.message : String(noticeErr);
+      console.error(`[reset-password] failed to send password-changed notice to ${redactEmail(user.email)}:`, noticeMsg);
+    }
+
     res.json({ success: true });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
