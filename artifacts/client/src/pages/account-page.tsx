@@ -27,6 +27,7 @@ interface UserUpdate {
 interface AccountPageProps {
   token: string | null;
   onUpdateUser: (user: UserUpdate) => void;
+  onSetToken: (token: string) => void;
   onRestartTour?: () => void;
   userEmail?: string;
 }
@@ -39,7 +40,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "security", label: "Security" },
 ];
 
-export default function AccountPage({ token, onUpdateUser, onRestartTour, userEmail }: AccountPageProps) {
+export default function AccountPage({ token, onUpdateUser, onSetToken, onRestartTour, userEmail }: AccountPageProps) {
   const [activeTab, setActiveTab] = useState<Tab>("general");
 
   return (
@@ -70,7 +71,7 @@ export default function AccountPage({ token, onUpdateUser, onRestartTour, userEm
           </div>
 
           {activeTab === "general" && (
-            <GeneralTab token={token} onUpdateUser={onUpdateUser} />
+            <GeneralTab token={token} onUpdateUser={onUpdateUser} onSetToken={onSetToken} />
           )}
           {activeTab === "preferences" && (
             <PreferencesTab token={token} onUpdateUser={onUpdateUser} onRestartTour={onRestartTour} userEmail={userEmail} />
@@ -84,7 +85,7 @@ export default function AccountPage({ token, onUpdateUser, onRestartTour, userEm
   );
 }
 
-function GeneralTab({ token, onUpdateUser }: { token: string | null; onUpdateUser: (u: UserUpdate) => void }) {
+function GeneralTab({ token, onUpdateUser, onSetToken }: { token: string | null; onUpdateUser: (u: UserUpdate) => void; onSetToken: (token: string) => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -174,7 +175,11 @@ function GeneralTab({ token, onUpdateUser }: { token: string | null; onUpdateUse
         body: JSON.stringify({ currentPassword, newPassword }),
       });
       if (res.ok) {
-        setPwMessage({ type: "success", text: "Password updated successfully" });
+        const data = await res.json().catch(() => ({}));
+        if (data && typeof data.token === "string") {
+          onSetToken(data.token);
+        }
+        setPwMessage({ type: "success", text: "Password updated successfully. Other devices have been signed out." });
         setCurrentPassword("");
         setNewPassword("");
         setConfirmPassword("");

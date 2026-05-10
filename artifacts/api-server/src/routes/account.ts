@@ -2,12 +2,13 @@ import { Router, type IRouter } from "express";
 import { getAuthUser } from "../middlewares/auth";
 import { db } from "@workspace/db";
 import { users, passwordResetTokens } from "@workspace/db/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { encrypt, decrypt } from "../lib/crypto";
 import * as OTPAuth from "otpauth";
 import QRCode from "qrcode";
 import { sendPasswordChangedNotice } from "../services/passwordResetMailer";
+import { signToken } from "../middlewares/auth";
 
 function redactEmail(email: string): string {
   const [local, domain] = email.split("@");
@@ -136,7 +137,12 @@ router.put("/account/password", async (req, res) => {
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
     const now = new Date();
-    await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
+    // Bump tokenVersion so JWT sessions on other devices are invalidated.
+    const [updatedUser] = await db
+      .update(users)
+      .set({ passwordHash, tokenVersion: sql`${users.tokenVersion} + 1` })
+      .where(eq(users.id, userId))
+      .returning({ tokenVersion: users.tokenVersion });
 
     // Invalidate any outstanding password reset tokens (defense in depth: an
     // attacker who triggered a reset link can no longer use it after the
@@ -167,7 +173,16 @@ router.put("/account/password", async (req, res) => {
       console.error(`[change-password] failed to send password-changed notice to ${redactEmail(user.email)}:`, noticeMsg);
     }
 
-    res.json({ message: "Password updated successfully" });
+    // Re-issue a fresh token so the requester stays signed in on this device.
+    const token = signToken({
+      userId,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      tokenVersion: updatedUser.tokenVersion,
+    });
+
+    res.json({ message: "Password updated successfully", token });
   } catch (err) {
     console.error("Update password error:", err);
     res.status(500).json({ message: "Failed to update password" });

@@ -188,6 +188,11 @@ export function useAuth() {
     });
   }, []);
 
+  const setToken = useCallback((newToken: string) => {
+    localStorage.setItem(TOKEN_KEY, newToken);
+    setState((s) => ({ ...s, token: newToken }));
+  }, []);
+
   const cancel2fa = useCallback(() => {
     setState((s) => ({ ...s, requires2fa: false, tempToken: null }));
   }, []);
@@ -204,5 +209,6 @@ export function useAuth() {
     register,
     logout,
     updateUser,
+    setToken,
   };
 }

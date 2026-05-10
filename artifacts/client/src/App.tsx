@@ -84,7 +84,7 @@ function AuthGate() {
   const {
     isAuthenticated, user, token,
     login, register, logout, verify2fa, cancel2fa,
-    isLoading, requires2fa, updateUser,
+    isLoading, requires2fa, updateUser, setToken,
   } = useAuth();
   const [resetRoute, setResetRoute] = useState(() => getResetTokenFromUrl());
   const [forgotRequested, setForgotRequested] = useState(false);
@@ -174,7 +174,7 @@ function AuthGate() {
   } else if (page === "chat") {
     content = <ChatPage />;
   } else if (page === "account") {
-    content = <AccountPage token={token} onUpdateUser={updateUser} onRestartTour={() => setShowTour(true)} userEmail={user?.email} />;
+    content = <AccountPage token={token} onUpdateUser={updateUser} onSetToken={setToken} onRestartTour={() => setShowTour(true)} userEmail={user?.email} />;
   } else {
     content = (
       <DashboardPage

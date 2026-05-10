@@ -15,6 +15,7 @@ export interface AuthPayload {
   email: string;
   name: string;
   role?: string;
+  tokenVersion?: number;
   tokenType?: "session" | "2fa_pending";
 }
 
@@ -38,29 +39,54 @@ export function verifyToken(token: string): AuthPayload {
   return jwt.verify(token, JWT_SECRET!) as AuthPayload;
 }
 
-export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const header = req.headers.authorization;
   if (!header?.startsWith("Bearer ")) {
     res.status(401).json({ message: "Authentication required" });
     return;
   }
 
+  let payload: AuthPayload;
   try {
     const token = header.slice(7);
-    const payload = verifyToken(token);
-    if (!payload.userId || typeof payload.userId !== "number") {
+    payload = verifyToken(token);
+  } catch {
+    res.status(401).json({ message: "Invalid or expired token" });
+    return;
+  }
+
+  if (!payload.userId || typeof payload.userId !== "number") {
+    res.status(401).json({ message: "Session expired. Please log in again." });
+    return;
+  }
+  if (payload.tokenType === "2fa_pending") {
+    res.status(403).json({ message: "Two-factor authentication required. Please verify your identity." });
+    return;
+  }
+
+  try {
+    const [user] = await db
+      .select({ tokenVersion: users.tokenVersion })
+      .from(users)
+      .where(eq(users.id, payload.userId))
+      .limit(1);
+    if (!user) {
       res.status(401).json({ message: "Session expired. Please log in again." });
       return;
     }
-    if (payload.tokenType === "2fa_pending") {
-      res.status(403).json({ message: "Two-factor authentication required. Please verify your identity." });
+    const tokenVersion = payload.tokenVersion ?? 0;
+    if (tokenVersion !== user.tokenVersion) {
+      res.status(401).json({ message: "Your session has been signed out. Please log in again." });
       return;
     }
-    (req as AuthenticatedRequest).user = payload;
-    next();
-  } catch {
-    res.status(401).json({ message: "Invalid or expired token" });
+  } catch (err) {
+    console.error("[requireAuth] failed to verify token version:", err);
+    res.status(500).json({ message: "Authentication check failed" });
+    return;
   }
+
+  (req as AuthenticatedRequest).user = payload;
+  next();
 }
 
 export async function requireAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {

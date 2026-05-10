@@ -97,7 +97,7 @@ router.post("/auth/register", async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 10);
     const [user] = await db.insert(users).values({ email: normalizedEmail, passwordHash, name }).returning();
 
-    const token = signToken({ userId: user.id, email: user.email, name: user.name, role: user.role });
+    const token = signToken({ userId: user.id, email: user.email, name: user.name, role: user.role, tokenVersion: user.tokenVersion });
 
     res.status(201).json({
       token,
@@ -158,7 +158,7 @@ router.post("/auth/login", async (req, res) => {
       return;
     }
 
-    const token = signToken({ userId: user.id, email: user.email, name: user.name, role: user.role });
+    const token = signToken({ userId: user.id, email: user.email, name: user.name, role: user.role, tokenVersion: user.tokenVersion });
 
     res.json({
       token,
@@ -230,7 +230,7 @@ router.post("/auth/verify-2fa", async (req, res) => {
 
     await db.update(users).set({ totpLastVerified: new Date() }).where(eq(users.id, user.id));
 
-    const token = signToken({ userId: user.id, email: user.email, name: user.name, role: user.role });
+    const token = signToken({ userId: user.id, email: user.email, name: user.name, role: user.role, tokenVersion: user.tokenVersion });
 
     res.json({
       token,
@@ -409,7 +409,11 @@ router.post("/auth/reset-password", async (req, res) => {
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
 
-    await db.update(users).set({ passwordHash }).where(eq(users.id, user.id));
+    // Bump tokenVersion so JWT sessions on other devices are invalidated.
+    await db
+      .update(users)
+      .set({ passwordHash, tokenVersion: sql`${users.tokenVersion} + 1` })
+      .where(eq(users.id, user.id));
 
     // Invalidate any other outstanding tokens for the user (defense in depth).
     await db
