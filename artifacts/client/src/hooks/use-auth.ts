@@ -149,8 +149,13 @@ export function useAuth() {
       });
 
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || "Registration failed");
+        const err = await res.json().catch(() => ({}));
+        setState((s) => ({ ...s, isLoading: false }));
+        return {
+          success: false as const,
+          error: err.message || "Registration failed",
+          field: typeof err.field === "string" ? err.field : undefined,
+        };
       }
 
       const data = await res.json();

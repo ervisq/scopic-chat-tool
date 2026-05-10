@@ -4,7 +4,7 @@ import { BrandLogo } from "@/components/brand-logo";
 
 interface LoginPageProps {
   onLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string; requires2fa?: boolean }>;
-  onRegister: (email: string, password: string, name: string) => Promise<{ success: boolean; error?: string }>;
+  onRegister: (email: string, password: string, name: string) => Promise<{ success: boolean; error?: string; field?: string }>;
   onVerify2fa: (code: string) => Promise<{ success: boolean; error?: string }>;
   onCancel2fa: () => void;
   isLoading: boolean;
@@ -13,6 +13,18 @@ interface LoginPageProps {
 }
 
 type Mode = "login" | "register" | "forgot";
+type FieldErrors = { email?: string; password?: string; name?: string };
+
+const ALLOWED_DOMAIN = "@scopicsoftware.com";
+
+function inferFieldFromMessage(msg: string): keyof FieldErrors | null {
+  const lower = msg.toLowerCase();
+  if (lower.includes("scopicsoftware.com") || lower.includes("email") && (lower.includes("domain") || lower.includes("allowed"))) return "email";
+  if (lower.includes("already exists")) return "email";
+  if (lower.includes("password") && lower.includes("6")) return "password";
+  if (lower.includes("name")) return "name";
+  return null;
+}
 
 export default function LoginPage({
   onLogin, onRegister, onVerify2fa, onCancel2fa, isLoading, requires2fa,
@@ -23,22 +35,54 @@ export default function LoginPage({
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [totpCode, setTotpCode] = useState("");
   const [forgotSent, setForgotSent] = useState(false);
   const [forgotSubmitting, setForgotSubmitting] = useState(false);
 
+  const setFieldError = (field: keyof FieldErrors, msg: string) => {
+    setFieldErrors((prev) => ({ ...prev, [field]: msg }));
+  };
+
+  const clearFieldErrors = () => setFieldErrors({});
+
+  const validateRegisterClientSide = (): { ok: boolean; topMessage?: string } => {
+    const next: FieldErrors = {};
+    if (!name.trim()) next.name = "Please enter your full name";
+    const normalized = email.trim().toLowerCase();
+    if (!normalized) {
+      next.email = "Email is required";
+    } else if (!normalized.endsWith(ALLOWED_DOMAIN)) {
+      next.email = `Use your ${ALLOWED_DOMAIN} email`;
+    }
+    if (!password) {
+      next.password = "Password is required";
+    } else if (password.length < 6) {
+      next.password = "Use at least 6 characters";
+    }
+    setFieldErrors(next);
+    if (Object.keys(next).length === 0) return { ok: true };
+    const first = next.email || next.password || next.name;
+    return { ok: false, topMessage: first };
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    clearFieldErrors();
 
     if (mode === "register") {
-      if (!name.trim()) {
-        setError("Name is required");
+      const local = validateRegisterClientSide();
+      if (!local.ok) {
+        setError(local.topMessage || "Please fix the errors below");
         return;
       }
       const result = await onRegister(email, password, name);
       if (!result.success) {
-        setError(result.error || "Registration failed");
+        const msg = result.error || "Registration failed";
+        setError(msg);
+        const field = (result.field as keyof FieldErrors | undefined) || inferFieldFromMessage(msg);
+        if (field) setFieldError(field, msg);
       }
     } else {
       const result = await onLogin(email, password);
@@ -91,6 +135,7 @@ export default function LoginPage({
   const goToMode = (next: Mode) => {
     setMode(next);
     setError("");
+    clearFieldErrors();
     setForgotSent(false);
   };
 
@@ -243,20 +288,58 @@ export default function LoginPage({
 
   const isRegister = mode === "register";
 
+  const tabBase = "flex-1 py-2 text-sm font-medium rounded-lg transition-colors text-center";
+  const tabActive = "bg-card text-primary shadow-sm";
+  const tabInactive = "text-muted-foreground hover:text-foreground";
+
+  const inputBase = "w-full px-3 py-2.5 rounded-xl border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 transition-all text-[15px]";
+  const inputOk = "border-border focus:ring-primary/20 focus:border-primary/40";
+  const inputErr = "border-destructive/60 focus:ring-destructive/20 focus:border-destructive";
+
   return (
     <div className="min-h-dvh flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           <BrandLogo variant="full" size="xl" className="mx-auto mb-6" />
+        </div>
+
+        <div
+          role="tablist"
+          aria-label="Sign in or create account"
+          className="flex p-1 rounded-xl bg-muted/60 border border-border mb-6"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!isRegister}
+            onClick={() => goToMode("login")}
+            className={`${tabBase} ${!isRegister ? tabActive : tabInactive}`}
+          >
+            Sign in
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={isRegister}
+            onClick={() => goToMode("register")}
+            className={`${tabBase} ${isRegister ? tabActive : tabInactive}`}
+          >
+            Create account
+          </button>
+        </div>
+
+        <div className="text-center mb-6">
           <h1 className="text-2xl font-bold text-foreground">
-            {isRegister ? "Create account" : "Welcome back"}
+            {isRegister ? "Create your account" : "Welcome back"}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {isRegister ? "Sign up to get started" : "Sign in to your dashboard"}
+            {isRegister
+              ? "@scopicsoftware.com emails only · password ≥ 6 characters"
+              : "Sign in to your dashboard"}
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           {error && (
             <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
               {error}
@@ -272,11 +355,18 @@ export default function LoginPage({
                 id="name"
                 type="text"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (fieldErrors.name) setFieldErrors((p) => ({ ...p, name: undefined }));
+                }}
                 placeholder="Your full name"
                 required
-                className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all text-[15px]"
+                aria-invalid={!!fieldErrors.name}
+                className={`${inputBase} ${fieldErrors.name ? inputErr : inputOk}`}
               />
+              {fieldErrors.name && (
+                <p className="mt-1 text-xs text-destructive">{fieldErrors.name}</p>
+              )}
             </div>
           )}
 
@@ -288,11 +378,18 @@ export default function LoginPage({
               id="email"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@company.com"
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (fieldErrors.email) setFieldErrors((p) => ({ ...p, email: undefined }));
+              }}
+              placeholder={isRegister ? "you@scopicsoftware.com" : "you@company.com"}
               required
-              className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all text-[15px]"
+              aria-invalid={!!fieldErrors.email}
+              className={`${inputBase} ${fieldErrors.email ? inputErr : inputOk}`}
             />
+            {fieldErrors.email && (
+              <p className="mt-1 text-xs text-destructive">{fieldErrors.email}</p>
+            )}
           </div>
 
           <div>
@@ -314,12 +411,19 @@ export default function LoginPage({
               id="password"
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={isRegister ? "Create a password" : "Enter your password"}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (fieldErrors.password) setFieldErrors((p) => ({ ...p, password: undefined }));
+              }}
+              placeholder={isRegister ? "At least 6 characters" : "Enter your password"}
               required
               minLength={6}
-              className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all text-[15px]"
+              aria-invalid={!!fieldErrors.password}
+              className={`${inputBase} ${fieldErrors.password ? inputErr : inputOk}`}
             />
+            {fieldErrors.password && (
+              <p className="mt-1 text-xs text-destructive">{fieldErrors.password}</p>
+            )}
           </div>
 
           <button

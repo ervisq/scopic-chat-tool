@@ -51,26 +51,35 @@ function needs2fa(user: User): boolean {
 router.post("/auth/register", async (req, res) => {
   try {
     const { email, password, name } = req.body;
+    const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+    const emailForLog = normalizedEmail ? redactEmail(normalizedEmail) : "(missing)";
 
     if (!email || !password || !name) {
-      res.status(400).json({ message: "Email, password, and name are required" });
+      const missing = [
+        !email && "email",
+        !password && "password",
+        !name && "name",
+      ].filter(Boolean).join(", ");
+      console.warn(`[register] rejected ${emailForLog}: missing fields (${missing})`);
+      res.status(400).json({ message: "Email, password, and name are required", field: !email ? "email" : !name ? "name" : "password" });
       return;
     }
 
-    const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
-
     if (!normalizedEmail || !normalizedEmail.endsWith(ALLOWED_EMAIL_DOMAIN)) {
-      res.status(400).json({ message: "Only @scopicsoftware.com email addresses are allowed to register" });
+      console.warn(`[register] rejected ${emailForLog}: wrong email domain (must end with ${ALLOWED_EMAIL_DOMAIN})`);
+      res.status(400).json({ message: "Only @scopicsoftware.com email addresses are allowed to register", field: "email" });
       return;
     }
 
     if (typeof password !== "string" || password.length < 6) {
-      res.status(400).json({ message: "Password must be at least 6 characters" });
+      console.warn(`[register] rejected ${emailForLog}: password too short (length=${typeof password === "string" ? password.length : 0})`);
+      res.status(400).json({ message: "Password must be at least 6 characters", field: "password" });
       return;
     }
     const existing = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
     if (existing.length > 0) {
-      res.status(409).json({ message: "An account with this email already exists" });
+      console.warn(`[register] rejected ${emailForLog}: account already exists`);
+      res.status(409).json({ message: "An account with this email already exists. Try signing in instead.", field: "email" });
       return;
     }
 
@@ -100,18 +109,30 @@ router.post("/auth/register", async (req, res) => {
 });
 
 router.post("/auth/login", async (req, res) => {
+  let parsed: { email: string; password: string };
   try {
-    const { email: rawEmail, password } = LoginBody.parse(req.body);
+    parsed = LoginBody.parse(req.body);
+  } catch (err: unknown) {
+    const rawEmail = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    console.warn(`[login] rejected ${rawEmail ? redactEmail(rawEmail) : "(missing)"}: invalid request body (${err instanceof Error ? err.message.split("\n")[0] : "parse error"})`);
+    res.status(400).json({ message: "Email and password are required" });
+    return;
+  }
+
+  try {
+    const { email: rawEmail, password } = parsed;
     const email = rawEmail.toLowerCase().trim();
 
     const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
     if (!user) {
+      console.warn(`[login] rejected ${email ? redactEmail(email) : "(missing)"}: no account with that email`);
       res.status(401).json({ message: "Invalid email or password" });
       return;
     }
 
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) {
+      console.warn(`[login] rejected ${redactEmail(email)}: wrong password`);
       res.status(401).json({ message: "Invalid email or password" });
       return;
     }
