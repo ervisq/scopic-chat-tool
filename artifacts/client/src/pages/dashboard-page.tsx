@@ -844,10 +844,12 @@ function OutlookPanel({
   calendarService,
   emailService,
   onViewMore,
+  onConnect,
 }: {
   calendarService: ServiceData | undefined;
   emailService: ServiceData | undefined;
   onViewMore: () => void;
+  onConnect: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<"emails" | "events">("emails");
 
@@ -1035,7 +1037,7 @@ function OutlookPanel({
           </>
         )}
 
-        {isConnected && (
+        {isConnected ? (
           <div className="flex gap-2 mt-4">
             <button
               onClick={onViewMore}
@@ -1053,6 +1055,14 @@ function OutlookPanel({
               <ExternalLink className="w-4 h-4" />
             </a>
           </div>
+        ) : (
+          <button
+            onClick={onConnect}
+            className="flex items-center justify-center gap-2 w-full mt-4 py-2.5 rounded-xl text-sm font-medium transition-colors bg-indigo-500 text-white hover:opacity-90"
+          >
+            <Link2 className="w-4 h-4" />
+            Connect Outlook
+          </button>
         )}
       </div>
     </div>
@@ -1877,6 +1887,7 @@ export default function DashboardPage({
                       calendarService={calendarService}
                       emailService={emailService}
                       onViewMore={openOutlookDrawer}
+                      onConnect={onOpenConnections}
                     />
                   )}
                 </div>
