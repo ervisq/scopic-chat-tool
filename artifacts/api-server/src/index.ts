@@ -1,5 +1,6 @@
 import app from "./app";
 import { getPasswordResetMailerStatus } from "./services/passwordResetMailer";
+import { startPasswordResetCleanupJob } from "./services/passwordResetCleanup";
 
 // Boot-time check: warn loudly if the password-reset email pipeline
 // isn't configured. Forgot-password requests will still respond with
@@ -38,3 +39,5 @@ if (Number.isNaN(port) || port <= 0) {
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
 });
+
+startPasswordResetCleanupJob();
