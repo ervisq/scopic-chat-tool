@@ -12,6 +12,7 @@ import ConnectionsPage from "@/pages/connections-page";
 import AccountPage from "@/pages/account-page";
 import OnboardingTour, { isTourCompleted, type TourStep } from "@/components/onboarding-tour";
 import { ToolVisibilityProvider } from "@/lib/tool-visibility";
+import { Toaster } from "@/components/ui/toaster";
 
 const TOUR_STEPS: TourStep[] = [
   {
@@ -215,6 +216,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthGate />
+      <Toaster />
     </QueryClientProvider>
   );
 }

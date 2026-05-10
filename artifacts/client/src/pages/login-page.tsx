@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ShieldCheck, ArrowLeft, Mail } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
+import { toast } from "@/hooks/use-toast";
 
 interface LoginPageProps {
   onLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string; requires2fa?: boolean }>;
@@ -83,6 +84,9 @@ export default function LoginPage({
         setError(msg);
         const field = (result.field as keyof FieldErrors | undefined) || inferFieldFromMessage(msg);
         if (field) setFieldError(field, msg);
+      } else {
+        const firstName = name.trim().split(/\s+/)[0] || "there";
+        toast({ title: `Welcome, ${firstName}!` });
       }
     } else {
       const result = await onLogin(email, password);
