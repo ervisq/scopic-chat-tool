@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
 import { getAuthUser } from "../middlewares/auth";
 import { db } from "@workspace/db";
-import { users } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { users, passwordResetTokens } from "@workspace/db/schema";
+import { eq, and, isNull } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { encrypt, decrypt } from "../lib/crypto";
 import * as OTPAuth from "otpauth";
@@ -123,6 +123,17 @@ router.put("/account/password", async (req, res) => {
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
+
+    // Invalidate any outstanding password reset tokens for this user so a
+    // stolen/in-flight reset link can't be used after the owner has just
+    // rotated their password.
+    await db
+      .update(passwordResetTokens)
+      .set({ usedAt: new Date() })
+      .where(and(
+        eq(passwordResetTokens.userId, userId),
+        isNull(passwordResetTokens.usedAt),
+      ));
 
     res.json({ message: "Password updated successfully" });
   } catch (err) {
