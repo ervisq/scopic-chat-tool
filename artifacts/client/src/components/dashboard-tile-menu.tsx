@@ -25,10 +25,10 @@ export function DashboardTileMenu({
   testId,
 }: DashboardTileMenuProps) {
   const disconnectDisabled = !connected || !canDisconnect;
-  const tooltip = !connected
-    ? "Not connected"
-    : !canDisconnect
-      ? disconnectDisabledReason || ""
+  const reason = !canDisconnect
+    ? disconnectDisabledReason
+    : !connected
+      ? "Not connected"
       : undefined;
 
   return (
@@ -53,11 +53,16 @@ export function DashboardTileMenu({
             }
             onDisconnect();
           }}
-          title={tooltip}
-          className="text-destructive focus:text-destructive"
+          title={reason}
+          className="text-destructive focus:text-destructive flex-col items-start gap-0.5"
         >
-          <Unplug className="w-4 h-4 mr-2" />
-          Disconnect
+          <span className="flex items-center">
+            <Unplug className="w-4 h-4 mr-2" />
+            Disconnect
+          </span>
+          {disconnectDisabled && reason && (
+            <span className="text-[11px] text-muted-foreground pl-6">{reason}</span>
+          )}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem

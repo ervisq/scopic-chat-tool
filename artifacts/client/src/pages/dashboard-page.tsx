@@ -26,6 +26,8 @@ import { safeExternalUrl } from "@/lib/utils";
 import { useToolVisibility } from "@/lib/tool-visibility";
 import { ToolVisibilityModal } from "@/components/tool-visibility-panel";
 import { ConnectServiceDialog } from "@/components/connect-service-dialog";
+import { DashboardTileMenu } from "@/components/dashboard-tile-menu";
+import { toast } from "@/hooks/use-toast";
 import {
   getProviderConfig,
   startOAuthConnect,
@@ -737,12 +739,16 @@ function WeeklyHoursPanel({
   connecting = false,
   connectingLabel = "Connecting…",
   tileError = null,
+  onDisconnect,
+  onHide,
 }: {
   service: ServiceData | undefined;
   onConnect: () => void;
   connecting?: boolean;
   connectingLabel?: string;
   tileError?: string | null;
+  onDisconnect: () => void;
+  onHide: () => void;
 }) {
   const totalHours = service?.summary?.totalHours ?? 0;
   const maxHours = 40;
@@ -781,6 +787,12 @@ function WeeklyHoursPanel({
               )}
             </div>
           </div>
+          <DashboardTileMenu
+            connected={isConnected}
+            onDisconnect={onDisconnect}
+            onHide={onHide}
+            testId="tile-menu-sts"
+          />
         </div>
 
         {isConnected && !hasError && service?.summary?.totalHours !== undefined ? (
@@ -875,11 +887,13 @@ function OutlookPanel({
   emailService,
   onViewMore,
   onConnect,
+  onHide,
 }: {
   calendarService: ServiceData | undefined;
   emailService: ServiceData | undefined;
   onViewMore: () => void;
   onConnect: () => void;
+  onHide: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<"emails" | "events">("emails");
 
@@ -924,6 +938,14 @@ function OutlookPanel({
               )}
             </div>
           </div>
+          <DashboardTileMenu
+            connected={isConnected}
+            canDisconnect={false}
+            disconnectDisabledReason="Managed by your administrator"
+            onDisconnect={() => {}}
+            onHide={onHide}
+            testId="tile-menu-outlook"
+          />
         </div>
 
         {notConfiguredMsg && (
@@ -1106,6 +1128,8 @@ function ServiceCard({
   connecting = false,
   connectingLabel = "Connecting…",
   tileError = null,
+  onDisconnect,
+  onHide,
 }: {
   service: ServiceData;
   onConnect: () => void;
@@ -1113,6 +1137,8 @@ function ServiceCard({
   connecting?: boolean;
   connectingLabel?: string;
   tileError?: string | null;
+  onDisconnect: () => void;
+  onHide: () => void;
 }) {
   const style = SERVICE_STYLES[service.key] || SERVICE_STYLES.jira;
 
@@ -1185,6 +1211,12 @@ function ServiceCard({
               </div>
             </div>
           </div>
+          <DashboardTileMenu
+            connected={service.connected}
+            onDisconnect={onDisconnect}
+            onHide={onHide}
+            testId={`tile-menu-${service.key}`}
+          />
         </div>
 
         {service.connected ? (
@@ -1791,7 +1823,7 @@ export default function DashboardPage({
   const [tileConnectingKey, setTileConnectingKey] = useState<string | null>(null);
   const [tileErrors, setTileErrors] = useState<Record<string, string>>({});
   const [dialogSaving, setDialogSaving] = useState(false);
-  const { isHidden, refreshConnectedTools } = useToolVisibility();
+  const { isHidden, setHidden, refreshConnectedTools } = useToolVisibility();
 
   const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -1833,6 +1865,56 @@ export default function DashboardPage({
       return;
     }
     setConnectDialogProvider(provider);
+  }
+
+  async function handleDisconnectTile(serviceKey: string) {
+    const providerKey = SERVICE_KEY_TO_PROVIDER_KEY[serviceKey];
+    if (!providerKey) return;
+    const service = services.find((s) => s.key === serviceKey);
+    const displayName = service?.name ?? providerKey;
+    if (providerKey === "zoho") {
+      const ok = window.confirm(
+        "Disconnecting Zoho will disconnect Zoho People, CRM, Recruit and Contracts. Continue?",
+      );
+      if (!ok) return;
+    }
+    setTileErrors((prev) => {
+      if (!(serviceKey in prev)) return prev;
+      const { [serviceKey]: _removed, ...rest } = prev;
+      return rest;
+    });
+    try {
+      const res = await fetch(`${baseUrl}/api/credentials/${providerKey}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to disconnect");
+      setConnectMessage({ type: "success", text: `${displayName} disconnected` });
+      await fetchDashboard();
+      refreshConnectedTools();
+    } catch {
+      const msg = `Failed to disconnect ${displayName}`;
+      setTileErrors((prev) => ({ ...prev, [serviceKey]: msg }));
+      toast({ variant: "destructive", title: "Disconnect failed", description: msg });
+    }
+  }
+
+  async function handleHideTile(serviceKey: string) {
+    const toolName = SERVICE_KEY_TO_TOOL_NAME[serviceKey];
+    if (!toolName) return;
+    try {
+      await setHidden(toolName, true);
+      toast({
+        title: `${toolName} hidden`,
+        description: "Manage in Settings → Tool visibility.",
+      });
+    } catch {
+      toast({
+        variant: "destructive",
+        title: "Could not hide tool",
+        description: "Please try again.",
+      });
+    }
   }
 
   function handleDialogConnected() {
@@ -2002,6 +2084,8 @@ export default function DashboardPage({
                         connecting={isTileConnecting(service.key)}
                         connectingLabel={tileConnectingLabel(service.key)}
                         tileError={tileErrors[service.key] ?? null}
+                        onDisconnect={() => handleDisconnectTile(service.key)}
+                        onHide={() => handleHideTile(service.key)}
                       />
                     ))}
                   </div>
@@ -2017,6 +2101,8 @@ export default function DashboardPage({
                       connecting={isTileConnecting("sts")}
                       connectingLabel={tileConnectingLabel("sts")}
                       tileError={tileErrors.sts ?? null}
+                      onDisconnect={() => handleDisconnectTile("sts")}
+                      onHide={() => handleHideTile("sts")}
                     />
                   )}
                   {showOutlookPanel && (
@@ -2025,6 +2111,7 @@ export default function DashboardPage({
                       emailService={emailService}
                       onViewMore={openOutlookDrawer}
                       onConnect={onOpenConnections}
+                      onHide={() => handleHideTile("outlook_email")}
                     />
                   )}
                 </div>
