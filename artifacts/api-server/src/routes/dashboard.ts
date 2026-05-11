@@ -15,9 +15,7 @@ import { getUpcomingEvents } from "../services/outlookCalendarService";
 import type { ZohoLeaveRequest, ZohoEmployee } from "../services/zohoPeopleService";
 import type { ZohoDeal, ZohoLead, ZohoTask } from "../services/zohoCrmService";
 import type { RecruitInterview } from "../services/zohoRecruitService";
-import { db } from "@workspace/db";
-import { users } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { getCachedDashboard, setCachedDashboard } from "../lib/dashboard-cache";
 
 const router: IRouter = Router();
 
@@ -44,7 +42,17 @@ async function getZohoTokens(userId: number) {
 
 router.get("/dashboard", async (req, res) => {
   try {
-    const { userId } = getAuthUser(req);
+    const auth = getAuthUser(req);
+    const { userId } = auth;
+
+    if (req.query.fresh !== "1") {
+      const cached = getCachedDashboard(userId);
+      if (cached) {
+        res.json(cached);
+        return;
+      }
+    }
+
     const connections = await listUserConnections(userId);
 
     const connMap = new Map(connections.map((c) => [c.provider, c]));
@@ -412,6 +420,7 @@ router.get("/dashboard", async (req, res) => {
                 zohoTokens.clientSecret,
                 zohoTokens.refreshToken,
                 "https://accounts.zoho.com",
+                { limit: 50 },
               );
               const all = result.contracts || [];
               const activeContracts = all.filter((c) =>
@@ -616,8 +625,7 @@ router.get("/dashboard", async (req, res) => {
     }
 
     if (isGraphConfigured()) {
-      const [userRow] = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).limit(1);
-      const userEmail = userRow?.email;
+      const userEmail = auth.email;
 
       if (userEmail) {
         const client = getGraphClient();
@@ -727,7 +735,9 @@ router.get("/dashboard", async (req, res) => {
     const order = ["outlook_email", "outlook_calendar", "jira", "zoho", "zoho_people", "zoho_crm", "zoho_recruit", "zoho_contracts", "sts", "teamwork"];
     services.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
 
-    res.json({ services });
+    const payload = { services };
+    setCachedDashboard(userId, payload);
+    res.json(payload);
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error("Dashboard error:", msg);

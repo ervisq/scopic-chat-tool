@@ -20,6 +20,7 @@ import {
   CalendarClock,
   BarChart3,
   Settings,
+  RefreshCw,
 } from "lucide-react";
 import { JiraIcon, TeamworkIcon, OutlookIcon, ZohoIcon, StsIcon } from "../components/chat/tool-icons";
 import { safeExternalUrl } from "@/lib/utils";
@@ -1822,8 +1823,32 @@ export default function DashboardPage({
   onOpenChat,
   onOpenConnections,
 }: DashboardPageProps) {
-  const [services, setServices] = useState<ServiceData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const dashboardCacheKey = `dashboardCache:${user?.email || "anon"}`;
+  const [services, setServices] = useState<ServiceData[]>(() => {
+    try {
+      const raw = localStorage.getItem(dashboardCacheKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { services?: ServiceData[] };
+        if (Array.isArray(parsed.services) && parsed.services.length > 0) return parsed.services;
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      const raw = localStorage.getItem(dashboardCacheKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { services?: ServiceData[] };
+        if (Array.isArray(parsed.services) && parsed.services.length > 0) return false;
+      }
+    } catch {
+      // ignore
+    }
+    return true;
+  });
+  const [refreshing, setRefreshing] = useState(false);
   const [drawerService, setDrawerService] = useState<ServiceData | null>(null);
   const [toolSettingsOpen, setToolSettingsOpen] = useState(false);
   const [connectDialogProvider, setConnectDialogProvider] = useState<ProviderConfig | null>(null);
@@ -1898,7 +1923,7 @@ export default function DashboardPage({
       });
       if (!res.ok) throw new Error("Failed to disconnect");
       setConnectMessage({ type: "success", text: `${displayName} disconnected` });
-      await fetchDashboard();
+      await fetchDashboard({ fresh: true });
       refreshConnectedTools();
     } catch {
       const msg = `Failed to disconnect ${displayName}`;
@@ -1941,7 +1966,7 @@ export default function DashboardPage({
   function handleDialogConnected() {
     setConnectMessage({ type: "success", text: `${connectDialogProvider?.name ?? "Service"} connected successfully` });
     refreshConnectedTools();
-    fetchDashboard();
+    fetchDashboard({ fresh: true });
   }
 
   function isTileConnecting(serviceKey: string): boolean {
@@ -2004,23 +2029,31 @@ export default function DashboardPage({
     }
   }
 
-  async function fetchDashboard() {
+  async function fetchDashboard(opts: { fresh?: boolean } = {}) {
+    setRefreshing(true);
     try {
-      const res = await fetch(`${baseUrl}/api/dashboard`, {
+      const url = `${baseUrl}/api/dashboard${opts.fresh ? "?fresh=1" : ""}`;
+      const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
         const data = await res.json();
         const fetched: ServiceData[] = data.services?.length ? data.services : defaultServices;
         setServices(fetched);
+        try {
+          localStorage.setItem(dashboardCacheKey, JSON.stringify({ services: fetched }));
+        } catch {
+          // ignore quota errors
+        }
         await autoHideInaccessibleZoho(fetched);
-      } else {
+      } else if (services.length === 0) {
         setServices(defaultServices);
       }
     } catch {
-      setServices(defaultServices);
+      if (services.length === 0) setServices(defaultServices);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }
 
@@ -2113,15 +2146,27 @@ export default function DashboardPage({
           <LayoutDashboard className="w-5 h-5 text-primary" />
           <h1 className="text-base font-semibold text-foreground">Dashboard</h1>
         </div>
-        <button
-          type="button"
-          onClick={() => setToolSettingsOpen(true)}
-          aria-label="Tool visibility"
-          title="Tool visibility"
-          className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-        >
-          <Settings className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => fetchDashboard({ fresh: true })}
+            disabled={refreshing}
+            aria-label="Refresh dashboard"
+            title={refreshing ? "Refreshing…" : "Refresh dashboard"}
+            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-60"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setToolSettingsOpen(true)}
+            aria-label="Tool visibility"
+            title="Tool visibility"
+            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+        </div>
       </header>
 
       <div className="flex-1 overflow-y-auto">

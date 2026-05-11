@@ -37,6 +37,7 @@ export interface ContractsSearchOptions {
   dateRangeStart?: string;
   dateRangeEnd?: string;
   dateField?: string;
+  limit?: number;
 }
 
 const DEFAULT_LIMIT = 200;
@@ -75,9 +76,10 @@ function mapContract(r: Record<string, unknown>): ZohoContract {
 async function fetchAllContracts(
   accessToken: string,
   contractsBase: string,
+  limit: number = DEFAULT_LIMIT,
 ): Promise<ZohoContract[]> {
   const response = await axios.get(`${contractsBase}/contracts`, {
-    params: { limit: DEFAULT_LIMIT },
+    params: { limit },
     headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
   });
 
@@ -188,7 +190,8 @@ export async function queryZohoContracts(
   console.log(`[ZohoContracts] searchEntity: ${searchEntity || "(none)"}, statusFilter: ${statusFilter || "(none)"}, ownerFilter: ${wantOwnerFilter}, dateFilter: ${hasDateFilter ? `${dateField} ${dateStart}→${dateEnd}` : "none"}`);
 
   try {
-    const allContracts = await fetchAllContracts(accessToken, contractsBase);
+    const fetchLimit = options?.limit && options.limit > 0 ? Math.min(options.limit, DEFAULT_LIMIT) : DEFAULT_LIMIT;
+    const allContracts = await fetchAllContracts(accessToken, contractsBase, fetchLimit);
     console.log(`[ZohoContracts] Fetched ${allContracts.length} contracts`);
     let filtered = allContracts;
 
