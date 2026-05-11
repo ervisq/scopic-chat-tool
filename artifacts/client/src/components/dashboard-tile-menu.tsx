@@ -1,4 +1,4 @@
-import { MoreVertical, EyeOff, Unplug } from "lucide-react";
+import { MoreVertical, EyeOff, Unplug, Pencil } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,6 +12,7 @@ interface DashboardTileMenuProps {
   canDisconnect?: boolean;
   disconnectDisabledReason?: string;
   onDisconnect: () => void;
+  onUpdate?: () => void;
   onHide: () => void;
   testId?: string;
 }
@@ -21,6 +22,7 @@ export function DashboardTileMenu({
   canDisconnect = true,
   disconnectDisabledReason,
   onDisconnect,
+  onUpdate,
   onHide,
   testId,
 }: DashboardTileMenuProps) {
@@ -30,6 +32,8 @@ export function DashboardTileMenu({
     : !connected
       ? "Not connected"
       : undefined;
+  const updateDisabled = !connected;
+  const updateReason = !connected ? "Not connected" : undefined;
 
   return (
     <DropdownMenu>
@@ -64,6 +68,28 @@ export function DashboardTileMenu({
             <span className="text-[11px] text-muted-foreground pl-6">{reason}</span>
           )}
         </DropdownMenuItem>
+        {onUpdate && (
+          <DropdownMenuItem
+            disabled={updateDisabled}
+            onSelect={(e) => {
+              if (updateDisabled) {
+                e.preventDefault();
+                return;
+              }
+              onUpdate();
+            }}
+            title={updateReason}
+            className="flex-col items-start gap-0.5"
+          >
+            <span className="flex items-center">
+              <Pencil className="w-4 h-4 mr-2" />
+              Update connection
+            </span>
+            {updateDisabled && updateReason && (
+              <span className="text-[11px] text-muted-foreground pl-6">{updateReason}</span>
+            )}
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onSelect={(e) => {

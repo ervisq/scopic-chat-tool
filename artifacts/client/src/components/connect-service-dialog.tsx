@@ -19,6 +19,7 @@ interface ConnectServiceDialogProps {
   onOpenChange: (open: boolean) => void;
   onConnected: () => void;
   onSavingChange?: (saving: boolean) => void;
+  mode?: "connect" | "update";
 }
 
 export function ConnectServiceDialog({
@@ -28,7 +29,9 @@ export function ConnectServiceDialog({
   onOpenChange,
   onConnected,
   onSavingChange,
+  mode = "connect",
 }: ConnectServiceDialogProps) {
+  const isUpdate = mode === "update";
   const [creds, setCreds] = useState<Record<string, string>>({});
   const [instanceUrl, setInstanceUrl] = useState<string>("");
   const [saving, setSaving] = useState(false);
@@ -88,8 +91,14 @@ export function ConnectServiceDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Connect {provider.name}</DialogTitle>
-          <DialogDescription>{provider.description}</DialogDescription>
+          <DialogTitle>
+            {isUpdate ? `Update ${provider.name} connection` : `Connect ${provider.name}`}
+          </DialogTitle>
+          <DialogDescription>
+            {isUpdate
+              ? "Enter your new credentials below to replace the ones currently saved."
+              : provider.description}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 pt-2">
@@ -163,7 +172,7 @@ export function ConnectServiceDialog({
               className="text-xs px-4 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-1.5"
             >
               {saving && <Loader2 className="w-3 h-3 animate-spin" />}
-              Save
+              {isUpdate ? "Update" : "Save"}
             </button>
           </div>
         </div>

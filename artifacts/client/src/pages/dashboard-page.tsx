@@ -756,6 +756,7 @@ function WeeklyHoursPanel({
   connectingLabel = "Connecting…",
   tileError = null,
   onDisconnect,
+  onUpdate,
   onHide,
 }: {
   service: ServiceData | undefined;
@@ -764,6 +765,7 @@ function WeeklyHoursPanel({
   connectingLabel?: string;
   tileError?: string | null;
   onDisconnect: () => void;
+  onUpdate?: () => void;
   onHide: () => void;
 }) {
   const totalHours = service?.summary?.totalHours ?? 0;
@@ -806,6 +808,7 @@ function WeeklyHoursPanel({
           <DashboardTileMenu
             connected={isConnected}
             onDisconnect={onDisconnect}
+            onUpdate={onUpdate}
             onHide={onHide}
             testId="tile-menu-sts"
           />
@@ -1145,6 +1148,7 @@ function ServiceCard({
   connectingLabel = "Connecting…",
   tileError = null,
   onDisconnect,
+  onUpdate,
   onHide,
 }: {
   service: ServiceData;
@@ -1154,6 +1158,7 @@ function ServiceCard({
   connectingLabel?: string;
   tileError?: string | null;
   onDisconnect: () => void;
+  onUpdate?: () => void;
   onHide: () => void;
 }) {
   const style = SERVICE_STYLES[service.key] || SERVICE_STYLES.jira;
@@ -1245,6 +1250,7 @@ function ServiceCard({
           <DashboardTileMenu
             connected={service.connected}
             onDisconnect={onDisconnect}
+            onUpdate={onUpdate}
             onHide={onHide}
             testId={`tile-menu-${service.key}`}
           />
@@ -1852,6 +1858,7 @@ export default function DashboardPage({
   const [drawerService, setDrawerService] = useState<ServiceData | null>(null);
   const [toolSettingsOpen, setToolSettingsOpen] = useState(false);
   const [connectDialogProvider, setConnectDialogProvider] = useState<ProviderConfig | null>(null);
+  const [connectDialogMode, setConnectDialogMode] = useState<"connect" | "update">("connect");
   const [connectMessage, setConnectMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [tileConnectingKey, setTileConnectingKey] = useState<string | null>(null);
   const [tileErrors, setTileErrors] = useState<Record<string, string>>({});
@@ -1897,6 +1904,25 @@ export default function DashboardPage({
       }
       return;
     }
+    setConnectDialogMode("connect");
+    setConnectDialogProvider(provider);
+  }
+
+  async function handleTileUpdate(serviceKey: string) {
+    const providerKey = SERVICE_KEY_TO_PROVIDER_KEY[serviceKey];
+    if (!providerKey) return;
+    const provider = getProviderConfig(providerKey);
+    if (!provider) return;
+    if (provider.oauth) {
+      await handleTileConnect(serviceKey);
+      return;
+    }
+    setTileErrors((prev) => {
+      if (!(serviceKey in prev)) return prev;
+      const { [serviceKey]: _removed, ...rest } = prev;
+      return rest;
+    });
+    setConnectDialogMode("update");
     setConnectDialogProvider(provider);
   }
 
@@ -1964,7 +1990,14 @@ export default function DashboardPage({
   }
 
   function handleDialogConnected() {
-    setConnectMessage({ type: "success", text: `${connectDialogProvider?.name ?? "Service"} connected successfully` });
+    const name = connectDialogProvider?.name ?? "Service";
+    setConnectMessage({
+      type: "success",
+      text:
+        connectDialogMode === "update"
+          ? `${name} connection updated successfully`
+          : `${name} connected successfully`,
+    });
     refreshConnectedTools();
     fetchDashboard({ fresh: true });
   }
@@ -2216,6 +2249,7 @@ export default function DashboardPage({
                         connectingLabel={tileConnectingLabel(service.key)}
                         tileError={tileErrors[service.key] ?? null}
                         onDisconnect={() => handleDisconnectTile(service.key)}
+                        onUpdate={() => handleTileUpdate(service.key)}
                         onHide={() => handleHideTile(service.key)}
                       />
                     ))}
@@ -2233,6 +2267,7 @@ export default function DashboardPage({
                       connectingLabel={tileConnectingLabel("sts")}
                       tileError={tileErrors.sts ?? null}
                       onDisconnect={() => handleDisconnectTile("sts")}
+                      onUpdate={() => handleTileUpdate("sts")}
                       onHide={() => handleHideTile("sts")}
                     />
                   )}
@@ -2272,10 +2307,14 @@ export default function DashboardPage({
         token={token}
         open={connectDialogProvider !== null}
         onOpenChange={(open) => {
-          if (!open) setConnectDialogProvider(null);
+          if (!open) {
+            setConnectDialogProvider(null);
+            setConnectDialogMode("connect");
+          }
         }}
         onConnected={handleDialogConnected}
         onSavingChange={setDialogSaving}
+        mode={connectDialogMode}
       />
       {connectMessage && (
         <div className="fixed bottom-6 right-6 z-50 max-w-sm">
