@@ -28,6 +28,8 @@ interface ServiceSummary {
   instanceUrl?: string | null;
   summary?: Record<string, unknown>;
   error?: string;
+  accessible?: boolean;
+  suite?: boolean;
 }
 
 async function getZohoTokens(userId: number) {
@@ -101,6 +103,7 @@ router.get("/dashboard", async (req, res) => {
     }
 
     const zohoConn = connMap.get("zoho");
+    services.push({ key: "zoho", name: "Zoho", connected: !!zohoConn, suite: true });
     if (zohoConn) {
       const zohoTokens = await getZohoTokens(userId);
       if (!zohoTokens) {
@@ -108,24 +111,28 @@ router.get("/dashboard", async (req, res) => {
           key: "zoho_people",
           name: "Zoho People",
           connected: true,
+          accessible: true,
           summary: { status: "Reconnect needed — token expired" },
         });
         services.push({
           key: "zoho_crm",
           name: "Zoho CRM",
           connected: true,
+          accessible: true,
           summary: { status: "Reconnect needed — token expired" },
         });
         services.push({
           key: "zoho_recruit",
           name: "Zoho Recruit",
           connected: true,
+          accessible: true,
           summary: { status: "Reconnect needed — token expired" },
         });
         services.push({
           key: "zoho_contracts",
           name: "Zoho Contracts",
           connected: true,
+          accessible: true,
           summary: { status: "Reconnect needed — token expired" },
         });
       } else {
@@ -157,6 +164,7 @@ router.get("/dashboard", async (req, res) => {
                 key: "zoho_people",
                 name: "Zoho People",
                 connected: true,
+                accessible: true,
                 summary: {
                   status: statusParts.join(" · ") || "Connected",
                   employeeCount,
@@ -178,12 +186,15 @@ router.get("/dashboard", async (req, res) => {
                   })),
                 },
               });
-            } catch {
+            } catch (err: unknown) {
+              const isPerm = err instanceof ZohoPermissionError;
               services.push({
                 key: "zoho_people",
                 name: "Zoho People",
                 connected: true,
-                summary: { status: "Connected" },
+                accessible: !isPerm,
+                summary: isPerm ? undefined : { status: "Connected" },
+                error: isPerm ? "People access not granted — reconnect Zoho with People permissions." : undefined,
               });
             }
           })(),
@@ -260,6 +271,7 @@ router.get("/dashboard", async (req, res) => {
                 key: "zoho_crm",
                 name: "Zoho CRM",
                 connected: true,
+                accessible: true,
                 summary: {
                   status: statusParts.join(" · ") || "Connected",
                   leadCount: totalLeads,
@@ -292,12 +304,15 @@ router.get("/dashboard", async (req, res) => {
                   })),
                 },
               });
-            } catch {
+            } catch (err: unknown) {
+              const isPerm = err instanceof ZohoPermissionError;
               services.push({
                 key: "zoho_crm",
                 name: "Zoho CRM",
                 connected: true,
-                summary: { status: "Connected" },
+                accessible: !isPerm,
+                summary: isPerm ? undefined : { status: "Connected" },
+                error: isPerm ? "CRM access not granted — reconnect Zoho with CRM permissions." : undefined,
               });
             }
           })(),
@@ -340,6 +355,7 @@ router.get("/dashboard", async (req, res) => {
                 key: "zoho_recruit",
                 name: "Zoho Recruit",
                 connected: true,
+                accessible: true,
                 summary: {
                   status: `${openJobs.length} open position${openJobs.length !== 1 ? "s" : ""}, ${allCandidates.length} candidate${allCandidates.length !== 1 ? "s" : ""}${upcomingInterviews.length ? `, ${upcomingInterviews.length} interview${upcomingInterviews.length !== 1 ? "s" : ""} this week` : ""}`,
                   openPositions: openJobs.length,
@@ -378,6 +394,7 @@ router.get("/dashboard", async (req, res) => {
                 key: "zoho_recruit",
                 name: "Zoho Recruit",
                 connected: true,
+                accessible: !isPerm,
                 error: isPerm
                   ? "Recruit access not granted — reconnect Zoho with Recruit permissions."
                   : "Could not load Recruit data",
@@ -427,6 +444,7 @@ router.get("/dashboard", async (req, res) => {
                 key: "zoho_contracts",
                 name: "Zoho Contracts",
                 connected: true,
+                accessible: true,
                 summary: {
                   status: `${activeContracts.length} active${expiring.length ? `, ${expiring.length} expiring soon` : ""}`,
                   activeCount: activeContracts.length,
@@ -451,6 +469,7 @@ router.get("/dashboard", async (req, res) => {
                 key: "zoho_contracts",
                 name: "Zoho Contracts",
                 connected: true,
+                accessible: !isPerm,
                 error: isPerm
                   ? "Contracts access not granted — reconnect Zoho with Contracts permissions."
                   : "Could not load Contracts data",
@@ -460,10 +479,10 @@ router.get("/dashboard", async (req, res) => {
         );
       }
     } else {
-      services.push({ key: "zoho_people", name: "Zoho People", connected: false });
-      services.push({ key: "zoho_crm", name: "Zoho CRM", connected: false });
-      services.push({ key: "zoho_recruit", name: "Zoho Recruit", connected: false });
-      services.push({ key: "zoho_contracts", name: "Zoho Contracts", connected: false });
+      services.push({ key: "zoho_people", name: "Zoho People", connected: false, accessible: true });
+      services.push({ key: "zoho_crm", name: "Zoho CRM", connected: false, accessible: true });
+      services.push({ key: "zoho_recruit", name: "Zoho Recruit", connected: false, accessible: true });
+      services.push({ key: "zoho_contracts", name: "Zoho Contracts", connected: false, accessible: true });
     }
 
     const stsConn = connMap.get("sts");
@@ -705,7 +724,7 @@ router.get("/dashboard", async (req, res) => {
 
     await Promise.all(promises);
 
-    const order = ["outlook_email", "outlook_calendar", "jira", "zoho_people", "zoho_crm", "zoho_recruit", "zoho_contracts", "sts", "teamwork"];
+    const order = ["outlook_email", "outlook_calendar", "jira", "zoho", "zoho_people", "zoho_crm", "zoho_recruit", "zoho_contracts", "sts", "teamwork"];
     services.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
 
     res.json({ services });

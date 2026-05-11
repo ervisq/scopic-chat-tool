@@ -46,6 +46,9 @@ const SERVICE_KEY_TO_TOOL_NAME: Record<string, string> = {
   outlook_calendar: "Outlook",
 };
 
+const ZOHO_SUB_KEYS = ["zoho_people", "zoho_crm", "zoho_recruit", "zoho_contracts"] as const;
+const ZOHO_SUB_TOOL_NAMES = ["ZohoPeople", "ZohoCRM", "ZohoRecruit", "ZohoContracts"] as const;
+
 interface DashboardPageProps {
   user: { email: string; name: string } | null;
   token: string | null;
@@ -199,6 +202,8 @@ interface ServiceData {
   key: string;
   name: string;
   connected: boolean;
+  accessible?: boolean;
+  suite?: boolean;
   instanceUrl?: string | null;
   summary?: {
     totalTickets?: number;
@@ -306,6 +311,13 @@ const SERVICE_STYLES: Record<
     borderColor: "border-teal-500/20",
     Icon: ZohoIcon,
   },
+  zoho: {
+    color: "bg-amber-500",
+    bgColor: "bg-amber-500/10",
+    textColor: "text-amber-600 dark:text-amber-400",
+    borderColor: "border-amber-500/20",
+    Icon: ZohoIcon,
+  },
   sts: {
     color: "bg-emerald-500",
     bgColor: "bg-emerald-500/10",
@@ -342,6 +354,7 @@ const EXTERNAL_URLS: Record<string, (instanceUrl?: string | null) => string> = {
   zoho_crm: () => "https://crm.zoho.com",
   zoho_recruit: () => "https://recruit.zoho.com",
   zoho_contracts: () => "https://contracts.zoho.com",
+  zoho: () => "https://www.zoho.com",
   sts: (instanceUrl) => instanceUrl || "https://time.scopicsoftware.com",
   teamwork: (instanceUrl) => instanceUrl || "https://www.teamwork.com",
 };
@@ -1800,6 +1813,7 @@ function ServiceDrawer({
 
 const SERVICE_KEY_TO_PROVIDER_KEY: Record<string, string> = {
   jira: "jira",
+  zoho: "zoho",
   zoho_people: "zoho",
   zoho_crm: "zoho",
   zoho_recruit: "zoho",
@@ -1900,13 +1914,23 @@ export default function DashboardPage({
   }
 
   async function handleHideTile(serviceKey: string) {
-    const toolName = SERVICE_KEY_TO_TOOL_NAME[serviceKey];
-    if (!toolName) return;
+    const toolNames: string[] =
+      serviceKey === "zoho"
+        ? [...ZOHO_SUB_TOOL_NAMES]
+        : SERVICE_KEY_TO_TOOL_NAME[serviceKey]
+          ? [SERVICE_KEY_TO_TOOL_NAME[serviceKey]]
+          : [];
+    if (toolNames.length === 0) return;
     const service = services.find((s) => s.key === serviceKey);
     const displayLabel =
-      service?.name ?? (serviceKey.startsWith("outlook") ? "Outlook" : toolName);
+      service?.name ??
+      (serviceKey === "zoho"
+        ? "Zoho"
+        : serviceKey.startsWith("outlook")
+          ? "Outlook"
+          : toolNames[0]);
     try {
-      await setHidden(toolName, true);
+      await Promise.all(toolNames.map((t) => setHidden(t, true)));
       toast({
         title: `${displayLabel} hidden`,
         description: "Manage in Settings → Tool visibility.",
@@ -1953,10 +1977,11 @@ export default function DashboardPage({
     { key: "outlook_email", name: "Outlook Email", connected: false },
     { key: "outlook_calendar", name: "Outlook Calendar", connected: false },
     { key: "jira", name: "JIRA", connected: false },
-    { key: "zoho_people", name: "Zoho People", connected: false },
-    { key: "zoho_crm", name: "Zoho CRM", connected: false },
-    { key: "zoho_recruit", name: "Zoho Recruit", connected: false },
-    { key: "zoho_contracts", name: "Zoho Contracts", connected: false },
+    { key: "zoho", name: "Zoho", connected: false, suite: true },
+    { key: "zoho_people", name: "Zoho People", connected: false, accessible: true },
+    { key: "zoho_crm", name: "Zoho CRM", connected: false, accessible: true },
+    { key: "zoho_recruit", name: "Zoho Recruit", connected: false, accessible: true },
+    { key: "zoho_contracts", name: "Zoho Contracts", connected: false, accessible: true },
     { key: "sts", name: "STS", connected: false },
     { key: "teamwork", name: "Teamwork", connected: false },
   ];
@@ -1996,6 +2021,7 @@ export default function DashboardPage({
   }
 
   const isServiceHidden = (key: string) => {
+    if (key === "zoho") return ZOHO_SUB_TOOL_NAMES.every((t) => isHidden(t));
     const toolName = SERVICE_KEY_TO_TOOL_NAME[key];
     return toolName ? isHidden(toolName) : false;
   };
@@ -2014,12 +2040,48 @@ export default function DashboardPage({
   const emailService = !isHidden("Outlook")
     ? services.find((s) => s.key === "outlook_email")
     : undefined;
-  const mainServices = visibleServices.filter(
-    (s) => s.key !== "sts" && s.key !== "outlook_calendar" && s.key !== "outlook_email"
-  );
+  const mainServices = useMemo(() => {
+    const base = visibleServices.filter(
+      (s) =>
+        s.key !== "sts" &&
+        s.key !== "outlook_calendar" &&
+        s.key !== "outlook_email" &&
+        s.key !== "zoho" &&
+        !ZOHO_SUB_KEYS.includes(s.key as typeof ZOHO_SUB_KEYS[number]),
+    );
+
+    const zohoSuite = services.find((s) => s.key === "zoho");
+    const allZohoHidden = ZOHO_SUB_TOOL_NAMES.every((t) => isHidden(t));
+    if (!zohoSuite || allZohoHidden) return base;
+
+    const subServices = services.filter((s) =>
+      ZOHO_SUB_KEYS.includes(s.key as typeof ZOHO_SUB_KEYS[number]),
+    );
+    const accessibleVisibleSubs = subServices.filter(
+      (s) => s.accessible !== false && !isHidden(SERVICE_KEY_TO_TOOL_NAME[s.key]),
+    );
+
+    if (!zohoSuite.connected) {
+      base.push(zohoSuite);
+    } else if (accessibleVisibleSubs.length === 0) {
+      base.push({
+        ...zohoSuite,
+        connected: true,
+        error:
+          "Connected, but your Zoho account doesn't have access to People, CRM, Recruit or Contracts.",
+      });
+    } else {
+      base.push(...accessibleVisibleSubs);
+    }
+    return base;
+  }, [services, visibleServices, isHidden]);
   const showOutlookPanel = !isHidden("Outlook");
   const showStsPanel = !isHidden("STS");
-  const connectedCount = services.filter((s) => s.connected).length;
+  const connectedCount = services.filter(
+    (s) =>
+      s.connected &&
+      !ZOHO_SUB_KEYS.includes(s.key as typeof ZOHO_SUB_KEYS[number]),
+  ).length;
   const hasAnyVisibleWidget =
     mainServices.length > 0 || showStsPanel || showOutlookPanel;
 
