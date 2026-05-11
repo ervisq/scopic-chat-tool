@@ -357,6 +357,8 @@ const EXTERNAL_URLS: Record<string, (instanceUrl?: string | null) => string> = {
   zoho: () => "https://www.zoho.com",
   sts: (instanceUrl) => instanceUrl || "https://time.scopicsoftware.com",
   teamwork: (instanceUrl) => instanceUrl || "https://www.teamwork.com",
+  outlook_email: () => "https://outlook.office.com/mail",
+  outlook_calendar: () => "https://outlook.office.com/calendar",
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -1208,7 +1210,22 @@ function ServiceCard({
               <style.Icon className="w-7 h-7" />
             </div>
             <div>
-              <h3 className="font-semibold text-foreground text-base">{service.name}</h3>
+              <div className="flex items-center gap-1.5">
+                <h3 className="font-semibold text-foreground text-base">{service.name}</h3>
+                {service.connected && EXTERNAL_URLS[service.key] && (
+                  <a
+                    href={EXTERNAL_URLS[service.key]!(service.instanceUrl)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    title={`Open ${service.name}`}
+                    aria-label={`Open ${service.name}`}
+                    className="inline-flex items-center justify-center p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </div>
               <div className="flex items-center gap-1.5 mt-0.5">
                 {service.connected ? (
                   <>
@@ -1354,24 +1371,14 @@ function ServiceCard({
               </div>
             )}
 
-            <div className="flex gap-2 pt-1">
+            <div className="pt-1">
               <button
                 onClick={onViewMore}
-                className={`flex items-center justify-center gap-2 flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${style.bgColor} ${style.textColor} hover:opacity-80`}
+                className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-medium transition-colors ${style.bgColor} ${style.textColor} hover:opacity-80`}
               >
                 <Eye className="w-4 h-4" />
                 View more
               </button>
-              {EXTERNAL_URLS[service.key] && (
-                <a
-                  href={EXTERNAL_URLS[service.key]!(service.instanceUrl)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${style.bgColor} ${style.textColor} hover:opacity-80`}
-                >
-                  <ExternalLink className="w-4 h-4" />
-                </a>
-              )}
             </div>
           </div>
         ) : (

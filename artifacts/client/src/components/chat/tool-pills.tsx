@@ -1,10 +1,21 @@
 import { useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, Settings, X, Link2 } from "lucide-react";
+import { ChevronDown, Settings, X, Link2, ExternalLink } from "lucide-react";
 import { type ToolConfig } from "@/lib/tool-config";
 import { getPresetsForTool } from "@/lib/tool-presets";
 import { useToolVisibility } from "@/lib/tool-visibility";
 import { cn } from "@/lib/utils";
+
+const TOOL_EXTERNAL_URLS: Record<string, string> = {
+  JIRA: "https://www.atlassian.com/software/jira",
+  ZohoPeople: "https://people.zoho.com",
+  ZohoCRM: "https://crm.zoho.com",
+  ZohoRecruit: "https://recruit.zoho.com",
+  ZohoContracts: "https://contracts.zoho.com",
+  STS: "https://time.scopicsoftware.com",
+  Teamwork: "https://www.teamwork.com",
+  Outlook: "https://outlook.office.com",
+};
 
 interface ToolPillsProps {
   selected: string | null;
@@ -107,30 +118,53 @@ export function ToolPills({
         {availableTools.map((tool) => {
           const Icon = tool.icon;
           const isActive = selected === tool.name;
+          const externalUrl = TOOL_EXTERNAL_URLS[tool.name];
           return (
-            <button
+            <div
               key={tool.name}
-              type="button"
-              onClick={() => handlePillClick(tool.name)}
-              aria-pressed={isActive}
               className={cn(
-                "shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all",
+                "shrink-0 inline-flex items-center rounded-full border transition-all",
                 tool.bgColor,
-                tool.textColor,
                 isActive
                   ? "border-current ring-2 ring-current/20 shadow-sm"
                   : `${tool.borderColor} hover:border-current/60`,
               )}
             >
-              {Icon && <Icon className="w-3.5 h-3.5" />}
-              <span>{tool.label}</span>
-              <ChevronDown
+              <button
+                type="button"
+                onClick={() => handlePillClick(tool.name)}
+                aria-pressed={isActive}
                 className={cn(
-                  "w-3 h-3 transition-transform opacity-70",
-                  isActive && "rotate-180",
+                  "inline-flex items-center gap-1.5 pl-3 py-1.5 text-xs font-semibold rounded-l-full",
+                  externalUrl ? "pr-1.5" : "pr-3 rounded-r-full",
+                  tool.textColor,
                 )}
-              />
-            </button>
+              >
+                {Icon && <Icon className="w-3.5 h-3.5" />}
+                <span>{tool.label}</span>
+                <ChevronDown
+                  className={cn(
+                    "w-3 h-3 transition-transform opacity-70",
+                    isActive && "rotate-180",
+                  )}
+                />
+              </button>
+              {externalUrl && (
+                <a
+                  href={externalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={`Open ${tool.label}`}
+                  aria-label={`Open ${tool.label}`}
+                  className={cn(
+                    "inline-flex items-center justify-center pr-2.5 pl-1 py-1.5 rounded-r-full opacity-70 hover:opacity-100 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-current/40",
+                    tool.textColor,
+                  )}
+                >
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+            </div>
           );
         })}
       </div>
