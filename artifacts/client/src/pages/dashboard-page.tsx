@@ -2057,13 +2057,14 @@ export default function DashboardPage({
     const subServices = services.filter((s) =>
       ZOHO_SUB_KEYS.includes(s.key as typeof ZOHO_SUB_KEYS[number]),
     );
-    const accessibleVisibleSubs = subServices.filter(
-      (s) => s.accessible !== false && !isHidden(SERVICE_KEY_TO_TOOL_NAME[s.key]),
+    const accessibleSubs = subServices.filter((s) => s.accessible !== false);
+    const visibleAccessibleSubs = accessibleSubs.filter(
+      (s) => !isHidden(SERVICE_KEY_TO_TOOL_NAME[s.key]),
     );
 
     if (!zohoSuite.connected) {
       base.push(zohoSuite);
-    } else if (accessibleVisibleSubs.length === 0) {
+    } else if (accessibleSubs.length === 0) {
       base.push({
         ...zohoSuite,
         connected: true,
@@ -2071,7 +2072,7 @@ export default function DashboardPage({
           "Connected, but your Zoho account doesn't have access to People, CRM, Recruit or Contracts.",
       });
     } else {
-      base.push(...accessibleVisibleSubs);
+      base.push(...visibleAccessibleSubs);
     }
     return base;
   }, [services, visibleServices, isHidden]);
