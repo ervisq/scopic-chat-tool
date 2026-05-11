@@ -775,11 +775,24 @@ export async function queryZohoPeople(
   clientSecret: string,
   refreshToken: string,
   domain?: string,
+  employee?: string,
 ): Promise<ZohoPeopleResult> {
   PEOPLE_BASE = getPeopleBaseUrl(domain || "https://accounts.zoho.com");
   console.log(`[ZohoPeople] Using People base URL: ${PEOPLE_BASE} (accountsDomain: ${domain})`);
   const accessToken = await getZohoAccessToken(clientId, clientSecret, refreshToken, domain);
   const lower = query.toLowerCase();
+
+  if (employee && employee.trim().length > 0) {
+    const employees = await searchEmployee(accessToken, employee.trim());
+    return {
+      type: "employee_detail",
+      employees,
+      total: employees.length,
+      totalFetched: employees.length,
+      source: "live",
+      contextLabel: `Employee lookup: "${employee}"`,
+    };
+  }
 
   if (lower.includes("birthday") || lower.includes("born today") || lower.includes("bday")) {
     const employees = await fetchEmployees(accessToken);

@@ -14,28 +14,33 @@ async function stsHandler(args: Record<string, unknown>, userId: number): Promis
   const startDate = args.date_range_start as string | undefined;
   const endDate = args.date_range_end as string | undefined;
   const projectFilter = args.project_filter as string | undefined;
+  const employee = (args.employee as string) || undefined;
 
-  let query = "my hours";
+  const subject = employee ? `${employee}'s` : "my";
+  let query = `${subject} hours`;
   if (startDate && endDate) {
-    query = `my hours from ${startDate} to ${endDate}`;
+    query = `${subject} hours from ${startDate} to ${endDate}`;
     if (projectFilter) {
       query += ` on project "${projectFilter}"`;
     }
   }
 
-  const result = await querySts(query, userId, { startDate, endDate, projectFilter });
+  const result = await querySts(query, userId, { startDate, endDate, projectFilter, employee });
   return { reply: formatStsResult(result, query) };
 }
 
 async function jiraHandler(args: Record<string, unknown>, userId: number): Promise<ToolResult> {
   const query = (args.query as string) || "my tickets";
-  const result = await queryJira(query, userId);
+  const employee = (args.employee as string) || undefined;
+  const assignee = (args.assignee as string) || undefined;
+  const result = await queryJira(query, userId, { employee, assignee });
   return { reply: formatJiraResult(result, query) };
 }
 
 async function teamworkHandler(args: Record<string, unknown>, userId: number): Promise<ToolResult> {
   const query = (args.query as string) || "my tasks";
-  const result = await queryTeamwork(query, userId);
+  const employee = (args.employee as string) || undefined;
+  const result = await queryTeamwork(query, userId, { employee });
   return { reply: formatTeamworkResult(result, query) };
 }
 
@@ -46,8 +51,9 @@ async function outlookHandler(args: Record<string, unknown>, userId: number): Pr
 }
 
 async function zohoPeopleHandler(args: Record<string, unknown>, userId: number): Promise<ToolResult> {
-  const query = (args.query as string) || "employee list";
-  const result = await queryZohoPeopleDirect(query, userId);
+  const employee = (args.employee as string) || undefined;
+  const query = (args.query as string) || (employee ? `info about ${employee}` : "employee list");
+  const result = await queryZohoPeopleDirect(query, userId, { employee });
   return { reply: result.reply };
 }
 

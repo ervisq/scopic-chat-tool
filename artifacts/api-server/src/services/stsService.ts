@@ -28,6 +28,7 @@ export interface StsWeekResult {
   source: "live" | "not_connected" | "error";
   errorMessage?: string;
   projectFilter?: string;
+  employeeContext?: string;
 }
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -343,6 +344,57 @@ export interface StsStructuredParams {
   startDate?: string;
   endDate?: string;
   projectFilter?: string;
+  employee?: string;
+}
+
+interface StsPerson {
+  id: number;
+  name: string;
+  email: string;
+}
+
+function extractStsPersons(data: unknown): StsPerson[] {
+  const d = data as any;
+  const arr: any[] = Array.isArray(d)
+    ? d
+    : (d?.person || d?.persons || d?.people || d?.data || d?.items || d?.results || []);
+  return arr
+    .map((p: any) => ({
+      id: parseInt(p.id || p.personid || p.Id || "0", 10) || 0,
+      name: String(p.name || p.fullname || p.displayname || `${p.firstname || ""} ${p.lastname || ""}`.trim() || ""),
+      email: String(p.email || p.emailaddress || p.Email || "").toLowerCase(),
+    }))
+    .filter((p) => p.id > 0 && (p.name || p.email));
+}
+
+async function resolveStsPersonByName(apiUrl: string, tokenId: string, term: string): Promise<{ matches: StsPerson[]; lookupSucceeded: boolean }> {
+  const search = term.trim().toLowerCase();
+  if (!search) return { matches: [], lookupSucceeded: false };
+
+  // Try paginated /person listing
+  const all: StsPerson[] = [];
+  let lookupSucceeded = false;
+  let page = 1;
+  while (page <= 20) {
+    try {
+      const data = await stsApiGet(apiUrl, "/person", tokenId, { limit: 200, page });
+      lookupSucceeded = true;
+      const persons = extractStsPersons(data);
+      if (persons.length === 0) break;
+      all.push(...persons);
+      const d = data as any;
+      const totalCount = parseInt(d?.listcount || "0", 10);
+      if (totalCount && all.length >= totalCount) break;
+      if (persons.length < 200) break;
+      page++;
+    } catch (err) {
+      console.log("[STS] /person lookup failed on page", page, ":", (err as Error).message);
+      break;
+    }
+  }
+
+  const matches = all.filter((p) => p.name.toLowerCase().includes(search) || p.email.includes(search));
+  return { matches, lookupSucceeded };
 }
 
 export async function querySts(query: string, userId?: number, structuredParams?: StsStructuredParams): Promise<StsWeekResult> {
@@ -397,6 +449,26 @@ export async function querySts(query: string, userId?: number, structuredParams?
       console.log("[STS] Current user personid:", personId);
     } catch {
       console.log("[STS] Could not determine personid, fetching without filter");
+    }
+
+    // Resolve employee name → personid (overrides caller's personid)
+    let employeeContext: string | undefined;
+    if (structuredParams?.employee && structuredParams.employee.trim()) {
+      const term = structuredParams.employee.trim();
+      const { matches, lookupSucceeded } = await resolveStsPersonByName(apiUrl, tokenId, term);
+      if (!lookupSucceeded) {
+        return { ...emptyResult, source: "error" as const, errorMessage: `Could not look up employees in STS. Your STS connection may not have permission to view the employee directory.` };
+      }
+      if (matches.length === 0) {
+        return { ...emptyResult, source: "error" as const, errorMessage: `No STS employee matched "${term}". Try a more specific name or email.` };
+      }
+      if (matches.length > 1) {
+        const names = matches.slice(0, 8).map((m) => `${m.name}${m.email ? ` (${m.email})` : ""}`).join(", ");
+        return { ...emptyResult, source: "error" as const, errorMessage: `Multiple STS employees matched "${term}": ${names}. Please be more specific.` };
+      }
+      personId = matches[0].id;
+      employeeContext = matches[0].name || matches[0].email || term;
+      console.log("[STS] Resolved employee", term, "→ personid", personId, employeeContext);
     }
 
     let rawEntries: any[] = [];
@@ -512,6 +584,7 @@ export async function querySts(query: string, userId?: number, structuredParams?
       weekEnd: endISO,
       source: "live" as const,
       projectFilter,
+      employeeContext,
     };
   } catch (error: unknown) {
     const axErr = error as { response?: { status?: number; data?: { message?: string } }; code?: string; message?: string };
@@ -585,6 +658,9 @@ export function formatStsResult(result: StsWeekResult, query: string): string {
 
   const lines: string[] = [];
   let header = `STS Working Hours — ${rangeLabel}`;
+  if (result.employeeContext) {
+    header += ` for ${result.employeeContext}`;
+  }
   if (result.projectFilter) {
     header += ` (Project: ${result.projectFilter})`;
   }

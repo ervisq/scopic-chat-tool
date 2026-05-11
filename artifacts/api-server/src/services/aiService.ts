@@ -35,6 +35,20 @@ If the user's message is general conversation (greetings, thanks, general questi
 
 IMPORTANT: Use conversation history to understand follow-up messages. If a user says "what about last month?" after asking about hours, use the same tool with updated parameters.
 
+Employee name extraction (applies to query_sts, query_jira, query_teamwork, query_zoho_people):
+- When the user asks about a SPECIFIC OTHER PERSON by name or email — not themselves — extract that person into the "employee" parameter.
+- Pass the name exactly as the user wrote it (e.g. "John Smith", "alice@scopicsoftware.com"). Do not invent or modify names.
+- Triggers: "John's hours", "Alice's tickets", "what is Bob working on", "tasks assigned to Maria", "show me Erik's time entries", "info about Lena", "details about david@scopicsoftware.com".
+- Do NOT set "employee" when the user is asking about themselves ("my hours", "my tickets", "what am I working on") or about everyone ("all open tickets", "team hours").
+- query_outlook is mailbox-scoped to the caller — do NOT set "employee" for it; if the user asks about another person's emails, do not call query_outlook.
+- Examples:
+  - "How many hours did John log this week?" → query_sts with employee: "John", date_range_start/end: this week
+  - "Show me Alice's open JIRA tickets" → query_jira with employee: "Alice", query: "open tickets"
+  - "What is Bob working on in Teamwork?" → query_teamwork with employee: "Bob", query: "tasks"
+  - "Info about Maria Lopez" → query_zoho_people with employee: "Maria Lopez"
+  - "alice@scopicsoftware.com hours last month" → query_sts with employee: "alice@scopicsoftware.com", date_range_start/end: last month
+  - "my hours this week" → query_sts WITHOUT employee, date_range_start/end: this week
+
 Zoho CRM search_entity guidelines:
 - When the user mentions a specific company, person, or entity name, ALWAYS extract it into search_entity. This is critical for targeted searches. Examples:
   - "Portfolio Co contact person" → search_entity: "Portfolio Co", module: "contacts"

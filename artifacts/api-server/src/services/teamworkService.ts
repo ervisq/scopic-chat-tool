@@ -134,6 +134,40 @@ export interface TeamworkServiceResult {
   total: number;
   message?: string;
   instanceUrl?: string | null;
+  employeeContext?: string;
+  employeeMessage?: string;
+}
+
+export interface TeamworkQueryOptions {
+  employee?: string;
+}
+
+interface ResolvedTeamworkPerson {
+  id: number;
+  displayName: string;
+  email: string;
+}
+
+async function resolveTeamworkPerson(siteUrl: string, apiToken: string, term: string): Promise<{ matches: ResolvedTeamworkPerson[]; lookupSucceeded: boolean }> {
+  const client = createClient(siteUrl, apiToken);
+  try {
+    const response = await client.get("/projects/api/v3/people.json", {
+      params: { searchTerm: term, pageSize: 25 },
+    });
+    const people = response.data?.people || [];
+    const lowered = term.toLowerCase();
+    const mapped: ResolvedTeamworkPerson[] = people.map((p: Record<string, unknown>) => ({
+      id: (p.id as number) || 0,
+      displayName: extractPersonName(p) || ((p.emailAddress as string) || ""),
+      email: ((p.emailAddress as string) || "").toLowerCase(),
+    })).filter((p: ResolvedTeamworkPerson) => p.id > 0);
+    // Filter on client side too — Teamwork searchTerm is broad
+    const filtered = mapped.filter((p) => p.displayName.toLowerCase().includes(lowered) || p.email.includes(lowered));
+    return { matches: filtered.length > 0 ? filtered : mapped, lookupSucceeded: true };
+  } catch (err) {
+    console.error("Teamwork person lookup failed:", (err as Error).message);
+    return { matches: [], lookupSucceeded: false };
+  }
 }
 
 function isValidTeamworkUrl(url: string): boolean {
@@ -262,24 +296,26 @@ function extractDueDateFilter(query: string): { startDate?: string; endDate?: st
   return {};
 }
 
-function buildTaskParams(query: string, currentUserId?: number | null): Record<string, string | number | boolean> {
+function buildTaskParams(query: string, currentUserId?: number | null, employeePersonId?: number): Record<string, string | number | boolean> {
   const lower = query.toLowerCase();
   const params: Record<string, string | number | boolean> = {
     pageSize: 25,
     include: "projects,assignees,taskLists,tags",
   };
 
-  if (lower.includes("my") || lower.includes("assigned to me")) {
+  if (employeePersonId) {
+    params["responsiblePartyIds"] = employeePersonId;
+  } else if (lower.includes("my") || lower.includes("assigned to me")) {
     if (currentUserId) {
       params["responsiblePartyIds"] = currentUserId;
     } else {
       params["assignedToMe"] = true;
     }
-  }
-
-  const assignee = extractAssigneeFilter(query);
-  if (assignee && assignee !== "me") {
-    params["searchAssignees"] = assignee;
+  } else {
+    const assignee = extractAssigneeFilter(query);
+    if (assignee && assignee !== "me") {
+      params["searchAssignees"] = assignee;
+    }
   }
 
   if (lower.includes("completed") || lower.includes("done") || lower.includes("closed")) {
@@ -326,9 +362,9 @@ function extractTags(tagList: unknown): string[] {
   return tagList.map((tag: Record<string, unknown>) => (tag.name as string) || "").filter(Boolean);
 }
 
-async function fetchTasks(siteUrl: string, apiToken: string, query: string, currentUserId?: number | null): Promise<TeamworkServiceResult> {
+async function fetchTasks(siteUrl: string, apiToken: string, query: string, currentUserId?: number | null, employeePersonId?: number): Promise<TeamworkServiceResult> {
   const client = createClient(siteUrl, apiToken);
-  const params = buildTaskParams(query, currentUserId);
+  const params = buildTaskParams(query, currentUserId, employeePersonId);
 
   const response = await client.get("/projects/api/v3/tasks.json", { params });
   const tasks = response.data?.tasks || [];
@@ -457,7 +493,7 @@ async function fetchMilestones(siteUrl: string, apiToken: string): Promise<Teamw
   return { source: "live", type: "milestones", data: mapped, total: mapped.length };
 }
 
-async function fetchTimeEntries(siteUrl: string, apiToken: string, query: string): Promise<TeamworkServiceResult> {
+async function fetchTimeEntries(siteUrl: string, apiToken: string, query: string, employeePersonId?: number): Promise<TeamworkServiceResult> {
   const client = createClient(siteUrl, apiToken);
   const lower = query.toLowerCase();
   const params: Record<string, string | number | boolean> = {
@@ -465,7 +501,9 @@ async function fetchTimeEntries(siteUrl: string, apiToken: string, query: string
     include: "tags",
   };
 
-  if (lower.includes("my") || lower.includes("mine")) {
+  if (employeePersonId) {
+    params["userIds"] = employeePersonId;
+  } else if (lower.includes("my") || lower.includes("mine")) {
     params["assignedToMe"] = true;
   }
   if (lower.includes("billable")) {
@@ -616,7 +654,7 @@ async function fetchActivity(siteUrl: string, apiToken: string): Promise<Teamwor
   return { source: "live", type: "activity", data: mapped, total: mapped.length };
 }
 
-export async function queryTeamwork(query: string, userId?: number): Promise<TeamworkServiceResult> {
+export async function queryTeamwork(query: string, userId?: number, opts?: TeamworkQueryOptions): Promise<TeamworkServiceResult> {
   if (!userId) {
     return { source: "not_connected", type: "tasks", data: [], total: 0 };
   }
@@ -641,6 +679,25 @@ export async function queryTeamwork(query: string, userId?: number): Promise<Tea
   const needsMyUserId = category === "tasks" && (lower.includes("my") || lower.includes("assigned to me"));
   const currentUserId = needsMyUserId ? await fetchCurrentUserId(siteUrl, apiToken) : null;
 
+  let employeePersonId: number | undefined;
+  let employeeContext: string | undefined;
+  if (opts?.employee && opts.employee.trim()) {
+    const term = opts.employee.trim();
+    const { matches, lookupSucceeded } = await resolveTeamworkPerson(siteUrl, apiToken, term);
+    if (!lookupSucceeded) {
+      return { source: "error", type: category, data: [], total: 0, message: `Could not look up Teamwork people. Your account may not have permission to view the people directory.` };
+    }
+    if (matches.length === 0) {
+      return { source: "live", type: category, data: [], total: 0, instanceUrl: siteUrl, employeeMessage: `No Teamwork person matched "${term}".` };
+    }
+    if (matches.length > 1) {
+      const list = matches.slice(0, 8).map((m) => `${m.displayName}${m.email ? ` (${m.email})` : ""}`).join(", ");
+      return { source: "live", type: category, data: [], total: 0, instanceUrl: siteUrl, employeeMessage: `Multiple Teamwork people matched "${term}": ${list}. Please be more specific.` };
+    }
+    employeePersonId = matches[0].id;
+    employeeContext = matches[0].displayName || matches[0].email || term;
+  }
+
   try {
     let result: TeamworkServiceResult;
     switch (category) {
@@ -654,7 +711,7 @@ export async function queryTeamwork(query: string, userId?: number): Promise<Tea
         result = await fetchMilestones(siteUrl, apiToken);
         break;
       case "time":
-        result = await fetchTimeEntries(siteUrl, apiToken, query);
+        result = await fetchTimeEntries(siteUrl, apiToken, query, employeePersonId);
         break;
       case "people":
         result = await fetchPeople(siteUrl, apiToken);
@@ -673,10 +730,11 @@ export async function queryTeamwork(query: string, userId?: number): Promise<Tea
         break;
       case "tasks":
       default:
-        result = await fetchTasks(siteUrl, apiToken, query, currentUserId);
+        result = await fetchTasks(siteUrl, apiToken, query, currentUserId, employeePersonId);
         break;
     }
     result.instanceUrl = siteUrl;
+    if (employeeContext) result.employeeContext = employeeContext;
     return result;
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
@@ -693,11 +751,18 @@ export function formatTeamworkResult(result: TeamworkServiceResult, query: strin
     return "There was an error connecting to Teamwork. Please check your credentials in Connected Services and try again.";
   }
 
+  if (result.employeeMessage) {
+    return result.employeeMessage;
+  }
   if (result.total === 0) {
+    if (result.employeeContext) {
+      return `No Teamwork ${result.type} found for ${result.employeeContext} (query: "${query}").`;
+    }
     return `No Teamwork ${result.type} found for query: "${query}"`;
   }
 
   const baseUrl = result.instanceUrl ? result.instanceUrl.replace(/\/$/, "") : "";
+  const employeePrefix = result.employeeContext ? `For ${result.employeeContext}: ` : "";
 
   switch (result.type) {
     case "tasks": {
@@ -716,7 +781,7 @@ export function formatTeamworkResult(result: TeamworkServiceResult, query: strin
         if (t.description) line += `\n  Description: ${t.description.substring(0, 200)}${t.description.length > 200 ? "..." : ""}`;
         return line;
       });
-      return `Teamwork tasks (${result.total} found):\n${lines.join("\n")}\n\nQuery: "${query}"`;
+      return `${employeePrefix}Teamwork tasks (${result.total} found):\n${lines.join("\n")}\n\nQuery: "${query}"`;
     }
     case "projects": {
       const projects = result.data as TeamworkProject[];
@@ -773,7 +838,7 @@ export function formatTeamworkResult(result: TeamworkServiceResult, query: strin
         if (e.description) line += `: ${e.description}`;
         return line;
       });
-      let header = `Teamwork time entries (${result.total} found, ${totalHours.toFixed(1)} total hours`;
+      let header = `${employeePrefix}Teamwork time entries (${result.total} found, ${totalHours.toFixed(1)} total hours`;
       if (billableHours > 0) header += `, ${billableHours.toFixed(1)} billable`;
       header += "):";
       return `${header}\n${lines.join("\n")}\n\nQuery: "${query}"`;

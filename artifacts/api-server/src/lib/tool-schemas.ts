@@ -25,6 +25,11 @@ export const TOOL_DEFINITIONS: ChatCompletionTool[] = [
             description:
               "Optional project name to filter results by. Only include if the user explicitly mentions a specific project name.",
           },
+          employee: {
+            type: "string",
+            description:
+              "Optional employee name or email to scope the time query to. Use when the user asks about another employee's hours (e.g. 'how many hours did John Smith log this week'). Leave empty for the caller's own hours. Permissions are enforced by STS; if the caller doesn't have rights, no results will be returned.",
+          },
         },
         required: ["date_range_start", "date_range_end"],
       },
@@ -46,9 +51,13 @@ export const TOOL_DEFINITIONS: ChatCompletionTool[] = [
           },
           assignee: {
             type: "string",
-            enum: ["me", "unassigned", "all"],
             description:
-              "Filter by assignee. Use 'me' if the user says 'my tickets', 'assigned to me', etc. Default is 'all'.",
+              "Filter by assignee. Use 'me' if the user says 'my tickets', 'unassigned' for unassigned tickets, 'all' for everyone, or a person's name/email (e.g. 'John Smith') to filter to that specific person's tickets. Default is 'all'.",
+          },
+          employee: {
+            type: "string",
+            description:
+              "Optional employee name or email to scope the JIRA query to. Use when the user asks about another employee's tickets by name (e.g. 'show John Smith's open tickets'). The name will be resolved against the JIRA user directory. Permissions are enforced by JIRA; if the caller doesn't have rights, no results will be returned.",
           },
           status: {
             type: "string",
@@ -97,6 +106,11 @@ export const TOOL_DEFINITIONS: ChatCompletionTool[] = [
             description:
               "The type of Teamwork data to query. Default is 'tasks'.",
           },
+          employee: {
+            type: "string",
+            description:
+              "Optional employee name or email to scope the Teamwork query to (e.g. 'John Smith's tasks'). The name will be resolved against the Teamwork people directory. Permissions are enforced by Teamwork; if the caller doesn't have rights, no results will be returned.",
+          },
         },
         required: ["query"],
       },
@@ -107,7 +121,7 @@ export const TOOL_DEFINITIONS: ChatCompletionTool[] = [
     function: {
       name: "query_outlook",
       description:
-        "Query Microsoft Outlook for emails, calendar events, and contacts. Use when the user asks about emails, inbox, meetings, schedule, or contacts.",
+        "Query Microsoft Outlook for the CALLER's emails, calendar events, and contacts only. This tool always operates on the calling user's own mailbox — it cannot read another employee's mailbox. Use when the user asks about their own emails, inbox, meetings, schedule, or contacts.",
       parameters: {
         type: "object",
         properties: {
@@ -132,7 +146,7 @@ export const TOOL_DEFINITIONS: ChatCompletionTool[] = [
     function: {
       name: "query_zoho_people",
       description:
-        "Query Zoho People for HR data: employees, departments, leave requests, attendance, timesheets, birthdays, work anniversaries, new joiners, and headcount.",
+        "Query Zoho People for HR data: employees, departments, leave requests, attendance, timesheets, birthdays, work anniversaries, new joiners, headcount, and information about specific employees by name.",
       parameters: {
         type: "object",
         properties: {
@@ -140,6 +154,11 @@ export const TOOL_DEFINITIONS: ChatCompletionTool[] = [
             type: "string",
             description:
               "The full natural language query about Zoho People HR data.",
+          },
+          employee: {
+            type: "string",
+            description:
+              "Optional employee name or email to look up a specific employee's profile (e.g. 'John Smith', 'Maria Garcia'). Use when the user asks about a particular employee by name. Permissions are enforced by Zoho People.",
           },
         },
         required: ["query"],

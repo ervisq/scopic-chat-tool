@@ -76,7 +76,11 @@ async function handlePermissionError(
   };
 }
 
-export async function queryZohoPeopleDirect(query: string, userId?: number): Promise<ZohoDirectResult> {
+export async function queryZohoPeopleDirect(
+  query: string,
+  userId?: number,
+  opts?: { employee?: string },
+): Promise<ZohoDirectResult> {
   if (!userId) {
     return {
       reply: "Your Zoho account is not connected. Please go to Connected Services (Settings icon) and click 'Connect with Zoho'.",
@@ -90,7 +94,7 @@ export async function queryZohoPeopleDirect(query: string, userId?: number): Pro
   const { refreshToken, clientId, clientSecret, accountsDomain } = credsOrError;
 
   try {
-    const result = await queryZohoPeople(query, clientId, clientSecret, refreshToken, accountsDomain);
+    const result = await queryZohoPeople(query, clientId, clientSecret, refreshToken, accountsDomain, opts?.employee);
     return { reply: formatPeopleResult(result, query), source: "live" };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
