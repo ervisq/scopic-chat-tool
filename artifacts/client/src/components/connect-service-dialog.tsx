@@ -18,6 +18,7 @@ interface ConnectServiceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConnected: () => void;
+  onSavingChange?: (saving: boolean) => void;
 }
 
 export function ConnectServiceDialog({
@@ -26,6 +27,7 @@ export function ConnectServiceDialog({
   open,
   onOpenChange,
   onConnected,
+  onSavingChange,
 }: ConnectServiceDialogProps) {
   const [creds, setCreds] = useState<Record<string, string>>({});
   const [instanceUrl, setInstanceUrl] = useState<string>("");
@@ -40,6 +42,16 @@ export function ConnectServiceDialog({
       setSaving(false);
     }
   }, [open, provider]);
+
+  useEffect(() => {
+    onSavingChange?.(saving);
+  }, [saving, onSavingChange]);
+
+  useEffect(() => {
+    if (!open) {
+      onSavingChange?.(false);
+    }
+  }, [open, onSavingChange]);
 
   if (!provider) return null;
 

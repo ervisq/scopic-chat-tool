@@ -732,7 +732,19 @@ function ExpandableEventRow({ event }: { event: OutlookEventSummary }) {
   );
 }
 
-function WeeklyHoursPanel({ service, onConnect }: { service: ServiceData | undefined; onConnect: () => void }) {
+function WeeklyHoursPanel({
+  service,
+  onConnect,
+  connecting = false,
+  connectingLabel = "Connecting…",
+  tileError = null,
+}: {
+  service: ServiceData | undefined;
+  onConnect: () => void;
+  connecting?: boolean;
+  connectingLabel?: string;
+  tileError?: string | null;
+}) {
   const totalHours = service?.summary?.totalHours ?? 0;
   const maxHours = 40;
   const percentage = Math.min((totalHours / maxHours) * 100, 100);
@@ -834,13 +846,25 @@ function WeeklyHoursPanel({ service, onConnect }: { service: ServiceData | undef
             <ExternalLink className="w-3.5 h-3.5" />
           </a>
         ) : (
-          <button
-            onClick={onConnect}
-            className="flex items-center justify-center gap-2 w-full mt-4 py-2.5 rounded-xl text-sm font-medium transition-colors bg-emerald-500 text-white hover:opacity-90"
-          >
-            <Link2 className="w-4 h-4" />
-            Connect STS
-          </button>
+          <>
+            <button
+              onClick={onConnect}
+              disabled={connecting}
+              className="flex items-center justify-center gap-2 w-full mt-4 py-2.5 rounded-xl text-sm font-medium transition-colors bg-emerald-500 text-white hover:opacity-90 disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {connecting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Link2 className="w-4 h-4" />
+              )}
+              {connecting ? connectingLabel : "Connect STS"}
+            </button>
+            {tileError && (
+              <p className="mt-2 text-xs text-destructive bg-destructive/10 rounded-md px-3 py-1.5" role="alert">
+                {tileError}
+              </p>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -1080,10 +1104,16 @@ function ServiceCard({
   service,
   onConnect,
   onViewMore,
+  connecting = false,
+  connectingLabel = "Connecting…",
+  tileError = null,
 }: {
   service: ServiceData;
   onConnect: () => void;
   onViewMore: () => void;
+  connecting?: boolean;
+  connectingLabel?: string;
+  tileError?: string | null;
 }) {
   const style = SERVICE_STYLES[service.key] || SERVICE_STYLES.jira;
 
@@ -1307,11 +1337,21 @@ function ServiceCard({
             </p>
             <button
               onClick={onConnect}
-              className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-medium transition-colors ${style.color} text-white hover:opacity-90`}
+              disabled={connecting}
+              className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-medium transition-colors ${style.color} text-white hover:opacity-90 disabled:opacity-70 disabled:cursor-not-allowed`}
             >
-              <Link2 className="w-4 h-4" />
-              Connect {service.name}
+              {connecting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Link2 className="w-4 h-4" />
+              )}
+              {connecting ? connectingLabel : `Connect ${service.name}`}
             </button>
+            {tileError && (
+              <p className="text-xs text-destructive bg-destructive/10 rounded-md px-3 py-1.5" role="alert">
+                {tileError}
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -1749,6 +1789,9 @@ export default function DashboardPage({
   const [toolSettingsOpen, setToolSettingsOpen] = useState(false);
   const [connectDialogProvider, setConnectDialogProvider] = useState<ProviderConfig | null>(null);
   const [connectMessage, setConnectMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [tileConnectingKey, setTileConnectingKey] = useState<string | null>(null);
+  const [tileErrors, setTileErrors] = useState<Record<string, string>>({});
+  const [dialogSaving, setDialogSaving] = useState(false);
   const { isHidden, refreshConnectedTools } = useToolVisibility();
 
   const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -1772,6 +1815,11 @@ export default function DashboardPage({
   }, [connectMessage]);
 
   async function handleTileConnect(serviceKey: string) {
+    setTileErrors((prev) => {
+      if (!(serviceKey in prev)) return prev;
+      const { [serviceKey]: _removed, ...rest } = prev;
+      return rest;
+    });
     const providerKey = SERVICE_KEY_TO_PROVIDER_KEY[serviceKey];
     if (!providerKey) {
       onOpenConnections();
@@ -1784,8 +1832,11 @@ export default function DashboardPage({
     }
     if (provider.oauth) {
       setConnectMessage(null);
+      setTileConnectingKey(serviceKey);
       const result = await startOAuthConnect(provider.key, token, "dashboard");
       if (!result.ok) {
+        setTileConnectingKey(null);
+        setTileErrors((prev) => ({ ...prev, [serviceKey]: result.message }));
         setConnectMessage({ type: "error", text: result.message });
       }
       return;
@@ -1797,6 +1848,29 @@ export default function DashboardPage({
     setConnectMessage({ type: "success", text: `${connectDialogProvider?.name ?? "Service"} connected successfully` });
     refreshConnectedTools();
     fetchDashboard();
+  }
+
+  function isTileConnecting(serviceKey: string): boolean {
+    if (tileConnectingKey === serviceKey) return true;
+    if (
+      dialogSaving &&
+      connectDialogProvider &&
+      SERVICE_KEY_TO_PROVIDER_KEY[serviceKey] === connectDialogProvider.key
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  function tileConnectingLabel(serviceKey: string): string {
+    if (
+      dialogSaving &&
+      connectDialogProvider &&
+      SERVICE_KEY_TO_PROVIDER_KEY[serviceKey] === connectDialogProvider.key
+    ) {
+      return "Saving…";
+    }
+    return "Connecting…";
   }
 
   const defaultServices: ServiceData[] = [
@@ -1934,6 +2008,9 @@ export default function DashboardPage({
                         service={service}
                         onConnect={() => handleTileConnect(service.key)}
                         onViewMore={() => setDrawerService(service)}
+                        connecting={isTileConnecting(service.key)}
+                        connectingLabel={tileConnectingLabel(service.key)}
+                        tileError={tileErrors[service.key] ?? null}
                       />
                     ))}
                   </div>
@@ -1942,7 +2019,15 @@ export default function DashboardPage({
 
               {(showStsPanel || showOutlookPanel) && (
                 <div className="w-full lg:w-[340px] shrink-0 space-y-5">
-                  {showStsPanel && <WeeklyHoursPanel service={stsService} onConnect={() => handleTileConnect("sts")} />}
+                  {showStsPanel && (
+                    <WeeklyHoursPanel
+                      service={stsService}
+                      onConnect={() => handleTileConnect("sts")}
+                      connecting={isTileConnecting("sts")}
+                      connectingLabel={tileConnectingLabel("sts")}
+                      tileError={tileErrors.sts ?? null}
+                    />
+                  )}
                   {showOutlookPanel && (
                     <OutlookPanel
                       calendarService={calendarService}
@@ -1981,6 +2066,7 @@ export default function DashboardPage({
           if (!open) setConnectDialogProvider(null);
         }}
         onConnected={handleDialogConnected}
+        onSavingChange={setDialogSaving}
       />
       {connectMessage && (
         <div className="fixed bottom-6 right-6 z-50 max-w-sm">
