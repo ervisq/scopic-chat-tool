@@ -126,7 +126,13 @@ function AuthGate() {
     };
   }, [isAuthenticated, user, lastAuthUser]);
 
-  if (isLoading) {
+  // Only show the full-page spinner during the *initial* token verification
+  // (i.e. there is a stored token we are still validating). For in-flight
+  // login/register submissions we keep LoginPage mounted so its local state
+  // (which tab is active, inline field errors) survives the round-trip; the
+  // submit button shows its own inline "Signing in..." / "Creating account..."
+  // state via the isLoading prop.
+  if (isLoading && token) {
     return (
       <div className="min-h-dvh flex items-center justify-center bg-background">
         <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
