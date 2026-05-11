@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { RefreshCw, BarChart3, Users, Shield, Search, ChevronDown, AlertTriangle, X } from "lucide-react";
+import { RefreshCw, Users, Shield, Search, ChevronDown, AlertTriangle, X } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -579,69 +579,71 @@ function UsageTab({
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <StatCard
-              icon={<BarChart3 className="w-4 h-4" />}
-              label={selectedUser ? `Total Queries — ${selectedUser}` : "Total Queries"}
-              value={totalQueries}
-            />
-            <div ref={searchRef} className="relative bg-card border border-border/60 rounded-xl p-4">
-              <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-2">
-                <Search className="w-4 h-4" />
-                Filter by user
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={userQuery}
-                  placeholder="Search by name or email…"
-                  onChange={(e) => {
-                    setUserQuery(e.target.value);
-                    setDropdownOpen(true);
-                    if (selectedUser && e.target.value !== selectedUser) {
-                      setSelectedUser(null);
-                    }
-                  }}
-                  onFocus={() => setDropdownOpen(true)}
-                  className="w-full text-sm bg-background border border-border/60 rounded-md pl-3 pr-8 py-2 focus:outline-none focus:ring-2 focus:ring-primary/40"
-                />
-                {(userQuery || selectedUser) && (
-                  <button
-                    type="button"
-                    onClick={handleClearUser}
-                    aria-label="Clear user filter"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-muted/60 text-muted-foreground"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-                {dropdownOpen && userMatches.length > 0 && (
-                  <ul className="absolute left-0 right-0 top-full mt-1 z-10 max-h-56 overflow-y-auto bg-popover border border-border/60 rounded-md shadow-lg">
-                    {userMatches.map((u) => (
-                      <li key={u}>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => handlePickUser(u)}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted/60"
-                        >
-                          {u}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {dropdownOpen && allUsersInRange.length === 0 && (
-                  <div className="absolute left-0 right-0 top-full mt-1 z-10 bg-popover border border-border/60 rounded-md shadow-lg px-3 py-2 text-sm text-muted-foreground">
-                    No users with activity {rangeLabel}.
-                  </div>
-                )}
-              </div>
+          <div ref={searchRef} className="relative bg-card border border-border/60 rounded-xl p-4">
+            <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-2">
+              <Search className="w-4 h-4" />
+              Filter by user
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                value={userQuery}
+                placeholder="Search by name or email…"
+                onChange={(e) => {
+                  setUserQuery(e.target.value);
+                  setDropdownOpen(true);
+                  if (selectedUser && e.target.value !== selectedUser) {
+                    setSelectedUser(null);
+                  }
+                }}
+                onFocus={() => setDropdownOpen(true)}
+                className="w-full text-sm bg-background border border-border/60 rounded-md pl-3 pr-8 py-2 focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+              {(userQuery || selectedUser) && (
+                <button
+                  type="button"
+                  onClick={handleClearUser}
+                  aria-label="Clear user filter"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-muted/60 text-muted-foreground"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+              {dropdownOpen && userMatches.length > 0 && (
+                <ul className="absolute left-0 right-0 top-full mt-1 z-10 max-h-56 overflow-y-auto bg-popover border border-border/60 rounded-md shadow-lg">
+                  {userMatches.map((u) => (
+                    <li key={u}>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handlePickUser(u)}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-muted/60"
+                      >
+                        {u}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {dropdownOpen && allUsersInRange.length === 0 && (
+                <div className="absolute left-0 right-0 top-full mt-1 z-10 bg-popover border border-border/60 rounded-md shadow-lg px-3 py-2 text-sm text-muted-foreground">
+                  No users with activity {rangeLabel}.
+                </div>
+              )}
             </div>
           </div>
 
           <div className="bg-card border border-border/60 rounded-xl p-5">
-            <h2 className="text-sm font-semibold text-foreground mb-4">{chartTitle}</h2>
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h2 className="text-sm font-semibold text-foreground">{chartTitle}</h2>
+              <span
+                className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20"
+                title={selectedUser ? `Total queries for ${selectedUser} ${rangeLabel}` : `Total queries ${rangeLabel}`}
+              >
+                <span className="opacity-70">Total</span>
+                <span className="font-semibold">{totalQueries}</span>
+              </span>
+            </div>
             {toolChartData.length > 0 ? (
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={toolChartData} barSize={48}>
