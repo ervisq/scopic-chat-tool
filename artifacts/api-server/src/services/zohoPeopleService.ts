@@ -795,12 +795,15 @@ export async function queryZohoPeople(
         total: 0,
         totalFetched: 0,
         source: "live",
-        contextLabel: `No Zoho People employee matched "${term}".`,
+        contextLabel: `No Zoho People employee matched "${term}" — they may not exist or your account may not have access to view them.`,
       };
     }
     if (matches.length > 1) {
       const top = matches.slice(0, 5);
-      const list = top.map((m) => `${m.firstName} ${m.lastName}`.trim() || m.employeeId || m.id).filter(Boolean).join(", ");
+      const list = top.map((m) => {
+        const name = `${m.firstName} ${m.lastName}`.trim() || m.employeeId || m.id;
+        return m.email ? `${name} (${m.email})` : name;
+      }).filter(Boolean).join(", ");
       return {
         type: "employee_detail",
         employees: top,

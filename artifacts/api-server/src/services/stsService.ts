@@ -460,7 +460,7 @@ export async function querySts(query: string, userId?: number, structuredParams?
         return { ...emptyResult, source: "error" as const, errorMessage: `Could not look up employees in STS. Your STS connection may not have permission to view the employee directory.` };
       }
       if (matches.length === 0) {
-        return { ...emptyResult, source: "error" as const, errorMessage: `No STS employee matched "${term}". Try a more specific name or email.` };
+        return { ...emptyResult, source: "error" as const, errorMessage: `No STS employee matched "${term}" — they may not exist or your account may not have access to view them.` };
       }
       if (matches.length > 1) {
         const names = matches.slice(0, 5).map((m) => `${m.name}${m.email ? ` (${m.email})` : ""}`).join(", ");

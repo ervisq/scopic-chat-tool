@@ -185,7 +185,7 @@ async function queryJiraOAuth(query: string, cloudId: string, refreshToken: stri
       return { tickets: [], total: 0, source: "live", instanceUrl, employeeMessage: `Could not look up "${employeeTerm}" in JIRA. Please try again.` };
     }
     if (resolved.notFound) {
-      return { tickets: [], total: 0, source: "live", instanceUrl, employeeMessage: `No JIRA user matched "${employeeTerm}".` };
+      return { tickets: [], total: 0, source: "live", instanceUrl, employeeMessage: `No JIRA user matched "${employeeTerm}" — they may not exist or your account may not have access to view them.` };
     }
     if (resolved.ambiguous) {
       const list = resolved.ambiguous.map((m) => `${m.displayName}${m.emailAddress ? ` (${m.emailAddress})` : ""}`).join(", ");
@@ -236,7 +236,7 @@ async function queryJiraBasicAuth(query: string, instanceUrl: string, email: str
       return { tickets: [], total: 0, source: "live", instanceUrl, employeeMessage: `Could not look up "${employeeTerm}" in JIRA. Please try again.` };
     }
     if (resolved.notFound) {
-      return { tickets: [], total: 0, source: "live", instanceUrl, employeeMessage: `No JIRA user matched "${employeeTerm}".` };
+      return { tickets: [], total: 0, source: "live", instanceUrl, employeeMessage: `No JIRA user matched "${employeeTerm}" — they may not exist or your account may not have access to view them.` };
     }
     if (resolved.ambiguous) {
       const list = resolved.ambiguous.map((m) => `${m.displayName}${m.emailAddress ? ` (${m.emailAddress})` : ""}`).join(", ");

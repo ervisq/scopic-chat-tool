@@ -688,7 +688,7 @@ export async function queryTeamwork(query: string, userId?: number, opts?: Teamw
       return { source: "error", type: category, data: [], total: 0, message: `Could not look up Teamwork people. Your account may not have permission to view the people directory.` };
     }
     if (matches.length === 0) {
-      return { source: "live", type: category, data: [], total: 0, instanceUrl: siteUrl, employeeMessage: `No Teamwork person matched "${term}".` };
+      return { source: "live", type: category, data: [], total: 0, instanceUrl: siteUrl, employeeMessage: `No Teamwork person matched "${term}" — they may not exist or your account may not have access to view them.` };
     }
     if (matches.length > 1) {
       const list = matches.slice(0, 5).map((m) => `${m.displayName}${m.email ? ` (${m.email})` : ""}`).join(", ");
