@@ -511,9 +511,13 @@ function UsageTab({
 
   const filteredLog = useMemo(() => {
     if (!data) return [];
-    if (!selectedUser) return data.log;
-    return data.log.filter((e) => e.user === selectedUser);
-  }, [data, selectedUser]);
+    if (selectedUser) {
+      return data.log.filter((e) => e.user === selectedUser);
+    }
+    const q = userQuery.trim().toLowerCase();
+    if (!q) return data.log;
+    return data.log.filter((e) => e.user.toLowerCase().includes(q));
+  }, [data, selectedUser, userQuery]);
 
   const totalQueries = filteredLog.length;
 
@@ -543,11 +547,12 @@ function UsageTab({
     setDropdownOpen(false);
   }
 
-  const chartTitle = selectedUser
-    ? `Queries per Tool — ${selectedUser}`
+  const activeFilterLabel = selectedUser ?? (userQuery.trim() ? `“${userQuery.trim()}”` : null);
+  const chartTitle = activeFilterLabel
+    ? `Queries per Tool — ${activeFilterLabel}`
     : "Queries per Tool";
-  const emptyLabel = selectedUser
-    ? `No tool usage for ${selectedUser} ${rangeLabel}`
+  const emptyLabel = activeFilterLabel
+    ? `No tool usage for ${activeFilterLabel} ${rangeLabel}`
     : `No tool usage ${rangeLabel}`;
 
   return (
@@ -638,7 +643,7 @@ function UsageTab({
               <h2 className="text-sm font-semibold text-foreground">{chartTitle}</h2>
               <span
                 className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20"
-                title={selectedUser ? `Total queries for ${selectedUser} ${rangeLabel}` : `Total queries ${rangeLabel}`}
+                title={activeFilterLabel ? `Total queries for ${activeFilterLabel} ${rangeLabel}` : `Total queries ${rangeLabel}`}
               >
                 <span className="opacity-70">Total</span>
                 <span className="font-semibold">{totalQueries}</span>
