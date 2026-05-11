@@ -1418,13 +1418,10 @@ function ServiceDrawer({
   onClose: () => void;
 }) {
   const [projectFilter, setProjectFilter] = useState("");
-  const [expanded, setExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<"emails" | "events">("emails");
-  const DISPLAY_LIMIT = 10;
 
   useEffect(() => {
     setProjectFilter("");
-    setExpanded(false);
     setActiveTab("emails");
   }, [service?.key]);
 
@@ -1510,14 +1507,9 @@ function ServiceDrawer({
                 <p className="text-xs text-muted-foreground">{projectFilter ? "No tasks in this project" : "No tasks found"}</p>
               ) : (
                 <>
-                  {(expanded ? filteredJiraTickets : filteredJiraTickets.slice(0, DISPLAY_LIMIT)).map((t) => (
+                  {filteredJiraTickets.map((t) => (
                     <ExpandableJiraRow key={t.id} ticket={t} instanceUrl={service.instanceUrl} />
                   ))}
-                  {filteredJiraTickets.length > DISPLAY_LIMIT && (
-                    <button onClick={() => setExpanded(!expanded)} className={`text-[11px] font-medium ${style.textColor} hover:underline`}>
-                      {expanded ? "Show less" : `Show all ${filteredJiraTickets.length} tasks`}
-                    </button>
-                  )}
                 </>
               )}
               <p className="text-[11px] text-muted-foreground">
@@ -1539,14 +1531,9 @@ function ServiceDrawer({
                 <p className="text-xs text-muted-foreground">{projectFilter ? "No tasks in this project" : "No tasks found"}</p>
               ) : (
                 <>
-                  {(expanded ? filteredTeamworkTasks : filteredTeamworkTasks.slice(0, DISPLAY_LIMIT)).map((t) => (
+                  {filteredTeamworkTasks.map((t) => (
                     <ExpandableTeamworkRow key={t.id} task={t} instanceUrl={service.instanceUrl} />
                   ))}
-                  {filteredTeamworkTasks.length > DISPLAY_LIMIT && (
-                    <button onClick={() => setExpanded(!expanded)} className={`text-[11px] font-medium ${style.textColor} hover:underline`}>
-                      {expanded ? "Show less" : `Show all ${filteredTeamworkTasks.length} tasks`}
-                    </button>
-                  )}
                 </>
               )}
               <p className="text-[11px] text-muted-foreground">
