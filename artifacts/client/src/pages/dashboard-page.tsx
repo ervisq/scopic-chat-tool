@@ -1902,10 +1902,13 @@ export default function DashboardPage({
   async function handleHideTile(serviceKey: string) {
     const toolName = SERVICE_KEY_TO_TOOL_NAME[serviceKey];
     if (!toolName) return;
+    const service = services.find((s) => s.key === serviceKey);
+    const displayLabel =
+      service?.name ?? (serviceKey.startsWith("outlook") ? "Outlook" : toolName);
     try {
       await setHidden(toolName, true);
       toast({
-        title: `${toolName} hidden`,
+        title: `${displayLabel} hidden`,
         description: "Manage in Settings → Tool visibility.",
       });
     } catch {
