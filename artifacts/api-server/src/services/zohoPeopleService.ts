@@ -1035,6 +1035,10 @@ export function formatPeopleResult(result: ZohoPeopleResult, query: string): str
 
   if ((result.type === "employees" || result.type === "employee_detail") && result.employees) {
     const fetchedCount = result.totalFetched ?? result.total;
+    // Surface ambiguity / not-found context labels (set by employee resolution) directly to the user.
+    if (label && (label.startsWith("Multiple Zoho People matched") || label.startsWith("No Zoho People employee matched"))) {
+      return `${label}${q}`;
+    }
     if (result.employees.length === 0) return `No employees found matching your query.${getLimitedAccessWarning(fetchedCount)}${q}`;
     const isDetail = result.type === "employee_detail" || result.employees.length <= 5;
     const lines = result.employees.map((e) => {
