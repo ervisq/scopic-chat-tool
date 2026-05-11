@@ -1,6 +1,7 @@
 import axios from "axios";
 import { getUserCredentials, saveUserCredentials } from "../lib/credential-store";
 import { getJiraAccessToken } from "./jiraTokenManager";
+import { getCachedNameResolution, setCachedNameResolution } from "../lib/name-resolution-cache";
 
 export interface JiraTicket {
   id: string;
@@ -133,24 +134,46 @@ interface JiraResolvedAssignee {
 async function resolveJiraAssignee(
   term: string,
   authOpts: { cloudId?: string; accessToken?: string; baseUrl?: string; email?: string; apiToken?: string },
+  userId?: number,
 ): Promise<JiraResolvedAssignee> {
+  if (userId !== undefined) {
+    const cached = getCachedNameResolution<JiraResolvedAssignee>("jira", userId, term);
+    if (cached) {
+      console.log("[JIRA] name resolution cache hit for", term);
+      return cached;
+    }
+  }
   const { users: matches, permissionDenied, lookupFailed } = await searchJiraUsers({ ...authOpts, query: term });
   if (permissionDenied) return { permissionDenied: true };
   if (lookupFailed) return { lookupFailed: true };
+
+  let result: JiraResolvedAssignee;
   if (matches.length === 0) {
-    return { notFound: true };
+    result = { notFound: true };
+  } else {
+    // Prefer exact email match if any
+    const lowered = term.toLowerCase();
+    const exact = matches.find((m) => m.emailAddress.toLowerCase() === lowered);
+    if (exact) {
+      result = { accountId: exact.accountId, displayName: exact.displayName };
+    } else if (matches.length === 1) {
+      result = { accountId: matches[0].accountId, displayName: matches[0].displayName };
+    } else {
+      const nameMatches = matches.filter((m) => m.displayName.toLowerCase().includes(lowered));
+      if (nameMatches.length === 1) {
+        result = { accountId: nameMatches[0].accountId, displayName: nameMatches[0].displayName };
+      } else {
+        result = {
+          ambiguous: matches.slice(0, 5).map((m) => ({ displayName: m.displayName, emailAddress: m.emailAddress })),
+        };
+      }
+    }
   }
-  // Prefer exact email match if any
-  const lowered = term.toLowerCase();
-  const exact = matches.find((m) => m.emailAddress.toLowerCase() === lowered);
-  if (exact) return { accountId: exact.accountId, displayName: exact.displayName };
-  if (matches.length === 1) return { accountId: matches[0].accountId, displayName: matches[0].displayName };
-  // Try a strong containment match on displayName
-  const nameMatches = matches.filter((m) => m.displayName.toLowerCase().includes(lowered));
-  if (nameMatches.length === 1) return { accountId: nameMatches[0].accountId, displayName: nameMatches[0].displayName };
-  return {
-    ambiguous: matches.slice(0, 5).map((m) => ({ displayName: m.displayName, emailAddress: m.emailAddress })),
-  };
+
+  if (userId !== undefined) {
+    setCachedNameResolution("jira", userId, term, result);
+  }
+  return result;
 }
 
 async function queryJiraOAuth(query: string, cloudId: string, refreshToken: string, userId: number, instanceUrl: string | null, opts: JiraQueryOptions): Promise<JiraServiceResult> {
@@ -177,7 +200,7 @@ async function queryJiraOAuth(query: string, cloudId: string, refreshToken: stri
   let assigneeContext: string | undefined;
   const employeeTerm = (opts.employee || (opts.assignee && opts.assignee !== "me" && opts.assignee !== "all" && opts.assignee !== "unassigned" ? opts.assignee : undefined))?.trim();
   if (employeeTerm) {
-    const resolved = await resolveJiraAssignee(employeeTerm, { cloudId, accessToken });
+    const resolved = await resolveJiraAssignee(employeeTerm, { cloudId, accessToken }, userId);
     if (resolved.permissionDenied) {
       return { tickets: [], total: 0, source: "live", instanceUrl, employeeMessage: `Your JIRA account does not have permission to look up users. Ask an admin to grant the "Browse Users" permission.` };
     }
@@ -218,7 +241,7 @@ async function queryJiraOAuth(query: string, cloudId: string, refreshToken: stri
   return { tickets, total: tickets.length, source: "live", instanceUrl, employeeContext: assigneeContext };
 }
 
-async function queryJiraBasicAuth(query: string, instanceUrl: string, email: string, apiToken: string, opts: JiraQueryOptions): Promise<JiraServiceResult> {
+async function queryJiraBasicAuth(query: string, instanceUrl: string, email: string, apiToken: string, userId: number, opts: JiraQueryOptions): Promise<JiraServiceResult> {
   if (!isValidJiraUrl(instanceUrl)) {
     throw new Error("Invalid Jira instance URL");
   }
@@ -228,7 +251,7 @@ async function queryJiraBasicAuth(query: string, instanceUrl: string, email: str
   let assigneeContext: string | undefined;
   const employeeTerm = (opts.employee || (opts.assignee && opts.assignee !== "me" && opts.assignee !== "all" && opts.assignee !== "unassigned" ? opts.assignee : undefined))?.trim();
   if (employeeTerm) {
-    const resolved = await resolveJiraAssignee(employeeTerm, { baseUrl, email, apiToken });
+    const resolved = await resolveJiraAssignee(employeeTerm, { baseUrl, email, apiToken }, userId);
     if (resolved.permissionDenied) {
       return { tickets: [], total: 0, source: "live", instanceUrl, employeeMessage: `Your JIRA account does not have permission to look up users. Ask an admin to grant the "Browse Users" permission.` };
     }
@@ -327,7 +350,7 @@ export async function queryJira(query: string, userId?: number, opts?: JiraQuery
 
   if (email && apiToken && cred.instanceUrl) {
     try {
-      return await queryJiraBasicAuth(query, cred.instanceUrl, email, apiToken, queryOpts);
+      return await queryJiraBasicAuth(query, cred.instanceUrl, email, apiToken, userId, queryOpts);
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       console.error("Jira Basic Auth API error:", msg);

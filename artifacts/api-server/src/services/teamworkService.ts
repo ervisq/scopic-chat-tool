@@ -1,5 +1,6 @@
 import axios from "axios";
 import { getUserCredentials } from "../lib/credential-store";
+import { getCachedNameResolution, setCachedNameResolution } from "../lib/name-resolution-cache";
 
 export interface TeamworkTask {
   id: number;
@@ -148,7 +149,14 @@ interface ResolvedTeamworkPerson {
   email: string;
 }
 
-async function resolveTeamworkPerson(siteUrl: string, apiToken: string, term: string): Promise<{ matches: ResolvedTeamworkPerson[]; lookupSucceeded: boolean }> {
+async function resolveTeamworkPerson(siteUrl: string, apiToken: string, term: string, userId?: number): Promise<{ matches: ResolvedTeamworkPerson[]; lookupSucceeded: boolean }> {
+  if (userId !== undefined) {
+    const cached = getCachedNameResolution<{ matches: ResolvedTeamworkPerson[]; lookupSucceeded: boolean }>("teamwork", userId, term);
+    if (cached) {
+      console.log("[Teamwork] name resolution cache hit for", term);
+      return cached;
+    }
+  }
   const client = createClient(siteUrl, apiToken);
   try {
     const response = await client.get("/projects/api/v3/people.json", {
@@ -163,7 +171,11 @@ async function resolveTeamworkPerson(siteUrl: string, apiToken: string, term: st
     })).filter((p: ResolvedTeamworkPerson) => p.id > 0);
     // Filter on client side too — Teamwork searchTerm is broad
     const filtered = mapped.filter((p) => p.displayName.toLowerCase().includes(lowered) || p.email.includes(lowered));
-    return { matches: filtered.length > 0 ? filtered : mapped, lookupSucceeded: true };
+    const result = { matches: filtered.length > 0 ? filtered : mapped, lookupSucceeded: true };
+    if (userId !== undefined) {
+      setCachedNameResolution("teamwork", userId, term, result);
+    }
+    return result;
   } catch (err) {
     console.error("Teamwork person lookup failed:", (err as Error).message);
     return { matches: [], lookupSucceeded: false };
@@ -683,7 +695,7 @@ export async function queryTeamwork(query: string, userId?: number, opts?: Teamw
   let employeeContext: string | undefined;
   if (opts?.employee && opts.employee.trim()) {
     const term = opts.employee.trim();
-    const { matches, lookupSucceeded } = await resolveTeamworkPerson(siteUrl, apiToken, term);
+    const { matches, lookupSucceeded } = await resolveTeamworkPerson(siteUrl, apiToken, term, userId);
     if (!lookupSucceeded) {
       return { source: "error", type: category, data: [], total: 0, message: `Could not look up Teamwork people. Your account may not have permission to view the people directory.` };
     }

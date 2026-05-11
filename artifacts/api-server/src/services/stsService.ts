@@ -1,5 +1,6 @@
 import axios from "axios";
 import { getUserCredentials } from "../lib/credential-store";
+import { getCachedNameResolution, setCachedNameResolution } from "../lib/name-resolution-cache";
 
 export interface StsTimeEntry {
   id: number;
@@ -367,9 +368,15 @@ function extractStsPersons(data: unknown): StsPerson[] {
     .filter((p) => p.id > 0 && (p.name || p.email));
 }
 
-async function resolveStsPersonByName(apiUrl: string, tokenId: string, term: string): Promise<{ matches: StsPerson[]; lookupSucceeded: boolean }> {
+async function resolveStsPersonByName(apiUrl: string, tokenId: string, term: string, userId: number): Promise<{ matches: StsPerson[]; lookupSucceeded: boolean }> {
   const search = term.trim().toLowerCase();
   if (!search) return { matches: [], lookupSucceeded: false };
+
+  const cached = getCachedNameResolution<{ matches: StsPerson[]; lookupSucceeded: boolean }>("sts", userId, search);
+  if (cached) {
+    console.log("[STS] name resolution cache hit for", search);
+    return cached;
+  }
 
   // Try paginated /person listing
   const all: StsPerson[] = [];
@@ -394,7 +401,11 @@ async function resolveStsPersonByName(apiUrl: string, tokenId: string, term: str
   }
 
   const matches = all.filter((p) => p.name.toLowerCase().includes(search) || p.email.includes(search));
-  return { matches, lookupSucceeded };
+  const result = { matches, lookupSucceeded };
+  if (lookupSucceeded) {
+    setCachedNameResolution("sts", userId, search, result);
+  }
+  return result;
 }
 
 export async function querySts(query: string, userId?: number, structuredParams?: StsStructuredParams): Promise<StsWeekResult> {
@@ -455,7 +466,7 @@ export async function querySts(query: string, userId?: number, structuredParams?
     let employeeContext: string | undefined;
     if (structuredParams?.employee && structuredParams.employee.trim()) {
       const term = structuredParams.employee.trim();
-      const { matches, lookupSucceeded } = await resolveStsPersonByName(apiUrl, tokenId, term);
+      const { matches, lookupSucceeded } = await resolveStsPersonByName(apiUrl, tokenId, term, userId);
       if (!lookupSucceeded) {
         return { ...emptyResult, source: "error" as const, errorMessage: `Could not look up employees in STS. Your STS connection may not have permission to view the employee directory.` };
       }

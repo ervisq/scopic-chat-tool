@@ -3,6 +3,7 @@ import { userCredentials } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 import { encrypt, decrypt } from "./crypto";
 import { invalidateDashboardCache } from "./dashboard-cache";
+import { invalidateNameResolutionCache } from "./name-resolution-cache";
 
 export async function getUserCredentials(userId: number, provider: string): Promise<{ credentials: any; instanceUrl: string | null } | null> {
   const [cred] = await db
@@ -53,6 +54,7 @@ export async function saveUserCredentials(
     });
   }
   invalidateDashboardCache(userId);
+  invalidateNameResolutionCache(userId, provider);
 }
 
 export async function deleteUserCredentials(userId: number, provider: string): Promise<void> {
@@ -60,6 +62,7 @@ export async function deleteUserCredentials(userId: number, provider: string): P
     .delete(userCredentials)
     .where(and(eq(userCredentials.userId, userId), eq(userCredentials.provider, provider)));
   invalidateDashboardCache(userId);
+  invalidateNameResolutionCache(userId, provider);
 }
 
 export async function listUserConnections(userId: number) {
