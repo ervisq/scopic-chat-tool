@@ -1,10 +1,8 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { RefreshCw, BarChart3, Users, Wrench, Shield, Search, ChevronDown, AlertTriangle } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { RefreshCw, BarChart3, Users, Shield, Search, ChevronDown, AlertTriangle, X } from "lucide-react";
 import {
   BarChart,
   Bar,
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -226,23 +224,6 @@ export default function AdminPage({ userRole }: AdminPageProps) {
     return counts;
   }, [managedUsers]);
 
-  const toolChartData = usageData
-    ? Object.entries(usageData.stats.byTool).map(([name, count]) => ({
-        name,
-        count,
-        fill: TOOL_COLORS[name] || DEFAULT_COLOR,
-      }))
-    : [];
-
-  const userChartData = usageData
-    ? Object.entries(usageData.stats.byUser).map(([name, count]) => ({
-        name: name.length > 20 ? name.slice(0, 17) + "..." : name,
-        count,
-      }))
-    : [];
-
-  const timelineData = usageData ? buildTimeline(usageData.log, usageRange) : [];
-
   if (accessDenied) {
     return (
       <div className="flex flex-col h-dvh bg-background items-center justify-center">
@@ -348,9 +329,6 @@ export default function AdminPage({ userRole }: AdminPageProps) {
               loading={usageLoading}
               range={usageRange}
               onRangeChange={setUsageRange}
-              toolChartData={toolChartData}
-              userChartData={userChartData}
-              timelineData={timelineData}
             />
           ) : (
             <FailedSignupsTab entries={failedSignups} loading={failedSignupsLoading} />
@@ -494,20 +472,83 @@ function UsageTab({
   loading,
   range,
   onRangeChange,
-  toolChartData,
-  userChartData,
-  timelineData,
 }: {
   data: UsageData | null;
   loading: boolean;
   range: Range;
   onRangeChange: (r: Range) => void;
-  toolChartData: { name: string; count: number; fill: string }[];
-  userChartData: { name: string; count: number }[];
-  timelineData: { time: string; count: number }[];
 }) {
   const rangeLabel = RANGE_LABELS[range];
   const showLoadingOverlay = loading && !data;
+
+  const [userQuery, setUserQuery] = useState("");
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  const allUsersInRange = useMemo(() => {
+    if (!data) return [];
+    const set = new Set<string>();
+    for (const e of data.log) set.add(e.user);
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [data]);
+
+  const userMatches = useMemo(() => {
+    const q = userQuery.trim().toLowerCase();
+    if (!q) return allUsersInRange.slice(0, 8);
+    return allUsersInRange.filter((u) => u.toLowerCase().includes(q)).slice(0, 8);
+  }, [userQuery, allUsersInRange]);
+
+  const filteredLog = useMemo(() => {
+    if (!data) return [];
+    if (!selectedUser) return data.log;
+    return data.log.filter((e) => e.user === selectedUser);
+  }, [data, selectedUser]);
+
+  const totalQueries = filteredLog.length;
+
+  const toolChartData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const e of filteredLog) {
+      if (e.tool) counts[e.tool] = (counts[e.tool] || 0) + 1;
+    }
+    return Object.entries(counts)
+      .map(([name, count]) => ({
+        name,
+        count,
+        fill: TOOL_COLORS[name] || DEFAULT_COLOR,
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [filteredLog]);
+
+  function handlePickUser(u: string) {
+    setSelectedUser(u);
+    setUserQuery(u);
+    setDropdownOpen(false);
+  }
+
+  function handleClearUser() {
+    setSelectedUser(null);
+    setUserQuery("");
+    setDropdownOpen(false);
+  }
+
+  const chartTitle = selectedUser
+    ? `Queries per Tool — ${selectedUser}`
+    : "Queries per Tool";
+  const emptyLabel = selectedUser
+    ? `No tool usage for ${selectedUser} ${rangeLabel}`
+    : `No tool usage ${rangeLabel}`;
 
   return (
     <div className="space-y-6">
@@ -537,109 +578,96 @@ function UsageTab({
           <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
-      <>
-      <div className="grid grid-cols-3 gap-4">
-        <StatCard
-          icon={<BarChart3 className="w-4 h-4" />}
-          label="Total Queries"
-          value={data?.stats.totalMessages ?? 0}
-        />
-        <StatCard
-          icon={<Wrench className="w-4 h-4" />}
-          label="Tools Used"
-          value={Object.keys(data?.stats.byTool ?? {}).length}
-        />
-        <StatCard
-          icon={<Users className="w-4 h-4" />}
-          label="Active Users"
-          value={Object.keys(data?.stats.byUser ?? {}).length}
-        />
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-6">
-        <div className="bg-card border border-border/60 rounded-xl p-5">
-          <h2 className="text-sm font-semibold text-foreground mb-4">Queries per Tool</h2>
-          {toolChartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={toolChartData} barSize={40}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="name" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-                <YAxis allowDecimals={false} tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                    fontSize: "13px",
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <StatCard
+              icon={<BarChart3 className="w-4 h-4" />}
+              label={selectedUser ? `Total Queries — ${selectedUser}` : "Total Queries"}
+              value={totalQueries}
+            />
+            <div ref={searchRef} className="relative bg-card border border-border/60 rounded-xl p-4">
+              <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-2">
+                <Search className="w-4 h-4" />
+                Filter by user
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={userQuery}
+                  placeholder="Search by name or email…"
+                  onChange={(e) => {
+                    setUserQuery(e.target.value);
+                    setDropdownOpen(true);
+                    if (selectedUser && e.target.value !== selectedUser) {
+                      setSelectedUser(null);
+                    }
                   }}
+                  onFocus={() => setDropdownOpen(true)}
+                  className="w-full text-sm bg-background border border-border/60 rounded-md pl-3 pr-8 py-2 focus:outline-none focus:ring-2 focus:ring-primary/40"
                 />
-                <Bar dataKey="count" radius={[6, 6, 0, 0]}>
-                  {toolChartData.map((entry, i) => (
-                    <Cell key={i} fill={entry.fill} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <EmptyChart label={`No tool usage ${rangeLabel}`} />
-          )}
-        </div>
+                {(userQuery || selectedUser) && (
+                  <button
+                    type="button"
+                    onClick={handleClearUser}
+                    aria-label="Clear user filter"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-muted/60 text-muted-foreground"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+                {dropdownOpen && userMatches.length > 0 && (
+                  <ul className="absolute left-0 right-0 top-full mt-1 z-10 max-h-56 overflow-y-auto bg-popover border border-border/60 rounded-md shadow-lg">
+                    {userMatches.map((u) => (
+                      <li key={u}>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => handlePickUser(u)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted/60"
+                        >
+                          {u}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {dropdownOpen && allUsersInRange.length === 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1 z-10 bg-popover border border-border/60 rounded-md shadow-lg px-3 py-2 text-sm text-muted-foreground">
+                    No users with activity {rangeLabel}.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
 
-        <div className="bg-card border border-border/60 rounded-xl p-5">
-          <h2 className="text-sm font-semibold text-foreground mb-4">Queries per User</h2>
-          {userChartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={userChartData} barSize={40}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="name" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-                <YAxis allowDecimals={false} tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                    fontSize: "13px",
-                  }}
-                />
-                <Bar dataKey="count" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <EmptyChart label={`No user activity ${rangeLabel}`} />
-          )}
-        </div>
-      </div>
-
-      <div className="bg-card border border-border/60 rounded-xl p-5">
-        <h2 className="text-sm font-semibold text-foreground mb-4">Activity Over Time</h2>
-        {timelineData.length > 1 ? (
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={timelineData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="time" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-              <YAxis allowDecimals={false} tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "hsl(var(--card))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: "8px",
-                  fontSize: "13px",
-                }}
-              />
-              <Line
-                type="monotone"
-                dataKey="count"
-                stroke="hsl(var(--primary))"
-                strokeWidth={2}
-                dot={{ r: 4, fill: "hsl(var(--primary))" }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        ) : (
-          <EmptyChart label={`Not enough data for timeline ${rangeLabel}`} />
-        )}
-      </div>
-      </>
+          <div className="bg-card border border-border/60 rounded-xl p-5">
+            <h2 className="text-sm font-semibold text-foreground mb-4">{chartTitle}</h2>
+            {toolChartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={toolChartData} barSize={48}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="name" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "8px",
+                      fontSize: "13px",
+                    }}
+                  />
+                  <Bar dataKey="count" radius={[6, 6, 0, 0]}>
+                    {toolChartData.map((entry, i) => (
+                      <Cell key={i} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyChart label={emptyLabel} />
+            )}
+          </div>
+        </>
       )}
     </div>
   );
@@ -734,60 +762,3 @@ function EmptyChart({ label }: { label: string }) {
   );
 }
 
-const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const MONTH_LABELS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
-
-function pad2(n: number) {
-  return n.toString().padStart(2, "0");
-}
-
-function buildTimeline(log: UsageEntry[], range: Range) {
-  const order: string[] = [];
-  const buckets: Record<string, number> = {};
-  const ensure = (k: string) => {
-    if (!(k in buckets)) {
-      buckets[k] = 0;
-      order.push(k);
-    }
-  };
-
-  if (range === "today") {
-    for (let h = 0; h < 24; h++) ensure(`${pad2(h)}:00`);
-  } else if (range === "week") {
-    for (const w of WEEKDAY_LABELS) ensure(w);
-  } else if (range === "month") {
-    const now = new Date();
-    const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    for (let d = 1; d <= days; d++) ensure(pad2(d));
-  } else if (range === "quarter") {
-    const now = new Date();
-    const qStart = now.getMonth() - (now.getMonth() % 3);
-    for (let i = 0; i < 3; i++) ensure(MONTH_LABELS[qStart + i]);
-  } else if (range === "year") {
-    for (const m of MONTH_LABELS) ensure(m);
-  }
-
-  for (const entry of log) {
-    const d = new Date(entry.timestamp);
-    let key: string;
-    if (range === "today") {
-      key = `${pad2(d.getHours())}:00`;
-    } else if (range === "week") {
-      const day = d.getDay();
-      key = WEEKDAY_LABELS[day === 0 ? 6 : day - 1];
-    } else if (range === "month") {
-      key = pad2(d.getDate());
-    } else if (range === "quarter") {
-      key = MONTH_LABELS[d.getMonth()];
-    } else {
-      key = MONTH_LABELS[d.getMonth()];
-    }
-    ensure(key);
-    buckets[key] = (buckets[key] || 0) + 1;
-  }
-
-  return order.map((time) => ({ time, count: buckets[time] }));
-}
