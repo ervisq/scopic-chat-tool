@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { TOOLS } from "@/lib/tool-config";
 import { useToolVisibility } from "@/lib/tool-visibility";
 import { cn } from "@/lib/utils";
@@ -5,27 +6,37 @@ import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 
 interface ToolVisibilityPanelProps {
   className?: string;
+  hiddenOverride?: Set<string>;
+  onToggle?: (toolName: string, hidden: boolean) => void;
+  showStatus?: boolean;
 }
 
-export function ToolVisibilityPanel({ className }: ToolVisibilityPanelProps) {
+export function ToolVisibilityPanel({
+  className,
+  hiddenOverride,
+  onToggle,
+  showStatus = true,
+}: ToolVisibilityPanelProps) {
   const { hiddenTools, setHidden, saving, justSaved, error } = useToolVisibility();
+  const effectiveHidden = hiddenOverride ?? hiddenTools;
+  const handleToggle = onToggle ?? ((name: string, hidden: boolean) => setHidden(name, hidden));
 
   return (
     <div className={cn("space-y-2", className)}>
       <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1 mb-1">
         <span>Hidden tools stay accessible if you type them manually.</span>
-        {saving ? (
+        {showStatus && saving ? (
           <span className="inline-flex items-center gap-1">
             <Loader2 className="w-3 h-3 animate-spin" /> Saving…
           </span>
-        ) : justSaved ? (
+        ) : showStatus && justSaved ? (
           <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
             <CheckCircle2 className="w-3 h-3" /> Saved
           </span>
         ) : null}
       </div>
 
-      {error && (
+      {showStatus && error && (
         <div className="flex items-center gap-2 p-2 rounded-lg bg-destructive/10 text-destructive text-xs">
           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
           <span>{error}</span>
@@ -35,7 +46,7 @@ export function ToolVisibilityPanel({ className }: ToolVisibilityPanelProps) {
       <div className="space-y-1.5">
         {TOOLS.map((tool) => {
           const Icon = tool.icon;
-          const hidden = hiddenTools.has(tool.name);
+          const hidden = effectiveHidden.has(tool.name);
           const visible = !hidden;
           const toggleId = `tool-visibility-${tool.name}`;
           return (
@@ -69,7 +80,7 @@ export function ToolVisibilityPanel({ className }: ToolVisibilityPanelProps) {
                 aria-label={`${visible ? "Hide" : "Show"} ${tool.label}`}
                 onClick={(e) => {
                   e.preventDefault();
-                  setHidden(tool.name, visible);
+                  handleToggle(tool.name, visible);
                 }}
                 className={cn(
                   "relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors",
@@ -97,7 +108,50 @@ interface ToolVisibilityModalProps {
 }
 
 export function ToolVisibilityModal({ open, onClose }: ToolVisibilityModalProps) {
+  const { hiddenTools, setHidden, saving, error } = useToolVisibility();
+  const [draft, setDraft] = useState<Set<string>>(() => new Set(hiddenTools));
+
+  useEffect(() => {
+    if (open) {
+      setDraft(new Set(hiddenTools));
+    }
+    // Only re-sync when the modal transitions to open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   if (!open) return null;
+
+  const handleToggle = (name: string, hidden: boolean) => {
+    setDraft((prev) => {
+      const next = new Set(prev);
+      if (hidden) next.add(name);
+      else next.delete(name);
+      return next;
+    });
+  };
+
+  const handleDone = async () => {
+    const changed: Array<[string, boolean]> = [];
+    for (const tool of TOOLS) {
+      const wasHidden = hiddenTools.has(tool.name);
+      const willBeHidden = draft.has(tool.name);
+      if (wasHidden !== willBeHidden) {
+        changed.push([tool.name, willBeHidden]);
+      }
+    }
+    if (changed.length === 0) {
+      onClose();
+      return;
+    }
+    try {
+      await Promise.all(changed.map(([name, hidden]) => setHidden(name, hidden)));
+    } catch {
+      // setHidden surfaces its own error toast / state; keep modal open so user sees it.
+      return;
+    }
+    onClose();
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
@@ -121,13 +175,31 @@ export function ToolVisibilityModal({ open, onClose }: ToolVisibilityModalProps)
           </button>
         </div>
         <div className="p-4 max-h-[70vh] overflow-y-auto">
-          <ToolVisibilityPanel />
+          <ToolVisibilityPanel
+            hiddenOverride={draft}
+            onToggle={handleToggle}
+            showStatus={false}
+          />
+          {error && (
+            <div className="mt-3 flex items-center gap-2 p-2 rounded-lg bg-destructive/10 text-destructive text-xs">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
         </div>
-        <div className="px-5 py-3 border-t border-border/50 flex justify-end">
+        <div className="px-5 py-3 border-t border-border/50 flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90"
+            className="px-4 py-2 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted/50"
           >
+            Cancel
+          </button>
+          <button
+            onClick={handleDone}
+            disabled={saving}
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-70 disabled:cursor-not-allowed inline-flex items-center gap-2"
+          >
+            {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
             Done
           </button>
         </div>
