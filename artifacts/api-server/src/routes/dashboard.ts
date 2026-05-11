@@ -5,7 +5,7 @@ import { queryJira } from "../services/jiraService";
 import { queryZohoPeople } from "../services/zohoPeopleService";
 import { queryZohoCrm } from "../services/zohoCrmService";
 import { queryZohoRecruit } from "../services/zohoRecruitService";
-import { queryZohoContracts } from "../services/zohoContractsService";
+import { getDashboardContractsSummary } from "../services/zohoContractsService";
 import { ZohoPermissionError } from "../services/zohoTokenManager";
 import { querySts } from "../services/stsService";
 import { queryTeamwork } from "../services/teamworkService";
@@ -414,61 +414,24 @@ router.get("/dashboard", async (req, res) => {
         promises.push(
           (async () => {
             try {
-              const result = await queryZohoContracts(
-                "all contracts",
+              const summary = await getDashboardContractsSummary(
                 zohoTokens.clientId,
                 zohoTokens.clientSecret,
                 zohoTokens.refreshToken,
                 "https://accounts.zoho.com",
               );
-              const all = result.contracts || [];
-              const activeContracts = all.filter((c) =>
-                /active|in.?progress|signed/i.test(c.contractStatus || ""),
-              );
-              const now = new Date();
-              const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-              const expiring = all.filter((c) => {
-                if (!c.endDate) return false;
-                const end = new Date(c.endDate);
-                return !isNaN(end.getTime()) && end >= now && end <= thirtyDays;
-              });
-              const previewSource = activeContracts.length > 0 ? activeContracts : all;
-              const expiringSorted = [...expiring].sort((a, b) => {
-                const ad = a.endDate ? new Date(a.endDate).getTime() : Infinity;
-                const bd = b.endDate ? new Date(b.endDate).getTime() : Infinity;
-                return ad - bd;
-              });
-              const expiringContracts = expiringSorted.slice(0, 5).map((c) => ({
-                id: c.id,
-                contractName: c.contractName,
-                contractType: c.contractType,
-                contractStatus: c.contractStatus,
-                company: c.company,
-                startDate: c.startDate,
-                endDate: c.endDate,
-                contractValue: c.contractValue,
-              }));
               services.push({
                 key: "zoho_contracts",
                 name: "Zoho Contracts",
                 connected: true,
                 accessible: true,
                 summary: {
-                  status: `${activeContracts.length} active${expiring.length ? `, ${expiring.length} expiring soon` : ""}`,
-                  activeCount: activeContracts.length,
-                  expiringCount: expiring.length,
-                  expiringContracts,
-                  totalContracts: all.length,
-                  contracts: previewSource.slice(0, 8).map((c) => ({
-                    id: c.id,
-                    contractName: c.contractName,
-                    contractType: c.contractType,
-                    contractStatus: c.contractStatus,
-                    company: c.company,
-                    startDate: c.startDate,
-                    endDate: c.endDate,
-                    contractValue: c.contractValue,
-                  })),
+                  status: `${summary.activeCount} active${summary.expiringCount ? `, ${summary.expiringCount} expiring soon` : ""}`,
+                  activeCount: summary.activeCount,
+                  expiringCount: summary.expiringCount,
+                  expiringContracts: summary.expiringContracts,
+                  totalContracts: summary.totalContracts,
+                  contracts: summary.contracts,
                 },
               });
             } catch (err: unknown) {

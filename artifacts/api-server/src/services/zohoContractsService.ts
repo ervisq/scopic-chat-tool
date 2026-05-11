@@ -87,6 +87,100 @@ async function fetchAllContracts(
   return (Array.isArray(records) ? records : []).map(mapContract);
 }
 
+const DASHBOARD_FIELDS = [
+  "id",
+  "Contract_Name",
+  "Contract_Type",
+  "Contract_Status",
+  "Company",
+  "Start_Date",
+  "End_Date",
+  "Contract_Value",
+].join(",");
+
+export interface DashboardContractsSummary {
+  activeCount: number;
+  expiringCount: number;
+  totalContracts: number;
+  expiringContracts: Array<{
+    id: string;
+    contractName: string;
+    contractType: string;
+    contractStatus: string;
+    company: string;
+    startDate: string;
+    endDate: string;
+    contractValue: string;
+  }>;
+  contracts: Array<{
+    id: string;
+    contractName: string;
+    contractType: string;
+    contractStatus: string;
+    company: string;
+    startDate: string;
+    endDate: string;
+    contractValue: string;
+  }>;
+}
+
+export async function getDashboardContractsSummary(
+  clientId: string,
+  clientSecret: string,
+  refreshToken: string,
+  domain?: string,
+): Promise<DashboardContractsSummary> {
+  const accessToken = await getZohoAccessToken(clientId, clientSecret, refreshToken, domain);
+  const contractsBase = getContractsBaseUrl(domain || "https://accounts.zoho.com");
+
+  const response = await axios.get(`${contractsBase}/contracts`, {
+    params: { limit: DEFAULT_LIMIT, fields: DASHBOARD_FIELDS },
+    headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+  });
+
+  const records = response.data?.contracts || response.data?.data || [];
+  const all: ZohoContract[] = (Array.isArray(records) ? records : []).map(mapContract);
+
+  const activeContracts = all.filter((c) =>
+    /active|in.?progress|signed/i.test(c.contractStatus || ""),
+  );
+
+  const now = new Date();
+  const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const expiring = all.filter((c) => {
+    if (!c.endDate) return false;
+    const end = new Date(c.endDate);
+    return !isNaN(end.getTime()) && end >= now && end <= thirtyDays;
+  });
+
+  const expiringSorted = [...expiring].sort((a, b) => {
+    const ad = a.endDate ? new Date(a.endDate).getTime() : Infinity;
+    const bd = b.endDate ? new Date(b.endDate).getTime() : Infinity;
+    return ad - bd;
+  });
+
+  const trim = (c: ZohoContract) => ({
+    id: c.id,
+    contractName: c.contractName,
+    contractType: c.contractType,
+    contractStatus: c.contractStatus,
+    company: c.company,
+    startDate: c.startDate,
+    endDate: c.endDate,
+    contractValue: c.contractValue,
+  });
+
+  const previewSource = activeContracts.length > 0 ? activeContracts : all;
+
+  return {
+    activeCount: activeContracts.length,
+    expiringCount: expiring.length,
+    totalContracts: all.length,
+    expiringContracts: expiringSorted.slice(0, 5).map(trim),
+    contracts: previewSource.slice(0, 8).map(trim),
+  };
+}
+
 function filterByEntity(
   contracts: ZohoContract[],
   searchEntity: string,
