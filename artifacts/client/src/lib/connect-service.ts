@@ -83,9 +83,14 @@ function apiBase(): string {
   return import.meta.env.BASE_URL.replace(/\/$/, "");
 }
 
+export const OAUTH_ORIGIN_STORAGE_KEY = "workhub:oauth_origin";
+
+export type OAuthOriginPage = "dashboard" | "connections" | "chat" | "admin" | "account";
+
 export async function startOAuthConnect(
   providerKey: string,
   token: string | null,
+  origin?: OAuthOriginPage,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   if (!token) return { ok: false, message: "Not signed in" };
   const baseUrl = apiBase();
@@ -97,6 +102,13 @@ export async function startOAuthConnect(
     if (res.ok) {
       const data = await res.json();
       if (data?.authUrl) {
+        if (origin && typeof window !== "undefined") {
+          try {
+            sessionStorage.setItem(OAUTH_ORIGIN_STORAGE_KEY, origin);
+          } catch {
+            // ignore storage errors
+          }
+        }
         window.location.href = data.authUrl;
         return { ok: true };
       }
@@ -110,6 +122,46 @@ export async function startOAuthConnect(
   } catch {
     return { ok: false, message: "Network error" };
   }
+}
+
+/**
+ * Reads (and clears) the page the user was on when they started an OAuth
+ * flow. Used by AuthGate to restore the user to that page after the
+ * callback redirect, regardless of their default landing page.
+ */
+export function consumeOAuthOrigin(): OAuthOriginPage | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const value = sessionStorage.getItem(OAUTH_ORIGIN_STORAGE_KEY);
+    if (value) sessionStorage.removeItem(OAUTH_ORIGIN_STORAGE_KEY);
+    if (
+      value === "dashboard" ||
+      value === "connections" ||
+      value === "chat" ||
+      value === "admin" ||
+      value === "account"
+    ) {
+      return value;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Returns true if the current URL contains any OAuth callback params
+ * produced by the JIRA or Zoho OAuth flows. Does not modify the URL.
+ */
+export function hasOAuthCallbackParams(): boolean {
+  if (typeof window === "undefined") return false;
+  const params = new URLSearchParams(window.location.search);
+  return (
+    params.has("jira_success") ||
+    params.has("jira_error") ||
+    params.has("zoho_success") ||
+    params.has("zoho_error")
+  );
 }
 
 export async function saveCredentialsConnect(

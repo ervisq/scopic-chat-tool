@@ -74,7 +74,7 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
   async function handleOAuthConnect(provider: ProviderConfig) {
     setOauthLoading(provider.key);
     setMessage(null);
-    const result = await startOAuthConnect(provider.key, token);
+    const result = await startOAuthConnect(provider.key, token, "connections");
     if (!result.ok) {
       setMessage({ type: "error", text: result.message });
       setOauthLoading(null);

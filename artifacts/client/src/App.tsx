@@ -13,6 +13,7 @@ import AccountPage from "@/pages/account-page";
 import OnboardingTour, { isTourCompleted, type TourStep } from "@/components/onboarding-tour";
 import { ToolVisibilityProvider } from "@/lib/tool-visibility";
 import { Toaster } from "@/components/ui/toaster";
+import { consumeOAuthOrigin, hasOAuthCallbackParams } from "@/lib/connect-service";
 
 const TOUR_STEPS: TourStep[] = [
   {
@@ -99,13 +100,28 @@ function AuthGate() {
       if (currentEmail !== lastAuthUser) {
         setLastAuthUser(currentEmail);
         const validPages: Page[] = ["dashboard", "chat", "admin", "connections", "account"];
-        const candidate = user.defaultPage as Page | undefined;
-        if (candidate === "admin" && user.role !== "admin") {
-          setPage("dashboard");
-        } else if (candidate && validPages.includes(candidate)) {
-          setPage(candidate);
+        // If the user is returning from an OAuth callback (e.g. JIRA/Zoho),
+        // restore them to the page they started the connection from rather
+        // than their default landing page. Otherwise fall back to the
+        // configured default page.
+        const oauthOrigin = hasOAuthCallbackParams() ? consumeOAuthOrigin() : null;
+        const oauthOriginPage =
+          oauthOrigin && validPages.includes(oauthOrigin as Page) ? (oauthOrigin as Page) : null;
+        if (oauthOriginPage) {
+          if (oauthOriginPage === "admin" && user.role !== "admin") {
+            setPage("dashboard");
+          } else {
+            setPage(oauthOriginPage);
+          }
         } else {
-          setPage("dashboard");
+          const candidate = user.defaultPage as Page | undefined;
+          if (candidate === "admin" && user.role !== "admin") {
+            setPage("dashboard");
+          } else if (candidate && validPages.includes(candidate)) {
+            setPage(candidate);
+          } else {
+            setPage("dashboard");
+          }
         }
         if (!isTourCompleted(user.email)) {
           tourTimer = setTimeout(() => setShowTour(true), 500);

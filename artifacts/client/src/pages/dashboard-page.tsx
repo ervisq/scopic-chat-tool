@@ -1784,7 +1784,7 @@ export default function DashboardPage({
     }
     if (provider.oauth) {
       setConnectMessage(null);
-      const result = await startOAuthConnect(provider.key, token);
+      const result = await startOAuthConnect(provider.key, token, "dashboard");
       if (!result.ok) {
         setConnectMessage({ type: "error", text: result.message });
       }
