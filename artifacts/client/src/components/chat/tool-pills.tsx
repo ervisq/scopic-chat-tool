@@ -154,6 +154,7 @@ export function ToolPills({
                   href={externalUrl}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
                   title={`Open ${tool.label}`}
                   aria-label={`Open ${tool.label}`}
                   className={cn(
