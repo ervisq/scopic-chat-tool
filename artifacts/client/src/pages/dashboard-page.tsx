@@ -25,6 +25,13 @@ import { JiraIcon, TeamworkIcon, OutlookIcon, ZohoIcon, StsIcon } from "../compo
 import { safeExternalUrl } from "@/lib/utils";
 import { useToolVisibility } from "@/lib/tool-visibility";
 import { ToolVisibilityModal } from "@/components/tool-visibility-panel";
+import { ConnectServiceDialog } from "@/components/connect-service-dialog";
+import {
+  consumeOAuthCallbackMessages,
+  getProviderConfig,
+  startOAuthConnect,
+  type ProviderConfig,
+} from "@/lib/connect-service";
 
 const SERVICE_KEY_TO_TOOL_NAME: Record<string, string> = {
   jira: "JIRA",
@@ -1720,6 +1727,16 @@ function ServiceDrawer({
   );
 }
 
+const SERVICE_KEY_TO_PROVIDER_KEY: Record<string, string> = {
+  jira: "jira",
+  zoho_people: "zoho",
+  zoho_crm: "zoho",
+  zoho_recruit: "zoho",
+  zoho_contracts: "zoho",
+  sts: "sts",
+  teamwork: "teamwork",
+};
+
 export default function DashboardPage({
   user,
   token,
@@ -1730,13 +1747,57 @@ export default function DashboardPage({
   const [loading, setLoading] = useState(true);
   const [drawerService, setDrawerService] = useState<ServiceData | null>(null);
   const [toolSettingsOpen, setToolSettingsOpen] = useState(false);
-  const { isHidden } = useToolVisibility();
+  const [connectDialogProvider, setConnectDialogProvider] = useState<ProviderConfig | null>(null);
+  const [connectMessage, setConnectMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const { isHidden, refreshConnectedTools } = useToolVisibility();
 
   const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
 
   useEffect(() => {
+    const messages = consumeOAuthCallbackMessages();
+    if (messages.length > 0) {
+      const last = messages[messages.length - 1];
+      setConnectMessage({ type: last.type, text: last.text });
+      if (last.type === "success") {
+        refreshConnectedTools();
+      }
+    }
     fetchDashboard();
   }, []);
+
+  useEffect(() => {
+    if (!connectMessage) return;
+    const t = setTimeout(() => setConnectMessage(null), 6000);
+    return () => clearTimeout(t);
+  }, [connectMessage]);
+
+  async function handleTileConnect(serviceKey: string) {
+    const providerKey = SERVICE_KEY_TO_PROVIDER_KEY[serviceKey];
+    if (!providerKey) {
+      onOpenConnections();
+      return;
+    }
+    const provider = getProviderConfig(providerKey);
+    if (!provider) {
+      onOpenConnections();
+      return;
+    }
+    if (provider.oauth) {
+      setConnectMessage(null);
+      const result = await startOAuthConnect(provider.key, token);
+      if (!result.ok) {
+        setConnectMessage({ type: "error", text: result.message });
+      }
+      return;
+    }
+    setConnectDialogProvider(provider);
+  }
+
+  function handleDialogConnected() {
+    setConnectMessage({ type: "success", text: `${connectDialogProvider?.name ?? "Service"} connected successfully` });
+    refreshConnectedTools();
+    fetchDashboard();
+  }
 
   const defaultServices: ServiceData[] = [
     { key: "outlook_email", name: "Outlook Email", connected: false },
@@ -1871,7 +1932,7 @@ export default function DashboardPage({
                       <ServiceCard
                         key={service.key}
                         service={service}
-                        onConnect={onOpenConnections}
+                        onConnect={() => handleTileConnect(service.key)}
                         onViewMore={() => setDrawerService(service)}
                       />
                     ))}
@@ -1881,7 +1942,7 @@ export default function DashboardPage({
 
               {(showStsPanel || showOutlookPanel) && (
                 <div className="w-full lg:w-[340px] shrink-0 space-y-5">
-                  {showStsPanel && <WeeklyHoursPanel service={stsService} onConnect={onOpenConnections} />}
+                  {showStsPanel && <WeeklyHoursPanel service={stsService} onConnect={() => handleTileConnect("sts")} />}
                   {showOutlookPanel && (
                     <OutlookPanel
                       calendarService={calendarService}
@@ -1912,6 +1973,36 @@ export default function DashboardPage({
         open={toolSettingsOpen}
         onClose={() => setToolSettingsOpen(false)}
       />
+      <ConnectServiceDialog
+        provider={connectDialogProvider}
+        token={token}
+        open={connectDialogProvider !== null}
+        onOpenChange={(open) => {
+          if (!open) setConnectDialogProvider(null);
+        }}
+        onConnected={handleDialogConnected}
+      />
+      {connectMessage && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-sm">
+          <div
+            className={`rounded-xl border shadow-lg px-4 py-3 text-sm flex items-start gap-3 ${
+              connectMessage.type === "success"
+                ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200"
+                : "bg-destructive/10 border-destructive/30 text-destructive"
+            }`}
+          >
+            <span className="flex-1">{connectMessage.text}</span>
+            <button
+              type="button"
+              onClick={() => setConnectMessage(null)}
+              className="text-xs opacity-70 hover:opacity-100"
+              aria-label="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

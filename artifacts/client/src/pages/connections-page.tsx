@@ -1,6 +1,13 @@
 import { useState, useEffect } from "react";
 import { Check, X, Loader2, ExternalLink, Settings } from "lucide-react";
 import { useToolVisibility } from "@/lib/tool-visibility";
+import {
+  PROVIDERS,
+  type ProviderConfig,
+  startOAuthConnect,
+  saveCredentialsConnect,
+  consumeOAuthCallbackMessages,
+} from "@/lib/connect-service";
 
 interface ConnectionsPageProps {
   token: string | null;
@@ -12,64 +19,6 @@ interface Connection {
   instanceUrl?: string | null;
   connectedAt?: string;
 }
-
-interface ProviderField {
-  key: string;
-  label: string;
-  type: string;
-  placeholder: string;
-}
-
-interface ProviderConfig {
-  name: string;
-  key: string;
-  color: string;
-  description: string;
-  fields: ProviderField[];
-  hasInstanceUrl: boolean;
-  oauth?: boolean;
-}
-
-const PROVIDERS: ProviderConfig[] = [
-  {
-    name: "JIRA",
-    key: "jira",
-    color: "bg-blue-500",
-    description: "Connect your Atlassian Jira account to query tickets, track issues, and manage projects. Use @JIRA in chat after connecting.",
-    hasInstanceUrl: false,
-    oauth: true,
-    fields: [],
-  },
-  {
-    name: "Zoho",
-    key: "zoho",
-    color: "bg-amber-500",
-    description: "Connect your Zoho account to access People (HR), CRM (Sales), Recruit (Hiring), and Contracts data. Use @ZohoPeople, @ZohoCRM, @ZohoRecruit, and @ZohoContracts commands in chat.",
-    hasInstanceUrl: false,
-    oauth: true,
-    fields: [],
-  },
-  {
-    name: "STS",
-    key: "sts",
-    color: "bg-emerald-500",
-    description: "Connect to STS (Scopic Time System) to view your working hours. Find your token in the STS URL after logging in: the value after token[token_id]= in the address bar.",
-    hasInstanceUrl: true,
-    fields: [
-      { key: "tokenId", label: "STS Token", type: "password", placeholder: "Paste your token_id from the STS URL" },
-    ],
-  },
-  {
-    name: "Teamwork",
-    key: "teamwork",
-    color: "bg-purple-500",
-    description: "Connect your Teamwork account to query tasks, projects, task lists, milestones, time entries, teams, people, comments, tags, and activity. Use @Teamwork in chat after connecting.",
-    hasInstanceUrl: true,
-    fields: [
-      { key: "apiToken", label: "API Token", type: "password", placeholder: "Your Teamwork API token" },
-    ],
-  },
-];
 
 export default function ConnectionsPage({ token }: ConnectionsPageProps) {
   const { refreshConnectedTools } = useToolVisibility();
@@ -87,45 +36,15 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
   const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-
-    if (params.get("jira_success") === "true") {
-      setMessage({ type: "success", text: "Jira connected successfully! Use @JIRA in chat to query tickets and issues." });
-      setExpandedProvider("jira");
-      refreshConnectedTools();
-      window.history.replaceState({}, "", window.location.pathname);
-    } else if (params.get("jira_error")) {
-      const errorMap: Record<string, string> = {
-        missing_params: "Jira authorization was incomplete. Please try again.",
-        invalid_state: "Session expired. Please log in again and retry.",
-        no_refresh_token: "Jira did not grant offline access. Please try again and make sure to accept all permissions.",
-        no_jira_site: "No Jira sites found for your Atlassian account. Make sure you have access to at least one Jira project.",
-        token_exchange_failed: "Failed to complete Jira authorization. Please try again.",
-        access_denied: "Jira authorization was denied. Please try again and accept the required permissions.",
-      };
-      const errCode = params.get("jira_error") || "";
-      setMessage({ type: "error", text: errorMap[errCode] || `Jira connection failed: ${errCode}` });
-      window.history.replaceState({}, "", window.location.pathname);
+    const messages = consumeOAuthCallbackMessages();
+    if (messages.length > 0) {
+      const last = messages[messages.length - 1];
+      setMessage({ type: last.type, text: last.text });
+      if (last.type === "success") {
+        setExpandedProvider(last.provider);
+        refreshConnectedTools();
+      }
     }
-
-    if (params.get("zoho_success") === "true") {
-      setMessage({ type: "success", text: "Zoho connected successfully! Use @ZohoPeople, @ZohoCRM, @ZohoRecruit, and @ZohoContracts in chat." });
-      setExpandedProvider("zoho");
-      refreshConnectedTools();
-      window.history.replaceState({}, "", window.location.pathname);
-    } else if (params.get("zoho_error")) {
-      const errorMap: Record<string, string> = {
-        missing_params: "Zoho authorization was incomplete. Please try again.",
-        invalid_state: "Session expired. Please log in again and retry.",
-        no_refresh_token: "Zoho did not grant offline access. Please try again and make sure to accept all permissions.",
-        token_exchange_failed: "Failed to complete Zoho authorization. Please try again.",
-      };
-      const errCode = params.get("zoho_error") || "";
-      setMessage({ type: "error", text: errorMap[errCode] || `Zoho connection failed: ${errCode}` });
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-
-
     fetchConnections();
   }, []);
 
@@ -155,27 +74,9 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
   async function handleOAuthConnect(provider: ProviderConfig) {
     setOauthLoading(provider.key);
     setMessage(null);
-
-    const oauthEndpoints: Record<string, string> = {
-      jira: `${baseUrl}/api/jira/auth-url`,
-      zoho: `${baseUrl}/api/zoho/auth-url`,
-    };
-    const authUrlEndpoint = oauthEndpoints[provider.key] || `${baseUrl}/api/${provider.key}/auth-url`;
-
-    try {
-      const res = await fetch(authUrlEndpoint, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        window.location.href = data.authUrl;
-      } else {
-        const err = await res.json();
-        setMessage({ type: "error", text: err.message || `Failed to start ${provider.name} authorization` });
-        setOauthLoading(null);
-      }
-    } catch {
-      setMessage({ type: "error", text: "Network error" });
+    const result = await startOAuthConnect(provider.key, token);
+    if (!result.ok) {
+      setMessage({ type: "error", text: result.message });
       setOauthLoading(null);
     }
   }
@@ -195,38 +96,26 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
 
     setSaving(provider.key);
     setMessage(null);
-    try {
-      const res = await fetch(`${baseUrl}/api/credentials/${provider.key}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          credentials: creds,
-          instanceUrl: provider.hasInstanceUrl ? instanceUrls[provider.key] : undefined,
-        }),
-      });
-
-      if (res.ok) {
-        setMessage({ type: "success", text: `${provider.name} connected successfully` });
-        setExpandedProvider(null);
-        setFormData((prev) => ({ ...prev, [provider.key]: {} }));
-        setInstanceUrls((prev) => ({
-          ...prev,
-          [provider.key]: provider.key === "sts" ? "https://time.scopicsoftware.com" : "",
-        }));
-        await fetchConnections();
-        refreshConnectedTools();
-      } else {
-        const err = await res.json();
-        setMessage({ type: "error", text: err.message || "Failed to save" });
-      }
-    } catch {
-      setMessage({ type: "error", text: "Network error" });
-    } finally {
-      setSaving(null);
+    const result = await saveCredentialsConnect(
+      provider.key,
+      creds,
+      provider.hasInstanceUrl ? instanceUrls[provider.key] : undefined,
+      token,
+    );
+    if (result.ok) {
+      setMessage({ type: "success", text: `${provider.name} connected successfully` });
+      setExpandedProvider(null);
+      setFormData((prev) => ({ ...prev, [provider.key]: {} }));
+      setInstanceUrls((prev) => ({
+        ...prev,
+        [provider.key]: provider.key === "sts" ? "https://time.scopicsoftware.com" : "",
+      }));
+      await fetchConnections();
+      refreshConnectedTools();
+    } else {
+      setMessage({ type: "error", text: result.message });
     }
+    setSaving(null);
   }
 
   async function handleDisconnect(providerKey: string, providerName: string) {
