@@ -68,6 +68,12 @@ interface JiraUser {
   emailAddress: string;
 }
 
+interface JiraUserSearchResult {
+  users: JiraUser[];
+  permissionDenied?: boolean;
+  lookupFailed?: boolean;
+}
+
 async function searchJiraUsers(opts: {
   cloudId?: string;
   accessToken?: string;
@@ -75,7 +81,7 @@ async function searchJiraUsers(opts: {
   email?: string;
   apiToken?: string;
   query: string;
-}): Promise<JiraUser[]> {
+}): Promise<JiraUserSearchResult> {
   const params = { query: opts.query, maxResults: 20 };
   let url: string;
   let config: Record<string, unknown>;
@@ -93,20 +99,25 @@ async function searchJiraUsers(opts: {
       headers: { Accept: "application/json" },
     };
   } else {
-    return [];
+    return { users: [], lookupFailed: true };
   }
 
   try {
     const response = await axios.get(url, config);
     const data = response.data || [];
-    return (Array.isArray(data) ? data : []).map((u: any) => ({
+    const users = (Array.isArray(data) ? data : []).map((u: any) => ({
       accountId: String(u.accountId || ""),
       displayName: String(u.displayName || ""),
       emailAddress: String(u.emailAddress || ""),
     })).filter((u) => u.accountId);
+    return { users };
   } catch (err: unknown) {
-    console.error("Jira user search failed:", (err as Error).message);
-    return [];
+    const status = (err as any)?.response?.status;
+    console.error("Jira user search failed:", (err as Error).message, "status:", status);
+    if (status === 401 || status === 403) {
+      return { users: [], permissionDenied: true };
+    }
+    return { users: [], lookupFailed: true };
   }
 }
 
@@ -116,13 +127,16 @@ interface JiraResolvedAssignee {
   ambiguous?: { displayName: string; emailAddress: string }[];
   notFound?: boolean;
   lookupFailed?: boolean;
+  permissionDenied?: boolean;
 }
 
 async function resolveJiraAssignee(
   term: string,
   authOpts: { cloudId?: string; accessToken?: string; baseUrl?: string; email?: string; apiToken?: string },
 ): Promise<JiraResolvedAssignee> {
-  const matches = await searchJiraUsers({ ...authOpts, query: term });
+  const { users: matches, permissionDenied, lookupFailed } = await searchJiraUsers({ ...authOpts, query: term });
+  if (permissionDenied) return { permissionDenied: true };
+  if (lookupFailed) return { lookupFailed: true };
   if (matches.length === 0) {
     return { notFound: true };
   }
@@ -135,7 +149,7 @@ async function resolveJiraAssignee(
   const nameMatches = matches.filter((m) => m.displayName.toLowerCase().includes(lowered));
   if (nameMatches.length === 1) return { accountId: nameMatches[0].accountId, displayName: nameMatches[0].displayName };
   return {
-    ambiguous: matches.slice(0, 8).map((m) => ({ displayName: m.displayName, emailAddress: m.emailAddress })),
+    ambiguous: matches.slice(0, 5).map((m) => ({ displayName: m.displayName, emailAddress: m.emailAddress })),
   };
 }
 
@@ -164,6 +178,12 @@ async function queryJiraOAuth(query: string, cloudId: string, refreshToken: stri
   const employeeTerm = (opts.employee || (opts.assignee && opts.assignee !== "me" && opts.assignee !== "all" && opts.assignee !== "unassigned" ? opts.assignee : undefined))?.trim();
   if (employeeTerm) {
     const resolved = await resolveJiraAssignee(employeeTerm, { cloudId, accessToken });
+    if (resolved.permissionDenied) {
+      return { tickets: [], total: 0, source: "live", instanceUrl, employeeMessage: `Your JIRA account does not have permission to look up users. Ask an admin to grant the "Browse Users" permission.` };
+    }
+    if (resolved.lookupFailed) {
+      return { tickets: [], total: 0, source: "live", instanceUrl, employeeMessage: `Could not look up "${employeeTerm}" in JIRA. Please try again.` };
+    }
     if (resolved.notFound) {
       return { tickets: [], total: 0, source: "live", instanceUrl, employeeMessage: `No JIRA user matched "${employeeTerm}".` };
     }
@@ -209,6 +229,12 @@ async function queryJiraBasicAuth(query: string, instanceUrl: string, email: str
   const employeeTerm = (opts.employee || (opts.assignee && opts.assignee !== "me" && opts.assignee !== "all" && opts.assignee !== "unassigned" ? opts.assignee : undefined))?.trim();
   if (employeeTerm) {
     const resolved = await resolveJiraAssignee(employeeTerm, { baseUrl, email, apiToken });
+    if (resolved.permissionDenied) {
+      return { tickets: [], total: 0, source: "live", instanceUrl, employeeMessage: `Your JIRA account does not have permission to look up users. Ask an admin to grant the "Browse Users" permission.` };
+    }
+    if (resolved.lookupFailed) {
+      return { tickets: [], total: 0, source: "live", instanceUrl, employeeMessage: `Could not look up "${employeeTerm}" in JIRA. Please try again.` };
+    }
     if (resolved.notFound) {
       return { tickets: [], total: 0, source: "live", instanceUrl, employeeMessage: `No JIRA user matched "${employeeTerm}".` };
     }

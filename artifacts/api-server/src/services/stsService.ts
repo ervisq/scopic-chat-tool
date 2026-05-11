@@ -463,7 +463,7 @@ export async function querySts(query: string, userId?: number, structuredParams?
         return { ...emptyResult, source: "error" as const, errorMessage: `No STS employee matched "${term}". Try a more specific name or email.` };
       }
       if (matches.length > 1) {
-        const names = matches.slice(0, 8).map((m) => `${m.name}${m.email ? ` (${m.email})` : ""}`).join(", ");
+        const names = matches.slice(0, 5).map((m) => `${m.name}${m.email ? ` (${m.email})` : ""}`).join(", ");
         return { ...emptyResult, source: "error" as const, errorMessage: `Multiple STS employees matched "${term}": ${names}. Please be more specific.` };
       }
       personId = matches[0].id;

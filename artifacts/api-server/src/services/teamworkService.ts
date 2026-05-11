@@ -691,7 +691,7 @@ export async function queryTeamwork(query: string, userId?: number, opts?: Teamw
       return { source: "live", type: category, data: [], total: 0, instanceUrl: siteUrl, employeeMessage: `No Teamwork person matched "${term}".` };
     }
     if (matches.length > 1) {
-      const list = matches.slice(0, 8).map((m) => `${m.displayName}${m.email ? ` (${m.email})` : ""}`).join(", ");
+      const list = matches.slice(0, 5).map((m) => `${m.displayName}${m.email ? ` (${m.email})` : ""}`).join(", ");
       return { source: "live", type: category, data: [], total: 0, instanceUrl: siteUrl, employeeMessage: `Multiple Teamwork people matched "${term}": ${list}. Please be more specific.` };
     }
     employeePersonId = matches[0].id;
@@ -748,6 +748,7 @@ export function formatTeamworkResult(result: TeamworkServiceResult, query: strin
     return "Your Teamwork account is not connected. Please go to Connected Services to link your Teamwork credentials.";
   }
   if (result.source === "error") {
+    if (result.message) return result.message;
     return "There was an error connecting to Teamwork. Please check your credentials in Connected Services and try again.";
   }
 

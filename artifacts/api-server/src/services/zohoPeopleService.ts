@@ -782,39 +782,93 @@ export async function queryZohoPeople(
   const accessToken = await getZohoAccessToken(clientId, clientSecret, refreshToken, domain);
   const lower = query.toLowerCase();
 
+  // Resolve employee filter once, then let normal query routing run scoped to that employee.
+  let employeeFilter: ZohoEmployee | null = null;
+  let employeeFilterLabel = "";
   if (employee && employee.trim().length > 0) {
-    const employees = await searchEmployee(accessToken, employee.trim());
+    const term = employee.trim();
+    const matches = await searchEmployee(accessToken, term);
+    if (matches.length === 0) {
+      return {
+        type: "employee_detail",
+        employees: [],
+        total: 0,
+        totalFetched: 0,
+        source: "live",
+        contextLabel: `No Zoho People employee matched "${term}".`,
+      };
+    }
+    if (matches.length > 1) {
+      const top = matches.slice(0, 5);
+      const list = top.map((m) => `${m.firstName} ${m.lastName}`.trim() || m.employeeId || m.id).filter(Boolean).join(", ");
+      return {
+        type: "employee_detail",
+        employees: top,
+        total: top.length,
+        totalFetched: matches.length,
+        source: "live",
+        contextLabel: `Multiple Zoho People matched "${term}": ${list}. Please be more specific.`,
+      };
+    }
+    employeeFilter = matches[0];
+    employeeFilterLabel = `${matches[0].firstName} ${matches[0].lastName}`.trim() || matches[0].employeeId || term;
+  }
+
+  const matchesEmployee = (name: string): boolean => {
+    if (!employeeFilter) return true;
+    const candidate = name.toLowerCase().trim();
+    if (!candidate) return false;
+    const fn = employeeFilter.firstName.toLowerCase();
+    const ln = employeeFilter.lastName.toLowerCase();
+    const full = `${fn} ${ln}`.trim();
+    return candidate === full || candidate.includes(fn) && (!ln || candidate.includes(ln));
+  };
+
+  // If an employee is targeted and the query is generic ("info about Jack"), return the profile.
+  if (employeeFilter && !lower.match(/birthday|anniversary|leave|time off|pto|absence|sick|attendance|check[- ]?in|punch|clock|new join|onboard|department|timesheet|hours logged|work hours|headcount|manager|supervisor|report to/)) {
     return {
       type: "employee_detail",
-      employees,
-      total: employees.length,
-      totalFetched: employees.length,
+      employees: [employeeFilter],
+      total: 1,
+      totalFetched: 1,
       source: "live",
-      contextLabel: `Employee lookup: "${employee}"`,
+      contextLabel: `Employee profile: ${employeeFilterLabel}`,
     };
   }
+
+  const filterToEmployee = <T extends { firstName?: string; lastName?: string; id?: string; employeeId?: string }>(items: T[]): T[] => {
+    if (!employeeFilter) return items;
+    return items.filter((e) =>
+      (e.id && e.id === employeeFilter!.id) ||
+      (e.employeeId && e.employeeId === employeeFilter!.employeeId) ||
+      matchesEmployee(`${e.firstName || ""} ${e.lastName || ""}`),
+    );
+  };
 
   if (lower.includes("birthday") || lower.includes("born today") || lower.includes("bday")) {
     const employees = await fetchEmployees(accessToken);
     const period = detectPeriod(query, "today") as "today" | "this_week" | "this_month";
-    const matches = filterBirthdays(employees, period);
-    const label = period === "today" ? "Today's Birthdays" : period === "this_week" ? "Birthdays This Week" : "Birthdays This Month";
+    const matches = filterToEmployee(filterBirthdays(employees, period));
+    const baseLabel = period === "today" ? "Today's Birthdays" : period === "this_week" ? "Birthdays This Week" : "Birthdays This Month";
+    const label = employeeFilter ? `${baseLabel} for ${employeeFilterLabel}` : baseLabel;
     return { type: "birthdays", employees: matches, total: matches.length, source: "live", contextLabel: label };
   }
 
   if (lower.includes("anniversary") || lower.includes("work anniversary") || lower.includes("years of service")) {
     const employees = await fetchEmployees(accessToken);
     const period = detectPeriod(query, "today") as "today" | "this_week" | "this_month";
-    const matches = filterAnniversaries(employees, period);
-    const label = period === "today" ? "Today's Work Anniversaries" : period === "this_week" ? "Work Anniversaries This Week" : "Work Anniversaries This Month";
+    const matches = filterToEmployee(filterAnniversaries(employees, period));
+    const baseLabel = period === "today" ? "Today's Work Anniversaries" : period === "this_week" ? "Work Anniversaries This Week" : "Work Anniversaries This Month";
+    const label = employeeFilter ? `${baseLabel} for ${employeeFilterLabel}` : baseLabel;
     return { type: "anniversaries", employees: matches, total: matches.length, source: "live", contextLabel: label };
   }
 
   if (lower.includes("new join") || lower.includes("newly joined") || lower.includes("new hire") || lower.includes("new employee") || lower.includes("recent join") || lower.includes("onboard")) {
     const employees = await fetchEmployees(accessToken);
     const period = detectPeriod(query, "this_month") as "this_week" | "this_month" | "last_month" | "this_year";
-    const matches = filterNewJoiners(employees, period);
-    const label = period === "this_week" ? "New Joiners This Week" : period === "this_month" ? "New Joiners This Month" : period === "last_month" ? "New Joiners Last Month" : "New Joiners This Year";
+    const matches = filterToEmployee(filterNewJoiners(employees, period));
+    const baseLabel = period === "this_week" ? "New Joiners This Week" : period === "this_month" ? "New Joiners This Month" : period === "last_month" ? "New Joiners Last Month" : "New Joiners This Year";
+    const label = employeeFilter ? `${baseLabel} for ${employeeFilterLabel}` : baseLabel;
     return { type: "new_joiners", employees: matches, total: matches.length, source: "live", contextLabel: label };
   }
 
@@ -828,8 +882,9 @@ export async function queryZohoPeople(
     lower.includes("on vacation")
   ) {
     const leaveRequests = await fetchLeaveRequests(accessToken);
-    const todayLeave = filterTodayLeave(leaveRequests);
-    return { type: "leave_today", leaveRequests: todayLeave, total: todayLeave.length, source: "live", contextLabel: "Who's Off Today" };
+    const todayLeave = filterTodayLeave(leaveRequests).filter((l) => matchesEmployee(l.employee));
+    const label = employeeFilter ? `Is ${employeeFilterLabel} off today?` : "Who's Off Today";
+    return { type: "leave_today", leaveRequests: todayLeave, total: todayLeave.length, source: "live", contextLabel: label };
   }
 
   if (lower.includes("department")) {
@@ -851,8 +906,10 @@ export async function queryZohoPeople(
 
   if (lower.includes("timesheet") || lower.includes("time log") || lower.includes("time track") || lower.includes("hours logged") || lower.includes("work hours")) {
     try {
-      const timeLogs = await fetchTimesheets(accessToken);
-      return { type: "timesheets", timeLogs, total: timeLogs.length, source: "live" };
+      const all = await fetchTimesheets(accessToken);
+      const timeLogs = employeeFilter ? all.filter((t) => matchesEmployee(t.employee)) : all;
+      const label = employeeFilter ? `Timesheets for ${employeeFilterLabel}` : undefined;
+      return { type: "timesheets", timeLogs, total: timeLogs.length, source: "live", contextLabel: label };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       throw new Error(`Timesheets not available: ${msg}. This form may not be enabled in your Zoho People account.`);
@@ -860,14 +917,18 @@ export async function queryZohoPeople(
   }
 
   if (lower.includes("leave") || lower.includes("time off") || lower.includes("pto") || lower.includes("absence") || lower.includes("sick day")) {
-    const leaveRequests = await fetchLeaveRequests(accessToken);
-    return { type: "leave", leaveRequests, total: leaveRequests.length, source: "live" };
+    const all = await fetchLeaveRequests(accessToken);
+    const leaveRequests = employeeFilter ? all.filter((l) => matchesEmployee(l.employee)) : all;
+    const label = employeeFilter ? `Leave requests for ${employeeFilterLabel}` : undefined;
+    return { type: "leave", leaveRequests, total: leaveRequests.length, source: "live", contextLabel: label };
   }
 
   if (lower.includes("attendance") || lower.includes("check-in") || lower.includes("checkin") || lower.includes("check in") || lower.includes("punch") || lower.includes("clock in") || lower.includes("clock out") || lower.includes("present today") || lower.includes("who came") || lower.includes("who is in")) {
     const dateRange = parseDateRange(query);
-    const attendanceRecords = await fetchAttendance(accessToken, dateRange);
-    return { type: "attendance", attendanceRecords, total: attendanceRecords.length, source: "live" };
+    const all = await fetchAttendance(accessToken, dateRange);
+    const attendanceRecords = employeeFilter ? all.filter((a) => matchesEmployee(a.employee)) : all;
+    const label = employeeFilter ? `Attendance for ${employeeFilterLabel}` : undefined;
+    return { type: "attendance", attendanceRecords, total: attendanceRecords.length, source: "live", contextLabel: label };
   }
 
   if (lower.includes("my profile") || lower.includes("my info") || lower.includes("my details") || lower.includes("my data") || lower.includes("my personal") || lower.includes("my record") || lower.includes("my employee")) {
@@ -882,6 +943,9 @@ export async function queryZohoPeople(
   }
 
   if (lower.includes("manager") || lower.includes("report to") || lower.includes("reporting to") || lower.includes("supervisor") || lower.includes("direct report")) {
+    if (employeeFilter) {
+      return { type: "employee_detail", employees: [employeeFilter], total: 1, totalFetched: 1, source: "live", contextLabel: `Reporting info for ${employeeFilterLabel}` };
+    }
     const employees = await fetchEmployees(accessToken);
     return { type: "employees", employees, total: employees.length, source: "live", contextLabel: "Organization Hierarchy" };
   }
