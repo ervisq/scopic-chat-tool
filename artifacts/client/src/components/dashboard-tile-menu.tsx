@@ -68,6 +68,7 @@ export function DashboardTileMenu({
             <span className="text-[11px] text-muted-foreground pl-6">{reason}</span>
           )}
         </DropdownMenuItem>
+        {onUpdate && <DropdownMenuSeparator />}
         {onUpdate && (
           <DropdownMenuItem
             disabled={updateDisabled}
