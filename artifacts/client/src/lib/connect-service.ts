@@ -164,6 +164,19 @@ export function hasOAuthCallbackParams(): boolean {
   );
 }
 
+/**
+ * Snapshot of whether the page was loaded with OAuth callback params,
+ * captured once at module load. Use this when multiple components need
+ * to react to the OAuth return: one of them will eventually consume and
+ * strip the params from the URL, after which `hasOAuthCallbackParams()`
+ * would start returning false. This snapshot stays stable for the
+ * lifetime of the page so callers do not depend on effect ordering.
+ */
+const INITIAL_HAD_OAUTH_CALLBACK_PARAMS = hasOAuthCallbackParams();
+export function hadOAuthCallbackParamsAtLoad(): boolean {
+  return INITIAL_HAD_OAUTH_CALLBACK_PARAMS;
+}
+
 export async function saveCredentialsConnect(
   providerKey: string,
   credentials: Record<string, string>,

@@ -6,7 +6,6 @@ import {
   type ProviderConfig,
   startOAuthConnect,
   saveCredentialsConnect,
-  consumeOAuthCallbackMessages,
 } from "@/lib/connect-service";
 
 interface ConnectionsPageProps {
@@ -36,15 +35,6 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
   const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
 
   useEffect(() => {
-    const messages = consumeOAuthCallbackMessages();
-    if (messages.length > 0) {
-      const last = messages[messages.length - 1];
-      setMessage({ type: last.type, text: last.text });
-      if (last.type === "success") {
-        setExpandedProvider(last.provider);
-        refreshConnectedTools();
-      }
-    }
     fetchConnections();
   }, []);
 

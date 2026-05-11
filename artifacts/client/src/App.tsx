@@ -11,9 +11,33 @@ import AdminPage from "@/pages/admin-page";
 import ConnectionsPage from "@/pages/connections-page";
 import AccountPage from "@/pages/account-page";
 import OnboardingTour, { isTourCompleted, type TourStep } from "@/components/onboarding-tour";
-import { ToolVisibilityProvider } from "@/lib/tool-visibility";
+import { ToolVisibilityProvider, useToolVisibility } from "@/lib/tool-visibility";
 import { Toaster } from "@/components/ui/toaster";
-import { consumeOAuthOrigin, hasOAuthCallbackParams } from "@/lib/connect-service";
+import { toast } from "@/hooks/use-toast";
+import {
+  consumeOAuthCallbackMessages,
+  consumeOAuthOrigin,
+  hadOAuthCallbackParamsAtLoad,
+} from "@/lib/connect-service";
+
+function OAuthCallbackNotifier() {
+  const { refreshConnectedTools } = useToolVisibility();
+  useEffect(() => {
+    const messages = consumeOAuthCallbackMessages();
+    if (messages.length === 0) return;
+    let hadSuccess = false;
+    for (const m of messages) {
+      toast({
+        title: m.type === "success" ? "Connected" : "Connection failed",
+        description: m.text,
+        variant: m.type === "error" ? "destructive" : "default",
+      });
+      if (m.type === "success") hadSuccess = true;
+    }
+    if (hadSuccess) refreshConnectedTools();
+  }, []);
+  return null;
+}
 
 const TOUR_STEPS: TourStep[] = [
   {
@@ -104,7 +128,7 @@ function AuthGate() {
         // restore them to the page they started the connection from rather
         // than their default landing page. Otherwise fall back to the
         // configured default page.
-        const oauthOrigin = hasOAuthCallbackParams() ? consumeOAuthOrigin() : null;
+        const oauthOrigin = hadOAuthCallbackParamsAtLoad() ? consumeOAuthOrigin() : null;
         const oauthOriginPage =
           oauthOrigin && validPages.includes(oauthOrigin as Page) ? (oauthOrigin as Page) : null;
         if (oauthOriginPage) {
@@ -214,6 +238,7 @@ function AuthGate() {
       token={token}
       initialHiddenTools={user?.hiddenTools}
     >
+      <OAuthCallbackNotifier />
       <AppLayout
         activePage={page}
         onNavigate={setPage}

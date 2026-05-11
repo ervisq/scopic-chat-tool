@@ -27,7 +27,6 @@ import { useToolVisibility } from "@/lib/tool-visibility";
 import { ToolVisibilityModal } from "@/components/tool-visibility-panel";
 import { ConnectServiceDialog } from "@/components/connect-service-dialog";
 import {
-  consumeOAuthCallbackMessages,
   getProviderConfig,
   startOAuthConnect,
   type ProviderConfig,
@@ -1797,14 +1796,6 @@ export default function DashboardPage({
   const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
 
   useEffect(() => {
-    const messages = consumeOAuthCallbackMessages();
-    if (messages.length > 0) {
-      const last = messages[messages.length - 1];
-      setConnectMessage({ type: last.type, text: last.text });
-      if (last.type === "success") {
-        refreshConnectedTools();
-      }
-    }
     fetchDashboard();
   }, []);
 
