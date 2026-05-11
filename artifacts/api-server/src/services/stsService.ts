@@ -656,6 +656,10 @@ export function formatStsResult(result: StsWeekResult, query: string): string {
   const end = new Date(result.weekEnd);
   const daySpan = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
+  if (result.employeeContext && result.entries.length === 0) {
+    return `No STS time entries found for ${result.employeeContext} in ${rangeLabel} — they may have logged nothing or your account may not have permission to view their time.`;
+  }
+
   const lines: string[] = [];
   let header = `STS Working Hours — ${rangeLabel}`;
   if (result.employeeContext) {
