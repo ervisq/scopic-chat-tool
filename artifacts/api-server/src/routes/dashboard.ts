@@ -420,7 +420,6 @@ router.get("/dashboard", async (req, res) => {
                 zohoTokens.clientSecret,
                 zohoTokens.refreshToken,
                 "https://accounts.zoho.com",
-                { limit: 50 },
               );
               const all = result.contracts || [];
               const activeContracts = all.filter((c) =>
