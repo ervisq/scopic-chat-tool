@@ -1986,6 +1986,30 @@ export default function DashboardPage({
     { key: "teamwork", name: "Teamwork", connected: false },
   ];
 
+  async function autoHideInaccessibleZoho(fetched: ServiceData[]) {
+    const userKey = user?.email || "anon";
+    for (const s of fetched) {
+      if (!ZOHO_SUB_KEYS.includes(s.key as typeof ZOHO_SUB_KEYS[number])) continue;
+      const toolName = SERVICE_KEY_TO_TOOL_NAME[s.key];
+      if (!toolName) continue;
+      const flagKey = `zohoAutoHidden:${userKey}:${toolName}`;
+      try {
+        if (s.accessible === false) {
+          if (!localStorage.getItem(flagKey)) {
+            if (!isHidden(toolName)) {
+              await setHidden(toolName, true);
+            }
+            localStorage.setItem(flagKey, "1");
+          }
+        } else if (s.accessible === true) {
+          localStorage.removeItem(flagKey);
+        }
+      } catch {
+        // best-effort; ignore
+      }
+    }
+  }
+
   async function fetchDashboard() {
     try {
       const res = await fetch(`${baseUrl}/api/dashboard`, {
@@ -1993,7 +2017,9 @@ export default function DashboardPage({
       });
       if (res.ok) {
         const data = await res.json();
-        setServices(data.services?.length ? data.services : defaultServices);
+        const fetched: ServiceData[] = data.services?.length ? data.services : defaultServices;
+        setServices(fetched);
+        await autoHideInaccessibleZoho(fetched);
       } else {
         setServices(defaultServices);
       }
