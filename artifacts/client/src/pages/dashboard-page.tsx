@@ -1176,44 +1176,72 @@ function ZohoSubSummary({
 
   const summaryText = getSubSummaryText();
 
+  const externalUrl = EXTERNAL_URLS[sub.key]?.(sub.instanceUrl);
+
   return (
-    <div className={`rounded-xl border ${style.borderColor} bg-card/40 overflow-hidden`}>
-      <div className="p-3">
-        <div className="flex items-center justify-between gap-2 mb-1.5">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className={`w-7 h-7 rounded-lg ${style.bgColor} flex items-center justify-center shrink-0`}>
-              <style.Icon className="w-4 h-4" />
+    <div className={`rounded-xl border ${style.borderColor} bg-card overflow-hidden transition-all hover:shadow-sm`}>
+      <div className="p-3.5">
+        <div className="flex items-start justify-between mb-2.5">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-lg bg-card flex items-center justify-center shadow-sm border border-border/50 shrink-0">
+              <style.Icon className="w-5 h-5" />
             </div>
-            <h4 className="font-semibold text-foreground text-sm truncate">{sub.name}</h4>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <h4 className="font-semibold text-foreground text-sm truncate">{sub.name}</h4>
+                {externalUrl && (
+                  <a
+                    href={externalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    title={`Open ${sub.name}`}
+                    aria-label={`Open ${sub.name}`}
+                    className="inline-flex items-center justify-center p-0.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+              <div className="flex items-center gap-1 mt-0.5">
+                {sub.error ? (
+                  <>
+                    <AlertCircle className="w-3 h-3 text-muted-foreground" />
+                    <span className="text-[11px] text-muted-foreground">Limited access</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                    <span className="text-[11px] text-emerald-600 dark:text-emerald-400">Connected</span>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={onViewMore}
-            className={`text-xs font-medium ${style.textColor} hover:opacity-80 inline-flex items-center gap-0.5 shrink-0`}
-            aria-label={`View more ${sub.name}`}
-          >
-            View
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
         </div>
+
         {summaryText && (
-          <p className={`text-xs ${sub.error ? "text-muted-foreground italic" : style.textColor}`}>
-            {summaryText}
-          </p>
+          <div className={`rounded-lg ${style.bgColor} px-3 py-2 mb-2`}>
+            <p className={`text-xs font-medium ${sub.error ? "text-muted-foreground italic" : style.textColor}`}>
+              {summaryText}
+            </p>
+          </div>
         )}
+
         {sub.key === "zoho_recruit" && !sub.error && (sub.summary?.upcomingInterviewsCount ?? 0) > 0 && (
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <div className="mb-2 flex flex-wrap items-center gap-1.5">
             <CountBadge label="interviews this week" value={sub.summary?.upcomingInterviewsCount ?? 0} tone="rose" />
           </div>
         )}
         {sub.key === "zoho_contracts" && !sub.error && (sub.summary?.expiringCount ?? 0) > 0 && (
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <div className="mb-2 flex flex-wrap items-center gap-1.5">
             <CountBadge label="expiring in 30d" value={sub.summary?.expiringCount ?? 0} tone="amber" />
           </div>
         )}
+
         {sub.key === "zoho_people" && !sub.error && (
           ((sub.summary?.onLeaveToday?.length ?? 0) > 0 || (sub.summary?.recentJoiners?.length ?? 0) > 0) && (
-            <div className="mt-2 space-y-1">
+            <div className="mb-2 space-y-1">
               {(sub.summary?.onLeaveToday ?? []).slice(0, 2).map((l, i) => (
                 <p key={`leave-${i}`} className="text-[11px] text-muted-foreground truncate">
                   <span className="text-muted-foreground/80">On leave:</span> {l.employee || "—"}
@@ -1233,7 +1261,7 @@ function ZohoSubSummary({
         )}
         {sub.key === "zoho_crm" && !sub.error && (
           ((sub.summary?.openDeals?.length ?? 0) > 0 || (sub.summary?.tasksDueToday?.length ?? 0) > 0) && (
-            <div className="mt-2 space-y-1">
+            <div className="mb-2 space-y-1">
               {(sub.summary?.openDeals ?? []).slice(0, 2).map((d) => (
                 <div key={`deal-${d.id}`} className="flex items-center justify-between gap-2">
                   <span className="text-[11px] text-muted-foreground truncate flex-1">{d.name || "Deal"}</span>
@@ -1252,6 +1280,15 @@ function ZohoSubSummary({
             </div>
           )
         )}
+
+        <button
+          type="button"
+          onClick={onViewMore}
+          className={`flex items-center justify-center gap-1.5 w-full py-1.5 rounded-lg text-xs font-medium transition-colors ${style.bgColor} ${style.textColor} hover:opacity-80`}
+        >
+          <Eye className="w-3.5 h-3.5" />
+          View more
+        </button>
       </div>
     </div>
   );
@@ -1381,7 +1418,7 @@ function ServiceCard({
         </div>
 
         {service.connected && isZohoSuite ? (
-          <div className="space-y-2">
+          <div className={`rounded-xl ${style.bgColor} p-2.5 space-y-2.5`}>
             {service.subServices!.map((sub) => (
               <ZohoSubSummary
                 key={sub.key}
