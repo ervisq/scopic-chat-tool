@@ -1369,8 +1369,8 @@ function ServiceCard({
   const totalTasks = service.summary?.tasks?.length || 0;
 
   return (
-    <div className={`rounded-2xl border ${style.borderColor} bg-card overflow-hidden transition-all hover:shadow-md`}>
-      <div className="p-5">
+    <div className={`rounded-2xl border ${style.borderColor} bg-card overflow-hidden transition-all hover:shadow-md h-full flex flex-col`}>
+      <div className="p-5 flex-1 flex flex-col">
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-xl bg-card flex items-center justify-center shadow-sm border border-border/50">
@@ -2418,7 +2418,7 @@ export default function DashboardPage({
                       return (
                         <div
                           key={service.key}
-                          className={isZohoSuiteTile ? "md:col-span-2" : ""}
+                          className={`h-full ${isZohoSuiteTile ? "md:col-span-2" : ""}`}
                         >
                           <ServiceCard
                             service={service}
