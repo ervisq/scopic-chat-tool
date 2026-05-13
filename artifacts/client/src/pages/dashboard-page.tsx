@@ -2382,7 +2382,12 @@ export default function DashboardPage({
           <div className="relative" ref={toolMenuRef}>
             <button
               type="button"
-              onClick={() => setToolSettingsOpen((v) => !v)}
+              onClick={() => {
+                setToolSettingsOpen((v) => {
+                  if (!v) refreshAccessibleTools();
+                  return !v;
+                });
+              }}
               aria-haspopup="menu"
               aria-expanded={toolSettingsOpen}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-foreground bg-muted/40 hover:bg-muted/70 border border-border/60 transition-colors"
