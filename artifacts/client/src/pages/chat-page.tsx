@@ -166,8 +166,8 @@ export default function ChatPage({ onOpenConnections }: ChatPageProps = {}) {
         <button
           type="button"
           onClick={() => setToolSettingsOpen(true)}
-          aria-label="Tool visibility"
-          title="Tool visibility"
+          aria-label="All available tools"
+          title="All available tools"
           className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
         >
           <Settings className="w-4 h-4" />
