@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ArrowUp, MessageSquare, ChevronDown } from "lucide-react";
+import { ArrowUp, MessageSquare } from "lucide-react";
 import { useChat } from "@/hooks/use-chat";
 import { ChatMessageBubble } from "@/components/chat/chat-message-bubble";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
@@ -9,7 +9,6 @@ import {
   ToolAutocomplete,
   useToolAutocomplete,
 } from "@/components/chat/tool-autocomplete";
-import { ToolVisibilityPanel } from "@/components/tool-visibility-panel";
 import { useToolVisibility } from "@/lib/tool-visibility";
 
 interface ChatPageProps {
@@ -21,28 +20,8 @@ export default function ChatPage({ onOpenConnections }: ChatPageProps = {}) {
   const [inputValue, setInputValue] = useState("");
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const [autocompleteIndex, setAutocompleteIndex] = useState(0);
-  const [toolSettingsOpen, setToolSettingsOpen] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const toolMenuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!toolSettingsOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (toolMenuRef.current && !toolMenuRef.current.contains(e.target as Node)) {
-        setToolSettingsOpen(false);
-      }
-    };
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setToolSettingsOpen(false);
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [toolSettingsOpen]);
 
   const { suggestions, visible: autocompleteVisible } =
     useToolAutocomplete(inputValue);
@@ -207,29 +186,6 @@ export default function ChatPage({ onOpenConnections }: ChatPageProps = {}) {
           <MessageSquare className="w-5 h-5 text-primary" />
           <h1 className="text-base font-semibold text-foreground">Chat</h1>
         </div>
-        <div className="relative" ref={toolMenuRef}>
-          <button
-            type="button"
-            onClick={() => setToolSettingsOpen((v) => !v)}
-            aria-haspopup="menu"
-            aria-expanded={toolSettingsOpen}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-foreground bg-muted/40 hover:bg-muted/70 border border-border/60 transition-colors"
-          >
-            Available tools
-            <ChevronDown
-              className={`w-3.5 h-3.5 opacity-70 transition-transform ${toolSettingsOpen ? "rotate-180" : ""}`}
-            />
-          </button>
-          {toolSettingsOpen && (
-            <div
-              role="menu"
-              aria-label="Available tools"
-              className="absolute right-0 top-full mt-2 w-80 max-h-[70vh] overflow-y-auto bg-card border border-border rounded-xl shadow-lg z-30 p-3"
-            >
-              <ToolVisibilityPanel />
-            </div>
-          )}
-        </div>
       </header>
 
       <div ref={scrollAreaRef} className="flex-1 overflow-y-auto">
@@ -253,7 +209,6 @@ export default function ChatPage({ onOpenConnections }: ChatPageProps = {}) {
             selected={selectedTool}
             onSelectChange={handleToolSelectChange}
             onPresetSelect={handlePresetSelect}
-            onOpenSettings={() => setToolSettingsOpen(true)}
             onOpenConnections={onOpenConnections}
             disabled={isTyping}
           />
