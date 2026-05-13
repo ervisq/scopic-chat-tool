@@ -254,6 +254,7 @@ interface ServiceData {
     lastWeekHours?: number;
   };
   error?: string;
+  subServices?: ServiceData[];
 }
 
 function CountBadge({ label, value, tone }: { label: string; value: number; tone: "amber" | "rose" | "sky" }) {
@@ -1140,10 +1141,86 @@ function OutlookPanel({
   );
 }
 
+function ZohoSubSummary({
+  sub,
+  onViewMore,
+}: {
+  sub: ServiceData;
+  onViewMore: () => void;
+}) {
+  const style = SERVICE_STYLES[sub.key] || SERVICE_STYLES.zoho;
+
+  function getSubSummaryText(): string {
+    if (sub.error) return sub.error;
+    if (sub.key === "zoho_people" || sub.key === "zoho_crm") {
+      return sub.summary?.status || "Connected";
+    }
+    if (sub.key === "zoho_recruit") {
+      const open = sub.summary?.openPositions;
+      const cands = sub.summary?.candidateCount;
+      if (open !== undefined && cands !== undefined) {
+        return `${open} open position${open !== 1 ? "s" : ""}, ${cands} candidate${cands !== 1 ? "s" : ""}`;
+      }
+      return sub.summary?.status || "Connected";
+    }
+    if (sub.key === "zoho_contracts") {
+      const active = sub.summary?.activeCount;
+      const expiring = sub.summary?.expiringCount;
+      if (active !== undefined) {
+        return `${active} active${expiring ? `, ${expiring} expiring soon` : ""}`;
+      }
+      return sub.summary?.status || "Connected";
+    }
+    return sub.summary?.status || "Connected";
+  }
+
+  const summaryText = getSubSummaryText();
+
+  return (
+    <div className={`rounded-xl border ${style.borderColor} bg-card/40 overflow-hidden`}>
+      <div className="p-3">
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className={`w-7 h-7 rounded-lg ${style.bgColor} flex items-center justify-center shrink-0`}>
+              <style.Icon className="w-4 h-4" />
+            </div>
+            <h4 className="font-semibold text-foreground text-sm truncate">{sub.name}</h4>
+          </div>
+          <button
+            type="button"
+            onClick={onViewMore}
+            className={`text-xs font-medium ${style.textColor} hover:opacity-80 inline-flex items-center gap-0.5 shrink-0`}
+            aria-label={`View more ${sub.name}`}
+          >
+            View
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        {summaryText && (
+          <p className={`text-xs ${sub.error ? "text-muted-foreground italic" : style.textColor}`}>
+            {summaryText}
+          </p>
+        )}
+        {sub.key === "zoho_recruit" && !sub.error && (sub.summary?.upcomingInterviewsCount ?? 0) > 0 && (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <CountBadge label="interviews this week" value={sub.summary?.upcomingInterviewsCount ?? 0} tone="rose" />
+          </div>
+        )}
+        {sub.key === "zoho_contracts" && !sub.error && (sub.summary?.expiringCount ?? 0) > 0 && (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <CountBadge label="expiring in 30d" value={sub.summary?.expiringCount ?? 0} tone="amber" />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ServiceCard({
   service,
   onConnect,
   onViewMore,
+  onViewSubMore,
   connecting = false,
   connectingLabel = "Connecting…",
   tileError = null,
@@ -1154,6 +1231,7 @@ function ServiceCard({
   service: ServiceData;
   onConnect: () => void;
   onViewMore: () => void;
+  onViewSubMore?: (sub: ServiceData) => void;
   connecting?: boolean;
   connectingLabel?: string;
   tileError?: string | null;
@@ -1161,6 +1239,11 @@ function ServiceCard({
   onUpdate?: () => void;
   onHide: () => void;
 }) {
+  const isZohoSuite =
+    service.key === "zoho" &&
+    service.connected &&
+    !service.error &&
+    (service.subServices?.length ?? 0) > 0;
   const style = SERVICE_STYLES[service.key] || SERVICE_STYLES.jira;
 
   function getSummaryText(): string {
@@ -1256,7 +1339,23 @@ function ServiceCard({
           />
         </div>
 
-        {service.connected ? (
+        {service.connected && isZohoSuite ? (
+          <div className="space-y-2">
+            {service.subServices!.map((sub) => (
+              <ZohoSubSummary
+                key={sub.key}
+                sub={sub}
+                onViewMore={() => onViewSubMore?.(sub)}
+              />
+            ))}
+            <p className="text-[11px] text-muted-foreground pt-1 text-center">
+              Use <span className="font-mono font-semibold">@ZohoPeople</span>,{" "}
+              <span className="font-mono font-semibold">@ZohoCRM</span>,{" "}
+              <span className="font-mono font-semibold">@ZohoRecruit</span>, or{" "}
+              <span className="font-mono font-semibold">@ZohoContracts</span> in chat
+            </p>
+          </div>
+        ) : service.connected ? (
           <div className="space-y-3">
             {summaryText && (
               <div className={`rounded-lg ${style.bgColor} px-4 py-2.5`}>
@@ -2158,7 +2257,7 @@ export default function DashboardPage({
           "Connected, but your Zoho account doesn't have access to People, CRM, Recruit or Contracts.",
       });
     } else {
-      base.push(...visibleAccessibleSubs);
+      base.push({ ...zohoSuite, subServices: visibleAccessibleSubs });
     }
     return base;
   }, [services, visibleServices, isHidden]);
@@ -2251,6 +2350,7 @@ export default function DashboardPage({
                         onDisconnect={() => handleDisconnectTile(service.key)}
                         onUpdate={() => handleTileUpdate(service.key)}
                         onHide={() => handleHideTile(service.key)}
+                        onViewSubMore={(sub) => setDrawerService(sub)}
                       />
                     ))}
                   </div>
