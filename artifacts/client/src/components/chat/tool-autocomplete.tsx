@@ -91,7 +91,7 @@ export function ToolAutocomplete({
                   tool.borderColor,
                 )}
               >
-                {tool.label}
+                {tool.name}
               </span>
               <span className="text-sm text-muted-foreground">
                 {tool.description}
