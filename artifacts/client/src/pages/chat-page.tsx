@@ -10,6 +10,7 @@ import {
   useToolAutocomplete,
 } from "@/components/chat/tool-autocomplete";
 import { ToolVisibilityModal } from "@/components/tool-visibility-panel";
+import { useToolVisibility } from "@/lib/tool-visibility";
 
 interface ChatPageProps {
   onOpenConnections?: () => void;
@@ -26,10 +27,33 @@ export default function ChatPage({ onOpenConnections }: ChatPageProps = {}) {
 
   const { suggestions, visible: autocompleteVisible } =
     useToolAutocomplete(inputValue);
+  const { visibleTools, connectedTools } = useToolVisibility();
 
   useEffect(() => {
     setAutocompleteIndex(0);
   }, [inputValue]);
+
+  useEffect(() => {
+    const trimmed = inputValue.trim();
+    if (!trimmed.startsWith("@")) return;
+    const afterAt = trimmed.slice(1).split(/\s/)[0];
+    if (!afterAt) {
+      if (selectedTool !== null) setSelectedTool(null);
+      return;
+    }
+    const lower = afterAt.toLowerCase();
+    const available = visibleTools.filter((t) => connectedTools.has(t.name));
+    const exact = available.find((t) => t.name.toLowerCase() === lower);
+    const prefixMatches = available.filter((t) =>
+      t.name.toLowerCase().startsWith(lower),
+    );
+    const match = exact ?? (prefixMatches.length === 1 ? prefixMatches[0] : null);
+    if (match) {
+      if (selectedTool !== match.name) setSelectedTool(match.name);
+    } else if (selectedTool !== null) {
+      setSelectedTool(null);
+    }
+  }, [inputValue, visibleTools, connectedTools, selectedTool]);
 
   useEffect(() => {
     const el = scrollAreaRef.current;
@@ -55,40 +79,9 @@ export default function ChatPage({ onOpenConnections }: ChatPageProps = {}) {
     [],
   );
 
-  const stripLeadingMention = (value: string, toolName: string): string => {
-    const prefix = `@${toolName} `;
-    if (value.startsWith(prefix)) return value.slice(prefix.length);
-    if (value === `@${toolName}`) return "";
-    return value;
-  };
-
-  const replaceLeadingMention = (
-    value: string,
-    fromTool: string | null,
-    toTool: string,
-  ): string => {
-    if (fromTool) {
-      const stripped = stripLeadingMention(value, fromTool);
-      if (stripped !== value) {
-        return `@${toTool} ${stripped}`;
-      }
-    }
-    if (value.startsWith(`@${toTool} `) || value === `@${toTool}`) return value;
-    return value.length > 0 ? `@${toTool} ${value}` : `@${toTool} `;
-  };
-
   const handleToolSelectChange = useCallback(
     (next: string | null) => {
-      setSelectedTool((prev) => {
-        if (next === null) {
-          if (prev) {
-            setInputValue((v) => stripLeadingMention(v, prev));
-          }
-          return null;
-        }
-        setInputValue((v) => replaceLeadingMention(v, prev, next));
-        return next;
-      });
+      setSelectedTool(next);
       requestAnimationFrame(() => {
         const ta = textareaRef.current;
         if (ta) {
