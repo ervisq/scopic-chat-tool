@@ -1560,27 +1560,29 @@ function ServiceCard({
             </div>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="flex-1 flex flex-col">
             <p className="text-sm text-muted-foreground">
               Connect your {service.name} account to see your data here and use it in chat.
             </p>
-            <button
-              onClick={onConnect}
-              disabled={connecting}
-              className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-medium transition-colors ${style.color} text-white hover:opacity-90 disabled:opacity-70 disabled:cursor-not-allowed`}
-            >
-              {connecting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Link2 className="w-4 h-4" />
+            <div className="mt-auto pt-3 space-y-3">
+              <button
+                onClick={onConnect}
+                disabled={connecting}
+                className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-medium transition-colors ${style.color} text-white hover:opacity-90 disabled:opacity-70 disabled:cursor-not-allowed`}
+              >
+                {connecting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Link2 className="w-4 h-4" />
+                )}
+                {connecting ? connectingLabel : `Connect ${service.name}`}
+              </button>
+              {tileError && (
+                <p className="text-xs text-destructive bg-destructive/10 rounded-md px-3 py-1.5" role="alert">
+                  {tileError}
+                </p>
               )}
-              {connecting ? connectingLabel : `Connect ${service.name}`}
-            </button>
-            {tileError && (
-              <p className="text-xs text-destructive bg-destructive/10 rounded-md px-3 py-1.5" role="alert">
-                {tileError}
-              </p>
-            )}
+            </div>
           </div>
         )}
       </div>
