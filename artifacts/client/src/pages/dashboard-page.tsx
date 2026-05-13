@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, type ComponentType, type SVGProps } from "react";
+import { useState, useEffect, useMemo, useRef, type ComponentType, type SVGProps } from "react";
 import {
   MessageSquare,
   ExternalLink,
@@ -19,13 +19,14 @@ import {
   FolderOpen,
   CalendarClock,
   BarChart3,
+  ChevronDown,
   Settings,
   RefreshCw,
 } from "lucide-react";
 import { JiraIcon, TeamworkIcon, OutlookIcon, ZohoIcon, StsIcon } from "../components/chat/tool-icons";
 import { safeExternalUrl } from "@/lib/utils";
 import { useToolVisibility } from "@/lib/tool-visibility";
-import { ToolVisibilityModal } from "@/components/tool-visibility-panel";
+import { ToolVisibilityPanel } from "@/components/tool-visibility-panel";
 import { ConnectServiceDialog } from "@/components/connect-service-dialog";
 import { DashboardTileMenu } from "@/components/dashboard-tile-menu";
 import { toast } from "@/hooks/use-toast";
@@ -2030,6 +2031,7 @@ export default function DashboardPage({
   const [refreshing, setRefreshing] = useState(false);
   const [drawerService, setDrawerService] = useState<ServiceData | null>(null);
   const [toolSettingsOpen, setToolSettingsOpen] = useState(false);
+  const toolMenuRef = useRef<HTMLDivElement>(null);
   const [connectDialogProvider, setConnectDialogProvider] = useState<ProviderConfig | null>(null);
   const [connectDialogMode, setConnectDialogMode] = useState<"connect" | "update">("connect");
   const [connectMessage, setConnectMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -2039,6 +2041,24 @@ export default function DashboardPage({
   const { isHidden, setHidden, refreshConnectedTools, refreshAccessibleTools } = useToolVisibility();
 
   const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+  useEffect(() => {
+    if (!toolSettingsOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (toolMenuRef.current && !toolMenuRef.current.contains(e.target as Node)) {
+        setToolSettingsOpen(false);
+      }
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setToolSettingsOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [toolSettingsOpen]);
 
   useEffect(() => {
     fetchDashboard();
@@ -2364,15 +2384,29 @@ export default function DashboardPage({
           >
             <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
           </button>
-          <button
-            type="button"
-            onClick={() => setToolSettingsOpen(true)}
-            aria-label="Tool visibility"
-            title="Tool visibility"
-            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
+          <div className="relative" ref={toolMenuRef}>
+            <button
+              type="button"
+              onClick={() => setToolSettingsOpen((v) => !v)}
+              aria-haspopup="menu"
+              aria-expanded={toolSettingsOpen}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-foreground bg-muted/40 hover:bg-muted/70 border border-border/60 transition-colors"
+            >
+              Available tools
+              <ChevronDown
+                className={`w-3.5 h-3.5 opacity-70 transition-transform ${toolSettingsOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+            {toolSettingsOpen && (
+              <div
+                role="menu"
+                aria-label="Available tools"
+                className="absolute right-0 top-full mt-2 w-80 max-h-[70vh] overflow-y-auto bg-card border border-border rounded-xl shadow-lg z-30 p-3"
+              >
+                <ToolVisibilityPanel />
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -2483,10 +2517,6 @@ export default function DashboardPage({
       </div>
 
       <ServiceDrawer service={drawerService} onClose={() => setDrawerService(null)} />
-      <ToolVisibilityModal
-        open={toolSettingsOpen}
-        onClose={() => setToolSettingsOpen(false)}
-      />
       <ConnectServiceDialog
         provider={connectDialogProvider}
         token={token}
