@@ -1211,6 +1211,47 @@ function ZohoSubSummary({
             <CountBadge label="expiring in 30d" value={sub.summary?.expiringCount ?? 0} tone="amber" />
           </div>
         )}
+        {sub.key === "zoho_people" && !sub.error && (
+          ((sub.summary?.onLeaveToday?.length ?? 0) > 0 || (sub.summary?.recentJoiners?.length ?? 0) > 0) && (
+            <div className="mt-2 space-y-1">
+              {(sub.summary?.onLeaveToday ?? []).slice(0, 2).map((l, i) => (
+                <p key={`leave-${i}`} className="text-[11px] text-muted-foreground truncate">
+                  <span className="text-muted-foreground/80">On leave:</span> {l.employee || "—"}
+                  {l.leaveType ? ` · ${l.leaveType}` : ""}
+                </p>
+              ))}
+              {(sub.summary?.recentJoiners ?? [])
+                .slice(0, 2 - Math.min(sub.summary?.onLeaveToday?.length ?? 0, 2))
+                .map((j) => (
+                  <p key={`joiner-${j.id}`} className="text-[11px] text-muted-foreground truncate">
+                    <span className="text-muted-foreground/80">Joined:</span> {j.name || "—"}
+                    {j.designation ? ` · ${j.designation}` : ""}
+                  </p>
+                ))}
+            </div>
+          )
+        )}
+        {sub.key === "zoho_crm" && !sub.error && (
+          ((sub.summary?.openDeals?.length ?? 0) > 0 || (sub.summary?.tasksDueToday?.length ?? 0) > 0) && (
+            <div className="mt-2 space-y-1">
+              {(sub.summary?.openDeals ?? []).slice(0, 2).map((d) => (
+                <div key={`deal-${d.id}`} className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-muted-foreground truncate flex-1">{d.name || "Deal"}</span>
+                  {d.amount && (
+                    <span className="text-[11px] font-semibold text-muted-foreground shrink-0">{d.amount}</span>
+                  )}
+                </div>
+              ))}
+              {(sub.summary?.tasksDueToday ?? [])
+                .slice(0, 2 - Math.min(sub.summary?.openDeals?.length ?? 0, 2))
+                .map((t) => (
+                  <p key={`task-${t.id}`} className="text-[11px] text-muted-foreground truncate">
+                    <span className="text-muted-foreground/80">Due today:</span> {t.subject || "Task"}
+                  </p>
+                ))}
+            </div>
+          )
+        )}
       </div>
     </div>
   );
@@ -1348,12 +1389,6 @@ function ServiceCard({
                 onViewMore={() => onViewSubMore?.(sub)}
               />
             ))}
-            <p className="text-[11px] text-muted-foreground pt-1 text-center">
-              Use <span className="font-mono font-semibold">@ZohoPeople</span>,{" "}
-              <span className="font-mono font-semibold">@ZohoCRM</span>,{" "}
-              <span className="font-mono font-semibold">@ZohoRecruit</span>, or{" "}
-              <span className="font-mono font-semibold">@ZohoContracts</span> in chat
-            </p>
           </div>
         ) : service.connected ? (
           <div className="space-y-3">
