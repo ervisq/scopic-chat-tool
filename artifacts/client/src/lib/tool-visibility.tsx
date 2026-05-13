@@ -22,6 +22,9 @@ interface ToolVisibilityContextValue {
   connectedTools: Set<string>;
   connectedToolsLoaded: boolean;
   refreshConnectedTools: () => void;
+  accessibleTools: Set<string>;
+  isAccessible: (toolName: string) => boolean;
+  refreshAccessibleTools: () => void;
 }
 
 const PROVIDER_TO_TOOL_NAMES: Record<string, string[]> = {
@@ -57,6 +60,10 @@ export function ToolVisibilityProvider({
   );
   const [connectedToolsLoaded, setConnectedToolsLoaded] = useState(false);
   const [connRefreshTick, setConnRefreshTick] = useState(0);
+  const [accessibleTools, setAccessibleTools] = useState<Set<string>>(
+    () => new Set(TOOLS.map((t) => t.name)),
+  );
+  const [accessRefreshTick, setAccessRefreshTick] = useState(0);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchedRef = useRef(false);
@@ -158,6 +165,35 @@ export function ToolVisibilityProvider({
     setConnRefreshTick((n) => n + 1);
   }, []);
 
+  const refreshAccessibleTools = useCallback(() => {
+    setAccessRefreshTick((n) => n + 1);
+  }, []);
+
+  useEffect(() => {
+    if (!token) {
+      setAccessibleTools(new Set(TOOLS.map((t) => t.name)));
+      return;
+    }
+    const ctrl = new AbortController();
+    fetch(`${baseUrl}/api/tool-access`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: ctrl.signal,
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!mountedRef.current) return;
+        const map = (data?.access ?? {}) as Record<string, boolean>;
+        const next = new Set<string>();
+        for (const tool of TOOLS) {
+          if (map[tool.name] === false) continue;
+          next.add(tool.name);
+        }
+        setAccessibleTools(next);
+      })
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, [token, baseUrl, accessRefreshTick]);
+
   const setHidden = useCallback(
     async (toolName: string, hidden: boolean) => {
       if (!token) return;
@@ -219,8 +255,8 @@ export function ToolVisibilityProvider({
   );
 
   const visibleTools = useMemo(
-    () => TOOLS.filter((t) => !hiddenTools.has(t.name)),
-    [hiddenTools],
+    () => TOOLS.filter((t) => !hiddenTools.has(t.name) && accessibleTools.has(t.name)),
+    [hiddenTools, accessibleTools],
   );
 
   const value = useMemo<ToolVisibilityContextValue>(
@@ -235,8 +271,11 @@ export function ToolVisibilityProvider({
       connectedTools,
       connectedToolsLoaded,
       refreshConnectedTools,
+      accessibleTools,
+      isAccessible: (name: string) => accessibleTools.has(name),
+      refreshAccessibleTools,
     }),
-    [hiddenTools, visibleTools, setHidden, saving, justSaved, error, connectedTools, connectedToolsLoaded, refreshConnectedTools],
+    [hiddenTools, visibleTools, setHidden, saving, justSaved, error, connectedTools, connectedToolsLoaded, refreshConnectedTools, accessibleTools, refreshAccessibleTools],
   );
 
   return (

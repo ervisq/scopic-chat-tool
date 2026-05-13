@@ -2036,7 +2036,7 @@ export default function DashboardPage({
   const [tileConnectingKey, setTileConnectingKey] = useState<string | null>(null);
   const [tileErrors, setTileErrors] = useState<Record<string, string>>({});
   const [dialogSaving, setDialogSaving] = useState(false);
-  const { isHidden, setHidden, refreshConnectedTools } = useToolVisibility();
+  const { isHidden, setHidden, refreshConnectedTools, refreshAccessibleTools } = useToolVisibility();
 
   const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -2252,6 +2252,7 @@ export default function DashboardPage({
           // ignore quota errors
         }
         await autoHideInaccessibleZoho(fetched);
+        refreshAccessibleTools();
       } else if (services.length === 0) {
         setServices(defaultServices);
       }

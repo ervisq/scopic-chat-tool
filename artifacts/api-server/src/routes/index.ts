@@ -6,6 +6,7 @@ import credentialsRouter from "./credentials";
 import zohoOAuthRouter from "./zoho-oauth";
 import jiraOAuthRouter from "./jira-oauth";
 import dashboardRouter from "./dashboard";
+import toolAccessRouter from "./tool-access";
 import accountRouter from "./account";
 import adminRouter from "./admin";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
@@ -19,6 +20,7 @@ router.use(jiraOAuthRouter);
 router.use(requireAuth, chatRouter);
 router.use(requireAuth, credentialsRouter);
 router.use(requireAuth, dashboardRouter);
+router.use(requireAuth, toolAccessRouter);
 router.use(requireAuth, accountRouter);
 router.use("/admin", requireAuth, requireAdmin, adminRouter);
 

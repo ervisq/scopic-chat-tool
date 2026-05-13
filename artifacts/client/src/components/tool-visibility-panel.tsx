@@ -17,9 +17,10 @@ export function ToolVisibilityPanel({
   onToggle,
   showStatus = true,
 }: ToolVisibilityPanelProps) {
-  const { hiddenTools, setHidden, saving, justSaved, error } = useToolVisibility();
+  const { hiddenTools, setHidden, saving, justSaved, error, accessibleTools } = useToolVisibility();
   const effectiveHidden = hiddenOverride ?? hiddenTools;
   const handleToggle = onToggle ?? ((name: string, hidden: boolean) => setHidden(name, hidden));
+  const visibleToolList = TOOLS.filter((t) => accessibleTools.has(t.name));
 
   return (
     <div className={cn("space-y-2", className)}>
@@ -44,7 +45,7 @@ export function ToolVisibilityPanel({
       )}
 
       <div className="space-y-1.5">
-        {TOOLS.map((tool) => {
+        {visibleToolList.map((tool) => {
           const Icon = tool.icon;
           const hidden = effectiveHidden.has(tool.name);
           const visible = !hidden;
@@ -108,12 +109,13 @@ interface ToolVisibilityModalProps {
 }
 
 export function ToolVisibilityModal({ open, onClose }: ToolVisibilityModalProps) {
-  const { hiddenTools, setHidden, saving, error } = useToolVisibility();
+  const { hiddenTools, setHidden, saving, error, accessibleTools, refreshAccessibleTools } = useToolVisibility();
   const [draft, setDraft] = useState<Set<string>>(() => new Set(hiddenTools));
 
   useEffect(() => {
     if (open) {
       setDraft(new Set(hiddenTools));
+      refreshAccessibleTools();
     }
     // Only re-sync when the modal transitions to open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -133,6 +135,7 @@ export function ToolVisibilityModal({ open, onClose }: ToolVisibilityModalProps)
   const handleDone = async () => {
     const changed: Array<[string, boolean]> = [];
     for (const tool of TOOLS) {
+      if (!accessibleTools.has(tool.name)) continue;
       const wasHidden = hiddenTools.has(tool.name);
       const willBeHidden = draft.has(tool.name);
       if (wasHidden !== willBeHidden) {
