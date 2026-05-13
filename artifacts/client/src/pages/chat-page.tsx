@@ -98,9 +98,41 @@ export default function ChatPage({ onOpenConnections }: ChatPageProps = {}) {
     [],
   );
 
+  const stripLeadingMention = (value: string, toolName: string): string => {
+    const prefix = `@${toolName} `;
+    if (value.startsWith(prefix)) return value.slice(prefix.length);
+    if (value === `@${toolName}`) return "";
+    return value;
+  };
+
+  const replaceLeadingMention = (
+    value: string,
+    fromTool: string | null,
+    toTool: string,
+  ): string => {
+    if (fromTool) {
+      const stripped = stripLeadingMention(value, fromTool);
+      if (stripped !== value) return `@${toTool} ${stripped}`;
+    }
+    if (value.startsWith("@")) {
+      const rest = value.slice(1);
+      const spaceIdx = rest.search(/\s/);
+      const tail = spaceIdx >= 0 ? rest.slice(spaceIdx) : "";
+      return `@${toTool}${tail || " "}`;
+    }
+    return value.length > 0 ? `@${toTool} ${value}` : `@${toTool} `;
+  };
+
   const handleToolSelectChange = useCallback(
     (next: string | null) => {
-      setSelectedTool(next);
+      setSelectedTool((prev) => {
+        if (next === null) {
+          if (prev) setInputValue((v) => stripLeadingMention(v, prev));
+          return null;
+        }
+        setInputValue((v) => replaceLeadingMention(v, prev, next));
+        return next;
+      });
       requestAnimationFrame(() => {
         const ta = textareaRef.current;
         if (ta) {

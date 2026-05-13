@@ -28,7 +28,7 @@ export function useToolAutocomplete(inputValue: string) {
     (t) => connectedTools.has(t.name) && t.name.toLowerCase().startsWith(afterAt),
   );
 
-  return { suggestions, visible: suggestions.length > 0 };
+  return { suggestions, visible: suggestions.length > 1 };
 }
 
 export function ToolAutocomplete({
