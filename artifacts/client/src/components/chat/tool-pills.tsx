@@ -187,22 +187,9 @@ export function ToolPills({
               )}
             >
               <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  {selectedTool.icon && (
-                    <selectedTool.icon className="w-4 h-4" />
-                  )}
-                  <span
-                    className={cn(
-                      "text-sm font-semibold",
-                      selectedTool.textColor,
-                    )}
-                  >
-                    {selectedTool.label}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    · quick queries
-                  </span>
-                </div>
+                <span className="text-xs text-muted-foreground">
+                  Quick queries
+                </span>
                 <button
                   type="button"
                   onClick={() => onSelectChange(null)}
