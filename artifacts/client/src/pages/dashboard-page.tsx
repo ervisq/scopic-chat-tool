@@ -1379,7 +1379,7 @@ function ServiceCard({
             <div>
               <div className="flex items-center gap-1.5">
                 <h3 className="font-semibold text-foreground text-base">{service.name}</h3>
-                {service.connected && EXTERNAL_URLS[service.key] && (
+                {EXTERNAL_URLS[service.key] && (
                   <a
                     href={EXTERNAL_URLS[service.key]!(service.instanceUrl)}
                     target="_blank"
