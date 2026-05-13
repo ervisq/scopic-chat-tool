@@ -2345,12 +2345,7 @@ export default function DashboardPage({
     if (!zohoSuite.connected) {
       base.push(zohoSuite);
     } else if (accessibleSubs.length === 0) {
-      base.push({
-        ...zohoSuite,
-        connected: true,
-        error:
-          "Connected, but your Zoho account doesn't have access to People, CRM, Recruit or Contracts.",
-      });
+      // User connected Zoho but their email has no access to any sub — hide entirely.
     } else {
       base.push({ ...zohoSuite, subServices: visibleAccessibleSubs });
     }
