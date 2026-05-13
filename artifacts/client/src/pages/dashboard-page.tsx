@@ -1418,7 +1418,7 @@ function ServiceCard({
         </div>
 
         {service.connected && isZohoSuite ? (
-          <div className={`rounded-xl ${style.bgColor} p-2.5 space-y-2.5`}>
+          <div className={`rounded-xl ${style.bgColor} p-3 grid grid-cols-1 md:grid-cols-2 gap-3`}>
             {service.subServices!.map((sub) => (
               <ZohoSubSummary
                 key={sub.key}
@@ -2410,21 +2410,31 @@ export default function DashboardPage({
               {mainServices.length > 0 && (
                 <div className="flex-1 min-w-0">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    {mainServices.map((service) => (
-                      <ServiceCard
-                        key={service.key}
-                        service={service}
-                        onConnect={() => handleTileConnect(service.key)}
-                        onViewMore={() => setDrawerService(service)}
-                        connecting={isTileConnecting(service.key)}
-                        connectingLabel={tileConnectingLabel(service.key)}
-                        tileError={tileErrors[service.key] ?? null}
-                        onDisconnect={() => handleDisconnectTile(service.key)}
-                        onUpdate={() => handleTileUpdate(service.key)}
-                        onHide={() => handleHideTile(service.key)}
-                        onViewSubMore={(sub) => setDrawerService(sub)}
-                      />
-                    ))}
+                    {mainServices.map((service) => {
+                      const isZohoSuiteTile =
+                        service.key === "zoho" &&
+                        service.connected &&
+                        (service.subServices?.length ?? 0) > 0;
+                      return (
+                        <div
+                          key={service.key}
+                          className={isZohoSuiteTile ? "md:col-span-2" : ""}
+                        >
+                          <ServiceCard
+                            service={service}
+                            onConnect={() => handleTileConnect(service.key)}
+                            onViewMore={() => setDrawerService(service)}
+                            connecting={isTileConnecting(service.key)}
+                            connectingLabel={tileConnectingLabel(service.key)}
+                            tileError={tileErrors[service.key] ?? null}
+                            onDisconnect={() => handleDisconnectTile(service.key)}
+                            onUpdate={() => handleTileUpdate(service.key)}
+                            onHide={() => handleHideTile(service.key)}
+                            onViewSubMore={(sub) => setDrawerService(sub)}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
