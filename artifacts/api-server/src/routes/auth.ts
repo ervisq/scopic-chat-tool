@@ -14,7 +14,6 @@ import {
   sendPasswordChangedNotice,
   getPasswordResetMailerStatus,
 } from "../services/passwordResetMailer";
-import { recordFailedSignup } from "../lib/failed-signups";
 
 const router: IRouter = Router();
 
@@ -83,7 +82,6 @@ router.post("/auth/register", breakGlassOnly, async (req, res) => {
       ].filter(Boolean).join(", ");
       const reason = `missing fields (${missing})`;
       console.warn(`[register] rejected ${emailForLog}: ${reason}`);
-      recordFailedSignup({ redactedEmail: emailForLog, reason, ip });
       res.status(400).json({ message: "Email, password, and name are required", field: !email ? "email" : !name ? "name" : "password" });
       return;
     }
@@ -91,7 +89,6 @@ router.post("/auth/register", breakGlassOnly, async (req, res) => {
     if (!normalizedEmail || !normalizedEmail.endsWith(ALLOWED_EMAIL_DOMAIN)) {
       const reason = `wrong email domain (must end with ${ALLOWED_EMAIL_DOMAIN})`;
       console.warn(`[register] rejected ${emailForLog}: ${reason}`);
-      recordFailedSignup({ redactedEmail: emailForLog, reason, ip });
       res.status(400).json({ message: "Only @scopicsoftware.com email addresses are allowed to register", field: "email" });
       return;
     }
@@ -99,7 +96,6 @@ router.post("/auth/register", breakGlassOnly, async (req, res) => {
     if (typeof password !== "string" || password.length < 6) {
       const reason = `password too short (length=${typeof password === "string" ? password.length : 0})`;
       console.warn(`[register] rejected ${emailForLog}: ${reason}`);
-      recordFailedSignup({ redactedEmail: emailForLog, reason, ip });
       res.status(400).json({ message: "Password must be at least 6 characters", field: "password" });
       return;
     }
@@ -107,7 +103,6 @@ router.post("/auth/register", breakGlassOnly, async (req, res) => {
     if (existing.length > 0) {
       const reason = "account already exists";
       console.warn(`[register] rejected ${emailForLog}: ${reason}`);
-      recordFailedSignup({ redactedEmail: emailForLog, reason, ip });
       res.status(409).json({ message: "An account with this email already exists. Try signing in instead.", field: "email" });
       return;
     }

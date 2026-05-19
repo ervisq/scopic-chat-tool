@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { RefreshCw, Users, Shield, Search, ChevronDown, AlertTriangle, X } from "lucide-react";
+import { RefreshCw, Users, Shield, Search, ChevronDown, X } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -58,14 +58,8 @@ const ROLE_COLORS: Record<string, string> = {
   user: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
 };
 
-type Tab = "users" | "usage" | "signups";
+type Tab = "users" | "usage";
 
-interface FailedSignupEntry {
-  timestamp: string;
-  redactedEmail: string;
-  reason: string;
-  ip: string;
-}
 type Range = "today" | "week" | "month" | "quarter" | "year";
 
 const RANGE_OPTIONS: { value: Range; label: string }[] = [
@@ -95,8 +89,6 @@ export default function AdminPage({ userRole }: AdminPageProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [updatingUserId, setUpdatingUserId] = useState<number | null>(null);
-  const [failedSignups, setFailedSignups] = useState<FailedSignupEntry[]>([]);
-  const [failedSignupsLoading, setFailedSignupsLoading] = useState(false);
 
   const isAdmin = userRole === "admin";
 
@@ -150,31 +142,6 @@ export default function AdminPage({ userRole }: AdminPageProps) {
       fetchUsage(usageRange);
     }
   }, [activeTab, usageRange, fetchUsage]);
-
-  const fetchFailedSignups = useCallback(async () => {
-    setFailedSignupsLoading(true);
-    try {
-      const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
-      const token = localStorage.getItem("auth_token");
-      const res = await fetch(`${baseUrl}/api/admin/failed-signups`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setFailedSignups(data.entries || []);
-      }
-    } catch (err) {
-      console.error("Failed to fetch failed sign-ups:", err);
-    } finally {
-      setFailedSignupsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === "signups") {
-      fetchFailedSignups();
-    }
-  }, [activeTab, fetchFailedSignups]);
 
   const handleRoleChange = useCallback(async (userId: number, newRole: string) => {
     setUpdatingUserId(userId);
@@ -263,42 +230,24 @@ export default function AdminPage({ userRole }: AdminPageProps) {
             >
               Usage
             </button>
-            <button
-              onClick={() => setActiveTab("signups")}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                activeTab === "signups"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Sign-up Issues
-            </button>
           </div>
         </div>
         <button
           onClick={
             activeTab === "users"
               ? fetchUsers
-              : activeTab === "usage"
-              ? () => fetchUsage(usageRange)
-              : fetchFailedSignups
+              : () => fetchUsage(usageRange)
           }
           disabled={
             activeTab === "users"
               ? usersLoading
-              : activeTab === "usage"
-              ? usageLoading
-              : failedSignupsLoading
+              : usageLoading
           }
           className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50"
         >
           <RefreshCw
             className={`w-4 h-4 ${
-              (activeTab === "users"
-                ? usersLoading
-                : activeTab === "usage"
-                ? usageLoading
-                : failedSignupsLoading)
+              (activeTab === "users" ? usersLoading : usageLoading)
                 ? "animate-spin"
                 : ""
             }`}
@@ -323,15 +272,13 @@ export default function AdminPage({ userRole }: AdminPageProps) {
               roleCounts={roleCounts}
               totalCount={managedUsers.length}
             />
-          ) : activeTab === "usage" ? (
+          ) : (
             <UsageTab
               data={usageData}
               loading={usageLoading}
               range={usageRange}
               onRangeChange={setUsageRange}
             />
-          ) : (
-            <FailedSignupsTab entries={failedSignups} loading={failedSignupsLoading} />
           )}
         </div>
       </div>
@@ -696,67 +643,6 @@ function StatCard({
         <span className="text-xs font-medium">{label}</span>
       </div>
       <p className="text-2xl font-bold text-foreground">{value}</p>
-    </div>
-  );
-}
-
-function FailedSignupsTab({
-  entries,
-  loading,
-}: {
-  entries: FailedSignupEntry[];
-  loading: boolean;
-}) {
-  return (
-    <div className="space-y-4">
-      <div className="bg-card border border-border/60 rounded-xl p-5">
-        <div className="flex items-center gap-2 mb-1">
-          <AlertTriangle className="w-4 h-4 text-amber-500" />
-          <h2 className="text-sm font-semibold text-foreground">Recent sign-up issues</h2>
-        </div>
-        <p className="text-xs text-muted-foreground mb-4">
-          The last {entries.length > 0 ? entries.length : "50"} rejected sign-up attempts (newest first). Resets when the server restarts.
-        </p>
-
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border/50">
-                <th className="text-left text-xs font-medium text-muted-foreground px-3 py-2">When</th>
-                <th className="text-left text-xs font-medium text-muted-foreground px-3 py-2">Email</th>
-                <th className="text-left text-xs font-medium text-muted-foreground px-3 py-2">Reason</th>
-                <th className="text-left text-xs font-medium text-muted-foreground px-3 py-2">IP</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={4} className="text-center py-8 text-sm text-muted-foreground">
-                    Loading...
-                  </td>
-                </tr>
-              ) : entries.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="text-center py-8 text-sm text-muted-foreground">
-                    No failed sign-up attempts recorded.
-                  </td>
-                </tr>
-              ) : (
-                entries.map((e, i) => (
-                  <tr key={i} className="border-b border-border/30 last:border-b-0 hover:bg-muted/30 transition-colors">
-                    <td className="px-3 py-2 text-sm text-muted-foreground whitespace-nowrap">
-                      {new Date(e.timestamp).toLocaleString()}
-                    </td>
-                    <td className="px-3 py-2 text-sm text-foreground font-mono">{e.redactedEmail}</td>
-                    <td className="px-3 py-2 text-sm text-foreground">{e.reason}</td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground font-mono">{e.ip}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
     </div>
   );
 }
