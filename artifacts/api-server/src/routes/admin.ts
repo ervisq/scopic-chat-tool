@@ -4,6 +4,7 @@ import { getAuthUser, requireAdmin } from "../middlewares/auth";
 import { db } from "@workspace/db";
 import { users } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
+import { cleanupOrphanedTeamworkCredentials } from "../services/teamworkCredentialCleanup";
 
 const router: IRouter = Router();
 
@@ -76,6 +77,16 @@ router.patch("/users/:id/role", requireAdmin, async (req, res) => {
   } catch (err) {
     console.error("Failed to update user role:", err);
     res.status(500).json({ message: "Failed to update user role" });
+  }
+});
+
+router.post("/maintenance/cleanup-teamwork-credentials", requireAdmin, async (_req, res) => {
+  try {
+    const removed = await cleanupOrphanedTeamworkCredentials();
+    res.json({ removed });
+  } catch (err) {
+    console.error("Failed to clean up orphaned Teamwork credentials:", err);
+    res.status(500).json({ message: "Failed to clean up orphaned Teamwork credentials" });
   }
 });
 

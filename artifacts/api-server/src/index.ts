@@ -1,6 +1,7 @@
 import app from "./app";
 import { getPasswordResetMailerStatus } from "./services/passwordResetMailer";
 import { startPasswordResetCleanupJob } from "./services/passwordResetCleanup";
+import { startTeamworkCredentialCleanupJob } from "./services/teamworkCredentialCleanup";
 
 // Boot-time check: warn loudly if the password-reset email pipeline
 // isn't configured. Forgot-password requests will still respond with
@@ -41,3 +42,4 @@ app.listen(port, () => {
 });
 
 startPasswordResetCleanupJob();
+startTeamworkCredentialCleanupJob();
