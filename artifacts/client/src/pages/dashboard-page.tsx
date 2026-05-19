@@ -794,7 +794,22 @@ function WeeklyHoursPanel({
               <StsIcon className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
             </div>
             <div>
-              <h3 className="font-semibold text-foreground text-sm">Hours This Week</h3>
+              <div className="flex items-center gap-1.5">
+                <h3 className="font-semibold text-foreground text-sm">Hours This Week</h3>
+                {isConnected && (
+                  <a
+                    href={stsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    title="Open STS"
+                    aria-label="Open STS"
+                    className="inline-flex items-center justify-center p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </div>
               {isConnected ? (
                 <div className="flex items-center gap-1 mt-0.5">
                   <CheckCircle2 className="w-3 h-3 text-emerald-500" />
@@ -868,17 +883,7 @@ function WeeklyHoursPanel({
           <p className="text-sm text-muted-foreground">Connect STS to track your weekly hours.</p>
         ) : null}
 
-        {isConnected ? (
-          <a
-            href={stsUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 w-full mt-4 py-2.5 rounded-xl text-sm font-medium transition-colors bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:opacity-80"
-          >
-            Open STS
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
-        ) : (
+        {!isConnected && (
           <>
             <button
               onClick={onConnect}
@@ -946,7 +951,22 @@ function OutlookPanel({
               <OutlookIcon className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="font-semibold text-foreground text-sm">Outlook</h3>
+              <div className="flex items-center gap-1.5">
+                <h3 className="font-semibold text-foreground text-sm">Outlook</h3>
+                {isConnected && (
+                  <a
+                    href="https://outlook.office.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    title="Open Outlook"
+                    aria-label="Open Outlook"
+                    className="inline-flex items-center justify-center p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </div>
               {isConnected ? (
                 <div className="flex items-center gap-1 mt-0.5">
                   <CheckCircle2 className="w-3 h-3 text-emerald-500" />
@@ -1112,23 +1132,13 @@ function OutlookPanel({
         )}
 
         {isConnected ? (
-          <div className="flex gap-2 mt-4">
-            <button
-              onClick={onViewMore}
-              className="flex items-center justify-center gap-2 flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:opacity-80"
-            >
-              <Eye className="w-4 h-4" />
-              View more
-            </button>
-            <a
-              href="https://outlook.office.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:opacity-80"
-            >
-              <ExternalLink className="w-4 h-4" />
-            </a>
-          </div>
+          <button
+            onClick={onViewMore}
+            className="flex items-center justify-center gap-2 w-full mt-4 py-2.5 rounded-xl text-sm font-medium transition-colors bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:opacity-80"
+          >
+            <Eye className="w-4 h-4" />
+            View more
+          </button>
         ) : (
           <button
             onClick={onConnect}
