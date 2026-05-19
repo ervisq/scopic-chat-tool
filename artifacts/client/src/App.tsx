@@ -202,7 +202,6 @@ function AuthGateInner() {
       <DashboardPage
         user={user}
         token={token}
-        onOpenChat={() => setPage("chat")}
         onOpenConnections={() => setPage("connections")}
       />
     );

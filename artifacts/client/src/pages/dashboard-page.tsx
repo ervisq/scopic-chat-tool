@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useRef, type ComponentType, type SVGProps } from "react";
 import {
-  MessageSquare,
   ExternalLink,
   Loader2,
   Link2,
@@ -55,7 +54,6 @@ const ZOHO_SUB_TOOL_NAMES = ["ZohoPeople", "ZohoCRM", "ZohoRecruit", "ZohoContra
 interface DashboardPageProps {
   user: { email: string; name: string } | null;
   token: string | null;
-  onOpenChat: () => void;
   onOpenConnections: () => void;
 }
 
@@ -797,19 +795,17 @@ function WeeklyHoursPanel({
             <div>
               <div className="flex items-center gap-1.5">
                 <h3 className="font-semibold text-foreground text-sm">STS</h3>
-                {isConnected && (
-                  <a
-                    href={stsUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    title="Open STS"
-                    aria-label="Open STS"
-                    className="inline-flex items-center justify-center p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                )}
+                <a
+                  href={stsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  title="Open STS"
+                  aria-label="Open STS"
+                  className="inline-flex items-center justify-center p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
               </div>
               {isConnected ? (
                 <div className="flex items-center gap-1 mt-0.5">
@@ -954,19 +950,17 @@ function OutlookPanel({
             <div>
               <div className="flex items-center gap-1.5">
                 <h3 className="font-semibold text-foreground text-sm">Outlook</h3>
-                {isConnected && (
-                  <a
-                    href={EXTERNAL_URLS.outlook()}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    title="Open Outlook"
-                    aria-label="Open Outlook"
-                    className="inline-flex items-center justify-center p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                )}
+                <a
+                  href={EXTERNAL_URLS.outlook()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  title="Open Outlook"
+                  aria-label="Open Outlook"
+                  className="inline-flex items-center justify-center p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
               </div>
               {isConnected ? (
                 <div className="flex items-center gap-1 mt-0.5">
@@ -2031,7 +2025,6 @@ const SERVICE_KEY_TO_PROVIDER_KEY: Record<string, string> = {
 export default function DashboardPage({
   user,
   token,
-  onOpenChat,
   onOpenConnections,
 }: DashboardPageProps) {
   const dashboardCacheKey = `dashboardCache:${user?.email || "anon"}`;
@@ -2535,15 +2528,6 @@ export default function DashboardPage({
             </div>
           )}
 
-          <div className="mt-8 flex justify-center">
-            <button
-              onClick={onOpenChat}
-              className="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm font-medium shadow-sm"
-            >
-              <MessageSquare className="w-4 h-4" />
-              Open AI Chat
-            </button>
-          </div>
         </div>
       </div>
 
