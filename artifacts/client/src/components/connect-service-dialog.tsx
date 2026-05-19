@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Info, Loader2, X } from "lucide-react";
+import { Info, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -38,15 +38,6 @@ export function ConnectServiceDialog({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeGuide, setActiveGuide] = useState<ProviderField | null>(null);
-
-  useEffect(() => {
-    if (!activeGuide) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setActiveGuide(null);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [activeGuide]);
 
   useEffect(() => {
     if (!open) setActiveGuide(null);
@@ -204,43 +195,31 @@ export function ConnectServiceDialog({
             </button>
           </div>
         </div>
-
-        {activeGuide?.guideImage && (
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label={`Guide for ${activeGuide.label}`}
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
-            onClick={() => setActiveGuide(null)}
-          >
-            <div
-              className="relative max-w-4xl w-full bg-card border border-border rounded-xl shadow-2xl overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
-                <h3 className="text-sm font-medium text-foreground">
-                  How to find your {activeGuide.label}
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setActiveGuide(null)}
-                  aria-label="Close guide"
-                  className="inline-flex items-center justify-center p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="bg-muted/30 p-3 max-h-[80vh] overflow-auto">
-                <img
-                  src={activeGuide.guideImage}
-                  alt={activeGuide.guideAlt || `Guide for ${activeGuide.label}`}
-                  className="block w-full h-auto rounded-md"
-                />
-              </div>
-            </div>
-          </div>
-        )}
       </DialogContent>
+
+      <Dialog
+        open={!!activeGuide?.guideImage}
+        onOpenChange={(o) => {
+          if (!o) setActiveGuide(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-4xl p-0 overflow-hidden">
+          <DialogHeader className="px-4 py-2.5 border-b border-border">
+            <DialogTitle className="text-sm font-medium">
+              How to find your {activeGuide?.label}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="bg-muted/30 p-3 max-h-[75vh] overflow-auto">
+            {activeGuide?.guideImage && (
+              <img
+                src={activeGuide.guideImage}
+                alt={activeGuide.guideAlt || `Guide for ${activeGuide.label}`}
+                className="block w-full h-auto rounded-md"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
