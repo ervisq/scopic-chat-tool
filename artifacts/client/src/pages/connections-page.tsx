@@ -226,7 +226,7 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
                             <button
                               onClick={() => handleOAuthConnect(provider)}
                               disabled={oauthLoading === provider.key}
-                              className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-white disabled:opacity-50 transition-colors text-sm font-medium ${provider.key === "jira" ? "bg-blue-500 hover:bg-blue-600" : "bg-amber-500 hover:bg-amber-600"}`}
+                              className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-white disabled:opacity-50 transition-colors text-sm font-medium ${provider.key === "jira" ? "bg-blue-500 hover:bg-blue-600" : provider.key === "teamwork" ? "bg-purple-500 hover:bg-purple-600" : "bg-amber-500 hover:bg-amber-600"}`}
                             >
                               {oauthLoading === provider.key ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -246,6 +246,21 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
                                 onClick={() => handleOAuthConnect(provider)}
                                 disabled={oauthLoading === provider.key}
                                 className="text-xs px-2 py-1 rounded bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 transition-colors font-medium"
+                              >
+                                {oauthLoading === provider.key ? "..." : "Reconnect"}
+                              </button>
+                            </div>
+                          )}
+
+                          {connected && provider.key === "teamwork" && (
+                            <div className="space-y-2">
+                              <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                                Connected! Use <span className="font-mono font-semibold">@Teamwork</span> in chat to query tasks, projects, time entries, and more.
+                              </p>
+                              <button
+                                onClick={() => handleOAuthConnect(provider)}
+                                disabled={oauthLoading === provider.key}
+                                className="text-xs px-2 py-1 rounded bg-purple-500 text-white hover:bg-purple-600 disabled:opacity-50 transition-colors font-medium"
                               >
                                 {oauthLoading === provider.key ? "..." : "Reconnect"}
                               </button>
@@ -289,7 +304,7 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
                                     [provider.key]: e.target.value,
                                   }))
                                 }
-                                placeholder={provider.key === "teamwork" ? "https://yoursite.teamwork.com" : provider.key === "sts" ? "https://time.scopicsoftware.com" : "https://your-instance.atlassian.net"}
+                                placeholder={provider.key === "sts" ? "https://time.scopicsoftware.com" : "https://your-instance.atlassian.net"}
                                 className="w-full px-3 py-2 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all text-sm"
                               />
                             </div>

@@ -1,5 +1,5 @@
 import axios from "axios";
-import { getUserCredentials } from "../lib/credential-store";
+import { getTeamworkCredentials } from "./teamworkTokenManager";
 import { getCachedNameResolution, setCachedNameResolution } from "../lib/name-resolution-cache";
 
 export interface TeamworkTask {
@@ -198,15 +198,12 @@ function isValidTeamworkUrl(url: string): boolean {
   }
 }
 
-function createClient(siteUrl: string, apiToken: string) {
+function createClient(siteUrl: string, accessToken: string) {
   const baseUrl = siteUrl.replace(/\/$/, "");
   return axios.create({
     baseURL: baseUrl,
-    auth: {
-      username: apiToken,
-      password: "x",
-    },
     headers: {
+      Authorization: `Bearer ${accessToken}`,
       Accept: "application/json",
       "Content-Type": "application/json",
     },
@@ -671,16 +668,12 @@ export async function queryTeamwork(query: string, userId?: number, opts?: Teamw
     return { source: "not_connected", type: "tasks", data: [], total: 0 };
   }
 
-  const cred = await getUserCredentials(userId, "teamwork");
+  const cred = await getTeamworkCredentials(userId);
   if (!cred) {
     return { source: "not_connected", type: "tasks", data: [], total: 0 };
   }
 
-  const { apiToken } = cred.credentials;
-  const siteUrl = cred.instanceUrl;
-  if (!apiToken || !siteUrl) {
-    return { source: "not_connected", type: "tasks", data: [], total: 0 };
-  }
+  const { accessToken: apiToken, siteUrl } = cred;
 
   if (!isValidTeamworkUrl(siteUrl)) {
     return { source: "error", type: "tasks", data: [], total: 0, message: "Invalid Teamwork site URL" };
@@ -749,8 +742,18 @@ export async function queryTeamwork(query: string, userId?: number, opts?: Teamw
     if (employeeContext) result.employeeContext = employeeContext;
     return result;
   } catch (error: unknown) {
+    const status = (error as { response?: { status?: number } })?.response?.status;
     const msg = error instanceof Error ? error.message : String(error);
     console.error("Teamwork API error:", msg);
+    if (status === 401 || status === 403) {
+      return {
+        source: "error",
+        type: category,
+        data: [],
+        total: 0,
+        message: "Your Teamwork connection has expired or been revoked. Please reconnect Teamwork in Connected Services.",
+      };
+    }
     return { source: "error", type: category, data: [], total: 0, message: "Failed to fetch data from Teamwork" };
   }
 }

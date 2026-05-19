@@ -62,16 +62,9 @@ export const PROVIDERS: ProviderConfig[] = [
     color: "bg-purple-500",
     description:
       "Connect your Teamwork account to query tasks, projects, task lists, milestones, time entries, teams, people, comments, tags, and activity. Use @Teamwork in chat after connecting.",
-    hasInstanceUrl: true,
-    instanceUrlPlaceholder: "https://yoursite.teamwork.com",
-    fields: [
-      {
-        key: "apiToken",
-        label: "API Token",
-        type: "password",
-        placeholder: "Your Teamwork API token",
-      },
-    ],
+    hasInstanceUrl: false,
+    oauth: true,
+    fields: [],
   },
 ];
 
@@ -160,7 +153,9 @@ export function hasOAuthCallbackParams(): boolean {
     params.has("jira_success") ||
     params.has("jira_error") ||
     params.has("zoho_success") ||
-    params.has("zoho_error")
+    params.has("zoho_error") ||
+    params.has("teamwork_success") ||
+    params.has("teamwork_error")
   );
 }
 
@@ -222,15 +217,28 @@ export const ZOHO_OAUTH_ERROR_MESSAGES: Record<string, string> = {
   token_exchange_failed: "Failed to complete Zoho authorization. Please try again.",
 };
 
+export const TEAMWORK_OAUTH_ERROR_MESSAGES: Record<string, string> = {
+  missing_params: "Teamwork authorization was incomplete. Please try again.",
+  invalid_state: "Session expired. Please log in again and retry.",
+  expired_state: "Session expired. Please log in again and retry.",
+  no_access_token:
+    "Teamwork did not return an access token. Please try again and make sure to accept all permissions.",
+  no_site_url:
+    "Teamwork did not return a site URL for your account. Please try again or contact support.",
+  token_exchange_failed: "Failed to complete Teamwork authorization. Please try again.",
+};
+
 export const JIRA_OAUTH_SUCCESS_MESSAGE =
   "Jira connected successfully! Use @JIRA in chat to query tickets and issues.";
 export const ZOHO_OAUTH_SUCCESS_MESSAGE =
   "Zoho connected successfully! Use @ZohoPeople, @ZohoCRM, @ZohoRecruit, and @ZohoContracts in chat.";
+export const TEAMWORK_OAUTH_SUCCESS_MESSAGE =
+  "Teamwork connected successfully! Use @Teamwork in chat to query tasks, projects, time, and more.";
 
 export interface OAuthCallbackMessage {
   type: "success" | "error";
   text: string;
-  provider: "jira" | "zoho";
+  provider: "jira" | "zoho" | "teamwork";
 }
 
 /**
@@ -267,6 +275,19 @@ export function consumeOAuthCallbackMessages(): OAuthCallbackMessage[] {
       type: "error",
       text: ZOHO_OAUTH_ERROR_MESSAGES[code] || `Zoho connection failed: ${code}`,
       provider: "zoho",
+    });
+    touched = true;
+  }
+
+  if (params.get("teamwork_success") === "true") {
+    messages.push({ type: "success", text: TEAMWORK_OAUTH_SUCCESS_MESSAGE, provider: "teamwork" });
+    touched = true;
+  } else if (params.get("teamwork_error")) {
+    const code = params.get("teamwork_error") || "";
+    messages.push({
+      type: "error",
+      text: TEAMWORK_OAUTH_ERROR_MESSAGES[code] || `Teamwork connection failed: ${code}`,
+      provider: "teamwork",
     });
     touched = true;
   }
