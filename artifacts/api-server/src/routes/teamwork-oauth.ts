@@ -111,6 +111,7 @@ router.get("/teamwork/callback", async (req, res) => {
     const tokenResponse = await axios.post(
       TEAMWORK_TOKEN_URL,
       {
+        grant_type: "authorization_code",
         code: String(code),
         client_id: TEAMWORK_CLIENT_ID,
         client_secret: TEAMWORK_CLIENT_SECRET,
@@ -121,6 +122,9 @@ router.get("/teamwork/callback", async (req, res) => {
 
     const data = tokenResponse.data || {};
     const accessToken: string | undefined = data.access_token;
+    const refreshToken: string | undefined = data.refresh_token;
+    const expiresIn: number | undefined =
+      typeof data.expires_in === "number" ? data.expires_in : undefined;
     const installation = (data.installation || {}) as Record<string, unknown>;
     const user = (data.user || {}) as Record<string, unknown>;
 
@@ -136,6 +140,12 @@ router.get("/teamwork/callback", async (req, res) => {
       return;
     }
 
+    if (!refreshToken) {
+      console.error("Teamwork OAuth: no refresh token received", data);
+      res.redirect(`${frontendUrl}?teamwork_error=no_refresh_token`);
+      return;
+    }
+
     if (!siteUrl) {
       console.error("Teamwork OAuth: no site URL returned in installation", data);
       res.redirect(`${frontendUrl}?teamwork_error=no_site_url`);
@@ -145,11 +155,22 @@ router.get("/teamwork/callback", async (req, res) => {
     await saveUserCredentials(
       userId,
       "teamwork",
-      { accessToken },
+      { refreshToken },
       siteUrl,
     );
 
-    res.redirect(`${frontendUrl}?teamwork_success=true`);
+    // Seed the token cache with the access_token we just got so the very first
+    // API call after connect doesn't need to immediately refresh.
+    if (expiresIn) {
+      try {
+        const { seedAccessTokenCache } = await import("../services/teamworkTokenManager");
+        await seedAccessTokenCache(refreshToken, accessToken, expiresIn);
+      } catch (cacheErr) {
+        console.warn("[TeamworkOAuth] failed to seed token cache:", (cacheErr as Error).message);
+      }
+    }
+
+    res.redirect(`${frontendUrl}?teamwork_success=1`);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("Teamwork OAuth token exchange error:", msg);

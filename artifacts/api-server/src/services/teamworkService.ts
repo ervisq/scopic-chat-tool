@@ -1,5 +1,5 @@
 import axios from "axios";
-import { getTeamworkCredentials } from "./teamworkTokenManager";
+import { getTeamworkAccessToken, TeamworkPermissionError } from "./teamworkTokenManager";
 import { getCachedNameResolution, setCachedNameResolution } from "../lib/name-resolution-cache";
 
 export interface TeamworkTask {
@@ -676,12 +676,27 @@ export async function queryTeamwork(query: string, userId?: number, opts?: Teamw
     return { source: "not_connected", type: "tasks", data: [], total: 0 };
   }
 
-  const cred = await getTeamworkCredentials(userId);
-  if (!cred) {
-    return { source: "not_connected", type: "tasks", data: [], total: 0 };
+  let apiToken: string;
+  let siteUrl: string;
+  try {
+    const cred = await getTeamworkAccessToken(userId);
+    if (!cred) {
+      return { source: "not_connected", type: "tasks", data: [], total: 0 };
+    }
+    apiToken = cred.accessToken;
+    siteUrl = cred.siteUrl;
+  } catch (err) {
+    if (err instanceof TeamworkPermissionError) {
+      return {
+        source: "error",
+        type: "tasks",
+        data: [],
+        total: 0,
+        message: err.message,
+      };
+    }
+    throw err;
   }
-
-  const { accessToken: apiToken, siteUrl } = cred;
 
   if (!isValidTeamworkUrl(siteUrl)) {
     return { source: "error", type: "tasks", data: [], total: 0, message: "Invalid Teamwork site URL" };
@@ -750,6 +765,9 @@ export async function queryTeamwork(query: string, userId?: number, opts?: Teamw
     if (employeeContext) result.employeeContext = employeeContext;
     return result;
   } catch (error: unknown) {
+    if (error instanceof TeamworkPermissionError) {
+      return { source: "error", type: category, data: [], total: 0, message: error.message };
+    }
     const status = (error as { response?: { status?: number } })?.response?.status;
     const msg = error instanceof Error ? error.message : String(error);
     console.error("Teamwork API error:", msg);

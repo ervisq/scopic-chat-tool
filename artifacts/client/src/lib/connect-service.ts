@@ -223,6 +223,8 @@ export const TEAMWORK_OAUTH_ERROR_MESSAGES: Record<string, string> = {
   expired_state: "Session expired. Please log in again and retry.",
   no_access_token:
     "Teamwork did not return an access token. Please try again and make sure to accept all permissions.",
+  no_refresh_token:
+    "Teamwork did not return a refresh token. Please try again and make sure to accept all permissions.",
   no_site_url:
     "Teamwork did not return a site URL for your account. Please try again or contact support.",
   token_exchange_failed: "Failed to complete Teamwork authorization. Please try again.",
@@ -279,7 +281,8 @@ export function consumeOAuthCallbackMessages(): OAuthCallbackMessage[] {
     touched = true;
   }
 
-  if (params.get("teamwork_success") === "true") {
+  const teamworkSuccess = params.get("teamwork_success");
+  if (teamworkSuccess === "1" || teamworkSuccess === "true") {
     messages.push({ type: "success", text: TEAMWORK_OAUTH_SUCCESS_MESSAGE, provider: "teamwork" });
     touched = true;
   } else if (params.get("teamwork_error")) {
