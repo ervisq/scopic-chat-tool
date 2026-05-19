@@ -57,7 +57,7 @@ The project is structured as a pnpm monorepo using TypeScript, Node.js 24, and p
     - **Jira:** Jira REST API v3
     - **Zoho:** Zoho People API, Zoho CRM API, Zoho Recruit API, Zoho Contracts API (OAuth 2.0 for authentication)
     - **Microsoft Outlook:** Microsoft Graph API — Mail, Calendar, Contacts (App-level SDK with `ClientSecretCredential` + `@microsoft/microsoft-graph-client`; no per-user OAuth needed, uses `/users/{email}/` endpoints)
-    - **Teamwork:** Teamwork API v3
+    - **Teamwork:** Teamwork API v3 (OAuth 2.0 via Teamwork Launchpad — requires `TEAMWORK_CLIENT_ID` and `TEAMWORK_CLIENT_SECRET` secrets; redirect URI is `https://<app-domain>/api/teamwork/callback`)
 - **Build Tools:** esbuild, Vite
 - **Package Management:** pnpm
 - **API Client:** axios (for external service communication)

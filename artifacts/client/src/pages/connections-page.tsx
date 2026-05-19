@@ -222,6 +222,12 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
 
                       {provider.oauth ? (
                         <>
+                          {!connected && conn && provider.key === "teamwork" && (
+                            <div className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                              Teamwork has been upgraded to use a secure one-click connection. Please reconnect via OAuth to keep using @Teamwork.
+                            </div>
+                          )}
+
                           {!connected && (
                             <button
                               onClick={() => handleOAuthConnect(provider)}
@@ -233,7 +239,7 @@ export default function ConnectionsPage({ token }: ConnectionsPageProps) {
                               ) : (
                                 <ExternalLink className="w-4 h-4" />
                               )}
-                              Connect with {provider.name}
+                              {!connected && conn && provider.key === "teamwork" ? "Reconnect via OAuth" : `Connect with ${provider.name}`}
                             </button>
                           )}
 
