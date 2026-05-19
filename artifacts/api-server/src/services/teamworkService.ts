@@ -177,6 +177,10 @@ async function resolveTeamworkPerson(siteUrl: string, apiToken: string, term: st
     }
     return result;
   } catch (err) {
+    const status = (err as { response?: { status?: number } })?.response?.status;
+    if (status === 401 || status === 403) {
+      throw err;
+    }
     console.error("Teamwork person lookup failed:", (err as Error).message);
     return { matches: [], lookupSucceeded: false };
   }
@@ -253,7 +257,11 @@ async function fetchCurrentUserId(siteUrl: string, apiToken: string): Promise<nu
     const response = await client.get("/me.json");
     const person = response.data?.person || response.data?.account || response.data;
     return (person?.id as number) || null;
-  } catch {
+  } catch (err) {
+    const status = (err as { response?: { status?: number } })?.response?.status;
+    if (status === 401 || status === 403) {
+      throw err;
+    }
     return null;
   }
 }

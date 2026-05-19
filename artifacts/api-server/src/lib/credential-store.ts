@@ -70,17 +70,33 @@ export async function listUserConnections(userId: number) {
     .select({
       provider: userCredentials.provider,
       instanceUrl: userCredentials.instanceUrl,
+      credentialsEncrypted: userCredentials.credentialsEncrypted,
       createdAt: userCredentials.createdAt,
       updatedAt: userCredentials.updatedAt,
     })
     .from(userCredentials)
     .where(eq(userCredentials.userId, userId));
 
-  return creds.map((c) => ({
-    provider: c.provider,
-    instanceUrl: c.instanceUrl,
-    connected: true,
-    connectedAt: c.createdAt,
-    updatedAt: c.updatedAt,
-  }));
+  return creds.map((c) => {
+    // Teamwork was migrated from API-token auth to OAuth2. Legacy rows
+    // (credentials shaped { apiToken }) cannot be used by the OAuth client,
+    // so they must show as not-connected so the user is prompted to
+    // reconnect via OAuth.
+    let connected = true;
+    if (c.provider === "teamwork") {
+      try {
+        const decoded = JSON.parse(decrypt(c.credentialsEncrypted)) as Record<string, unknown>;
+        connected = typeof decoded.accessToken === "string" && decoded.accessToken.length > 0;
+      } catch {
+        connected = false;
+      }
+    }
+    return {
+      provider: c.provider,
+      instanceUrl: c.instanceUrl,
+      connected,
+      connectedAt: c.createdAt,
+      updatedAt: c.updatedAt,
+    };
+  });
 }
