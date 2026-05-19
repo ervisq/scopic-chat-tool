@@ -230,6 +230,34 @@ export const TEAMWORK_OAUTH_ERROR_MESSAGES: Record<string, string> = {
   token_exchange_failed: "Failed to complete Teamwork authorization. Please try again.",
 };
 
+/**
+ * Provider keys that support inline reconnect prompts when a tool reply
+ * indicates the saved authorization is no longer valid.
+ */
+export type ReconnectProviderKey = "teamwork" | "jira" | "zoho";
+
+/**
+ * Detects whether a message from a tool indicates the connection has
+ * expired or been revoked and needs to be reconnected via OAuth.
+ * Returns the provider key to reconnect, or null.
+ */
+export function detectReconnectProvider(
+  text: string,
+  toolName?: string | null,
+): ReconnectProviderKey | null {
+  if (!text) return null;
+  const lower = text.toLowerCase();
+  const needsReconnect =
+    /reconnect/.test(lower) && /(expired|revoked|invalid)/.test(lower);
+  if (!needsReconnect) return null;
+
+  const tool = (toolName || "").toLowerCase();
+  if (tool === "teamwork" || lower.includes("teamwork")) return "teamwork";
+  if (tool === "jira" || lower.includes("jira")) return "jira";
+  if (tool.startsWith("zoho") || lower.includes("zoho")) return "zoho";
+  return null;
+}
+
 export const JIRA_OAUTH_SUCCESS_MESSAGE =
   "Jira connected successfully! Use @JIRA in chat to query tickets and issues.";
 export const ZOHO_OAUTH_SUCCESS_MESSAGE =

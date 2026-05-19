@@ -13,9 +13,10 @@ import { useToolVisibility } from "@/lib/tool-visibility";
 
 interface ChatPageProps {
   onOpenConnections?: () => void;
+  token?: string | null;
 }
 
-export default function ChatPage({ onOpenConnections }: ChatPageProps = {}) {
+export default function ChatPage({ onOpenConnections, token }: ChatPageProps = {}) {
   const { messages, sendMessage, isTyping } = useChat();
   const [inputValue, setInputValue] = useState("");
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
@@ -196,7 +197,7 @@ export default function ChatPage({ onOpenConnections }: ChatPageProps = {}) {
         ) : (
           <div className="flex flex-col">
             {messages.map((msg) => (
-              <ChatMessageBubble key={msg.id} message={msg} />
+              <ChatMessageBubble key={msg.id} message={msg} token={token} />
             ))}
             {isTyping && <TypingIndicator />}
           </div>

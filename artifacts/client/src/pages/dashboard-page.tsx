@@ -31,6 +31,7 @@ import { ConnectServiceDialog } from "@/components/connect-service-dialog";
 import { DashboardTileMenu } from "@/components/dashboard-tile-menu";
 import { toast } from "@/hooks/use-toast";
 import {
+  detectReconnectProvider,
   getProviderConfig,
   startOAuthConnect,
   type ProviderConfig,
@@ -1363,6 +1364,9 @@ function ServiceCard({
   }
 
   const summaryText = getSummaryText();
+  const reconnectProvider = service.connected && service.error
+    ? detectReconnectProvider(service.error, SERVICE_KEY_TO_TOOL_NAME[service.key])
+    : null;
   const PREVIEW_LIMIT = 8;
   const previewTickets = service.key === "jira" ? (service.summary?.tickets || []).slice(0, PREVIEW_LIMIT) : [];
   const previewTasks = service.key === "teamwork" ? (service.summary?.tasks || []).slice(0, PREVIEW_LIMIT) : [];
@@ -1436,6 +1440,22 @@ function ServiceCard({
                   {summaryText}
                 </p>
               </div>
+            )}
+
+            {reconnectProvider && (
+              <button
+                onClick={onConnect}
+                disabled={connecting}
+                data-testid={`tile-reconnect-${service.key}`}
+                className={`flex items-center justify-center gap-2 w-full py-2 rounded-lg text-sm font-medium transition-colors ${style.color} text-white hover:opacity-90 disabled:opacity-70 disabled:cursor-not-allowed`}
+              >
+                {connecting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+                {connecting ? connectingLabel : `Reconnect ${service.name}`}
+              </button>
             )}
 
             {service.key === "teamwork" && !service.error && ((service.summary?.overdueCount ?? 0) > 0 || (service.summary?.dueTodayCount ?? 0) > 0) && (

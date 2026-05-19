@@ -1,13 +1,108 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
-import { User, Bot } from "lucide-react";
+import { User, Bot, Link2, Loader2 } from "lucide-react";
 import { cn, isSafeExternalUrl } from "@/lib/utils";
 import { ToolBadge } from "@/components/chat/tool-badge";
 import { getToolConfig } from "@/lib/tool-config";
+import {
+  detectReconnectProvider,
+  getProviderConfig,
+  startOAuthConnect,
+  type ReconnectProviderKey,
+} from "@/lib/connect-service";
 import type { Message } from "@/hooks/use-chat";
 
 interface ChatMessageBubbleProps {
   message: Message;
+  token?: string | null;
+}
+
+const PROVIDER_STYLES: Record<
+  ReconnectProviderKey,
+  { label: string; btn: string; banner: string }
+> = {
+  teamwork: {
+    label: "Teamwork",
+    btn: "bg-purple-500 hover:bg-purple-600",
+    banner:
+      "border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300",
+  },
+  jira: {
+    label: "Jira",
+    btn: "bg-blue-500 hover:bg-blue-600",
+    banner:
+      "border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300",
+  },
+  zoho: {
+    label: "Zoho",
+    btn: "bg-amber-500 hover:bg-amber-600",
+    banner:
+      "border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300",
+  },
+};
+
+function ReconnectBanner({
+  provider,
+  token,
+}: {
+  provider: ReconnectProviderKey;
+  token: string | null | undefined;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const styles = PROVIDER_STYLES[provider];
+
+  async function handleReconnect() {
+    setError(null);
+    setLoading(true);
+    const config = getProviderConfig(provider);
+    if (!config) {
+      setError("This service can't be reconnected from here.");
+      setLoading(false);
+      return;
+    }
+    const result = await startOAuthConnect(provider, token ?? null, "chat");
+    if (!result.ok) {
+      setError(result.message);
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div
+      role="alert"
+      data-testid={`reconnect-banner-${provider}`}
+      className={cn(
+        "mt-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 rounded-lg border px-3 py-2.5 text-xs",
+        styles.banner,
+      )}
+    >
+      <p className="flex-1">
+        Your {styles.label} connection needs to be re-authorized to keep using
+        @{styles.label} commands.
+      </p>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={handleReconnect}
+          disabled={loading || !token}
+          className={cn(
+            "inline-flex items-center gap-1.5 text-xs font-medium text-white px-3 py-1.5 rounded-md transition-colors disabled:opacity-60 disabled:cursor-not-allowed",
+            styles.btn,
+          )}
+        >
+          {loading ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Link2 className="w-3.5 h-3.5" />
+          )}
+          Reconnect {styles.label}
+        </button>
+        {error && <span className="text-destructive text-[11px]">{error}</span>}
+      </div>
+    </div>
+  );
 }
 
 function highlightToolMentions(text: string): (string | JSX.Element)[] {
@@ -123,8 +218,11 @@ function getUrlLabel(url: string): string {
   }
 }
 
-export function ChatMessageBubble({ message }: ChatMessageBubbleProps) {
+export function ChatMessageBubble({ message, token }: ChatMessageBubbleProps) {
   const isUser = message.sender === "user";
+  const reconnectProvider = !isUser
+    ? detectReconnectProvider(message.text, message.toolName)
+    : null;
 
   return (
     <motion.div
@@ -167,6 +265,9 @@ export function ChatMessageBubble({ message }: ChatMessageBubbleProps) {
           <p className="text-[15px] leading-relaxed text-foreground/90 break-words whitespace-pre-wrap">
             {isUser ? highlightToolMentions(message.text) : linkifyText(message.text)}
           </p>
+          {reconnectProvider && (
+            <ReconnectBanner provider={reconnectProvider} token={token} />
+          )}
         </div>
       </div>
     </motion.div>
