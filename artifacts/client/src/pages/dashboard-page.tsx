@@ -363,6 +363,7 @@ const EXTERNAL_URLS: Record<string, (instanceUrl?: string | null) => string> = {
   teamwork: (instanceUrl) => instanceUrl || "https://www.teamwork.com",
   outlook_email: () => "https://outlook.office.com/mail",
   outlook_calendar: () => "https://outlook.office.com/calendar",
+  outlook: () => "https://outlook.office.com",
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -795,7 +796,7 @@ function WeeklyHoursPanel({
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h3 className="font-semibold text-foreground text-sm">Hours This Week</h3>
+                <h3 className="font-semibold text-foreground text-sm">STS</h3>
                 {isConnected && (
                   <a
                     href={stsUrl}
@@ -813,12 +814,12 @@ function WeeklyHoursPanel({
               {isConnected ? (
                 <div className="flex items-center gap-1 mt-0.5">
                   <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                  <span className="text-[11px] text-emerald-600 dark:text-emerald-400">STS Connected</span>
+                  <span className="text-[11px] text-emerald-600 dark:text-emerald-400">Hours this week</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-1 mt-0.5">
                   <AlertCircle className="w-3 h-3 text-muted-foreground" />
-                  <span className="text-[11px] text-muted-foreground">STS Not connected</span>
+                  <span className="text-[11px] text-muted-foreground">Not connected</span>
                 </div>
               )}
             </div>
@@ -955,7 +956,7 @@ function OutlookPanel({
                 <h3 className="font-semibold text-foreground text-sm">Outlook</h3>
                 {isConnected && (
                   <a
-                    href="https://outlook.office.com"
+                    href={EXTERNAL_URLS.outlook()}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
