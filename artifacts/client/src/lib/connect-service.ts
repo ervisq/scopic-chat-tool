@@ -1,4 +1,4 @@
-import stsTokenGuide from "@assets/Guide_1779207942526.png";
+import stsTokenGuide from "@assets/Guide_1779208372528.png";
 
 export interface ProviderField {
   key: string;
