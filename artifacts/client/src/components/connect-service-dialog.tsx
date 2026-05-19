@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Info, Loader2, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   type ProviderConfig,
+  type ProviderField,
   saveCredentialsConnect,
 } from "@/lib/connect-service";
 
@@ -36,6 +37,20 @@ export function ConnectServiceDialog({
   const [instanceUrl, setInstanceUrl] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeGuide, setActiveGuide] = useState<ProviderField | null>(null);
+
+  useEffect(() => {
+    if (!activeGuide) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setActiveGuide(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [activeGuide]);
+
+  useEffect(() => {
+    if (!open) setActiveGuide(null);
+  }, [open]);
 
   useEffect(() => {
     if (open && provider) {
@@ -127,15 +142,28 @@ export function ConnectServiceDialog({
             const inputId = `connect-${provider.key}-${field.key}`;
             return (
               <div key={field.key}>
-                <label
-                  htmlFor={inputId}
-                  className="block text-xs font-medium text-foreground mb-1"
-                >
-                  {field.label}
-                  {field.key === "domain" && (
-                    <span className="ml-1 text-muted-foreground font-normal">(optional)</span>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <label
+                    htmlFor={inputId}
+                    className="block text-xs font-medium text-foreground"
+                  >
+                    {field.label}
+                    {field.key === "domain" && (
+                      <span className="ml-1 text-muted-foreground font-normal">(optional)</span>
+                    )}
+                  </label>
+                  {field.guideImage && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveGuide(field)}
+                      title="Guide"
+                      aria-label={`Show guide for ${field.label}`}
+                      className="inline-flex items-center justify-center p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <Info className="w-3.5 h-3.5" />
+                    </button>
                   )}
-                </label>
+                </div>
                 <input
                   id={inputId}
                   type={field.type}
@@ -176,6 +204,42 @@ export function ConnectServiceDialog({
             </button>
           </div>
         </div>
+
+        {activeGuide?.guideImage && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Guide for ${activeGuide.label}`}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
+            onClick={() => setActiveGuide(null)}
+          >
+            <div
+              className="relative max-w-4xl w-full bg-card border border-border rounded-xl shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
+                <h3 className="text-sm font-medium text-foreground">
+                  How to find your {activeGuide.label}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setActiveGuide(null)}
+                  aria-label="Close guide"
+                  className="inline-flex items-center justify-center p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="bg-muted/30 p-3 max-h-[80vh] overflow-auto">
+                <img
+                  src={activeGuide.guideImage}
+                  alt={activeGuide.guideAlt || `Guide for ${activeGuide.label}`}
+                  className="block w-full h-auto rounded-md"
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

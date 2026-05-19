@@ -3,6 +3,8 @@ export interface ProviderField {
   label: string;
   type: string;
   placeholder: string;
+  guideImage?: string;
+  guideAlt?: string;
 }
 
 export interface ProviderConfig {
@@ -53,6 +55,12 @@ export const PROVIDERS: ProviderConfig[] = [
         label: "STS Token",
         type: "password",
         placeholder: "Paste your token_id from the STS URL",
+        guideImage: new URL(
+          "../../../../attached_assets/Guide_1779207942526.png",
+          import.meta.url,
+        ).href,
+        guideAlt:
+          "Step 1: open STS → My Account. Step 2: copy the API token from your profile and paste it here.",
       },
     ],
   },
