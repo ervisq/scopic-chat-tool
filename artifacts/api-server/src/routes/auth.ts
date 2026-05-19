@@ -68,7 +68,6 @@ function needs2fa(user: User): boolean {
 }
 
 router.post("/auth/register", breakGlassOnly, async (req, res) => {
-  const ip = (req.ip || req.socket.remoteAddress || "unknown").toString();
   try {
     const { email, password, name } = req.body;
     const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
