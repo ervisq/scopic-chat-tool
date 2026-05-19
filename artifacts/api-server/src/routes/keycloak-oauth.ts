@@ -54,6 +54,16 @@ function redirectWithError(res: Response, code: string): void {
   res.redirect(`${getFrontendRoot()}/?error=${encodeURIComponent(code)}`);
 }
 
+router.get("/auth/keycloak/health", async (_req: Request, res: Response) => {
+  try {
+    await getKeycloakClient();
+    res.json({ ok: true });
+  } catch (err) {
+    console.warn("[keycloak/health] discovery failed:", err);
+    res.status(503).json({ ok: false, error: "sso_unavailable" });
+  }
+});
+
 router.get("/auth/keycloak/login", async (_req: Request, res: Response) => {
   try {
     const client = await getKeycloakClient();
