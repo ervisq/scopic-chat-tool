@@ -1,3 +1,5 @@
+import stsTokenGuide from "@assets/Guide_1779207942526.png";
+
 export interface ProviderField {
   key: string;
   label: string;
@@ -55,10 +57,7 @@ export const PROVIDERS: ProviderConfig[] = [
         label: "STS Token",
         type: "password",
         placeholder: "Paste your token_id from the STS URL",
-        guideImage: new URL(
-          "../../../../attached_assets/Guide_1779207942526.png",
-          import.meta.url,
-        ).href,
+        guideImage: stsTokenGuide,
         guideAlt:
           "Step 1: open STS → My Account. Step 2: copy the API token from your profile and paste it here.",
       },
