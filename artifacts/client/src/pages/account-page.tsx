@@ -82,12 +82,20 @@ function GeneralTab({ token, onUpdateUser }: { token: string | null; onUpdateUse
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [profilePicture, setProfilePicture] = useState("");
+  const [initialName, setInitialName] = useState("");
+  const [initialPhone, setInitialPhone] = useState("");
+  const [initialProfilePicture, setInitialProfilePicture] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+  const isDirty =
+    name !== initialName ||
+    phone !== initialPhone ||
+    profilePicture !== initialProfilePicture;
 
   useEffect(() => {
     fetchProfile();
@@ -100,10 +108,15 @@ function GeneralTab({ token, onUpdateUser }: { token: string | null; onUpdateUse
       });
       if (res.ok) {
         const data = await res.json();
+        const loadedPhone = data.phone || "";
+        const loadedPicture = data.profilePictureUrl || "";
         setName(data.name);
         setEmail(data.email);
-        setPhone(data.phone || "");
-        setProfilePicture(data.profilePictureUrl || "");
+        setPhone(loadedPhone);
+        setProfilePicture(loadedPicture);
+        setInitialName(data.name);
+        setInitialPhone(loadedPhone);
+        setInitialProfilePicture(loadedPicture);
       }
     } catch {} finally {
       setLoading(false);
@@ -126,6 +139,9 @@ function GeneralTab({ token, onUpdateUser }: { token: string | null; onUpdateUse
         const data = await res.json();
         setMessage({ type: "success", text: "Profile updated successfully" });
         onUpdateUser({ name: data.name, phone: data.phone, profilePictureUrl: data.profilePictureUrl });
+        setInitialName(data.name);
+        setInitialPhone(data.phone || "");
+        setInitialProfilePicture(data.profilePictureUrl || "");
       } else {
         const err = await res.json();
         setMessage({ type: "error", text: err.message || "Failed to update" });
@@ -242,8 +258,8 @@ function GeneralTab({ token, onUpdateUser }: { token: string | null; onUpdateUse
           <div className="flex justify-end">
             <button
               onClick={handleSaveProfile}
-              disabled={saving}
-              className="px-5 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-2"
+              disabled={saving || !isDirty}
+              className="px-5 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
             >
               {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               Save Changes
