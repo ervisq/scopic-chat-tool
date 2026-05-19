@@ -86,7 +86,7 @@ export async function listUserConnections(userId: number) {
     if (c.provider === "teamwork") {
       try {
         const decoded = JSON.parse(decrypt(c.credentialsEncrypted)) as Record<string, unknown>;
-        connected = typeof decoded.accessToken === "string" && decoded.accessToken.length > 0;
+        connected = typeof decoded.refreshToken === "string" && decoded.refreshToken.length > 0;
       } catch {
         connected = false;
       }
