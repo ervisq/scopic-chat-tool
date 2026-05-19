@@ -25,6 +25,7 @@
     "drizzle-orm": "catalog:",
     "express": "^5",
     "jsonwebtoken": "^9.0.3",
+    "openid-client": "^5.7.1",
     "otpauth": "^9.5.0",
     "qrcode": "^1.5.4"
   },

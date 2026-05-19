@@ -9,8 +9,9 @@ export type UserRole = (typeof userRoles)[number];
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   email: text("email").notNull().unique(),
-  passwordHash: text("password_hash").notNull(),
+  passwordHash: text("password_hash"),
   name: text("name").notNull(),
+  keycloakSub: text("keycloak_sub").unique(),
   phone: text("phone"),
   profilePictureUrl: text("profile_picture_url"),
   theme: text("theme").default("light"),

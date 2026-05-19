@@ -6,7 +6,7 @@ import { type Page } from "@/components/sidebar";
 import DashboardPage from "@/pages/dashboard-page";
 import ChatPage from "@/pages/chat-page";
 import LoginPage from "@/pages/login-page";
-import ResetPasswordPage from "@/pages/reset-password-page";
+import AuthSsoCallback from "@/pages/auth-sso-callback";
 import AdminPage from "@/pages/admin-page";
 import ConnectionsPage from "@/pages/connections-page";
 import AccountPage from "@/pages/account-page";
@@ -90,29 +90,38 @@ const queryClient = new QueryClient({
   },
 });
 
-function getResetTokenFromUrl(): { isResetRoute: boolean; token: string } {
-  if (typeof window === "undefined") return { isResetRoute: false, token: "" };
+function isSsoCallbackRoute(): boolean {
+  if (typeof window === "undefined") return false;
   const base = (import.meta.env.BASE_URL || "/").replace(/\/+$/, "");
   const path = window.location.pathname;
-  const isResetRoute = path === `${base}/reset-password` || path === `${base}/reset-password/`;
-  const token = new URLSearchParams(window.location.search).get("token") || "";
-  return { isResetRoute, token };
+  return path === `${base}/auth/sso-callback` || path === `${base}/auth/sso-callback/`;
 }
 
-function clearResetRouteFromUrl() {
-  if (typeof window === "undefined") return;
+function getSsoErrorFromUrl(): string | null {
+  if (typeof window === "undefined") return null;
+  const err = new URLSearchParams(window.location.search).get("error");
+  if (!err) return null;
+  // Strip the param from the URL so a reload doesn't keep the error visible.
   const base = (import.meta.env.BASE_URL || "/").replace(/\/+$/, "") || "/";
   window.history.replaceState({}, "", base);
+  return err;
 }
 
 function AuthGate() {
+  const [onSsoCallback] = useState(() => isSsoCallbackRoute());
+  if (onSsoCallback) {
+    return <AuthSsoCallback />;
+  }
+  return <AuthGateInner />;
+}
+
+function AuthGateInner() {
   const {
     isAuthenticated, user, token,
-    login, register, logout, verify2fa, cancel2fa,
-    isLoading, requires2fa, updateUser, setToken,
+    logout,
+    isLoading, updateUser, setToken,
   } = useAuth();
-  const [resetRoute, setResetRoute] = useState(() => getResetTokenFromUrl());
-  const [forgotRequested, setForgotRequested] = useState(false);
+  const [ssoError] = useState(() => getSsoErrorFromUrl());
   const [page, setPage] = useState<Page>("dashboard");
   const [lastAuthUser, setLastAuthUser] = useState<string | null>(null);
   const [showTour, setShowTour] = useState(false);
@@ -154,12 +163,6 @@ function AuthGate() {
     } else if (!isAuthenticated) {
       setLastAuthUser(null);
       setShowTour(false);
-      // Clear sticky forgot-password mode whenever we transition back to
-      // logged-out state (e.g. after a successful reset + logout, or any
-      // remount); the next visit to the login screen should start in
-      // normal sign-in mode unless the user explicitly clicks
-      // "Forgot password?" again.
-      setForgotRequested(false);
     }
     return () => {
       if (tourTimer) clearTimeout(tourTimer);
@@ -181,34 +184,7 @@ function AuthGate() {
   }
 
   if (!isAuthenticated) {
-    if (resetRoute.isResetRoute) {
-      return (
-        <ResetPasswordPage
-          token={resetRoute.token}
-          onDone={() => {
-            clearResetRouteFromUrl();
-            setResetRoute({ isResetRoute: false, token: "" });
-            setForgotRequested(false);
-          }}
-          onRequestNewLink={() => {
-            clearResetRouteFromUrl();
-            setResetRoute({ isResetRoute: false, token: "" });
-            setForgotRequested(true);
-          }}
-        />
-      );
-    }
-    return (
-      <LoginPage
-        onLogin={login}
-        onRegister={register}
-        onVerify2fa={verify2fa}
-        onCancel2fa={cancel2fa}
-        isLoading={isLoading}
-        requires2fa={requires2fa}
-        initialMode={forgotRequested ? "forgot" : "login"}
-      />
-    );
+    return <LoginPage ssoError={ssoError} />;
   }
 
   let content: React.ReactNode;

@@ -9,6 +9,17 @@ import * as OTPAuth from "otpauth";
 import QRCode from "qrcode";
 import { sendPasswordChangedNotice } from "../services/passwordResetMailer";
 import { signToken } from "../middlewares/auth";
+import type { Request, Response, NextFunction } from "express";
+
+const BREAK_GLASS_PASSWORD_LOGIN = process.env.BREAK_GLASS_PASSWORD_LOGIN === "true";
+
+function breakGlassOnly(_req: Request, res: Response, next: NextFunction) {
+  if (!BREAK_GLASS_PASSWORD_LOGIN) {
+    res.status(404).json({ message: "Not found" });
+    return;
+  }
+  next();
+}
 
 function redactEmail(email: string): string {
   const [local, domain] = email.split("@");
@@ -104,7 +115,7 @@ router.put("/account/profile", async (req, res) => {
   }
 });
 
-router.put("/account/password", async (req, res) => {
+router.put("/account/password", breakGlassOnly, async (req, res) => {
   try {
     const { userId } = getAuthUser(req);
     const { currentPassword, newPassword } = req.body;
@@ -276,7 +287,7 @@ router.get("/account/2fa/status", async (req, res) => {
   }
 });
 
-router.post("/account/2fa/setup", async (req, res) => {
+router.post("/account/2fa/setup", breakGlassOnly, async (req, res) => {
   try {
     const { userId, email } = getAuthUser(req);
 
@@ -310,7 +321,7 @@ router.post("/account/2fa/setup", async (req, res) => {
   }
 });
 
-router.post("/account/2fa/verify", async (req, res) => {
+router.post("/account/2fa/verify", breakGlassOnly, async (req, res) => {
   try {
     const { userId } = getAuthUser(req);
     const { code } = req.body;
@@ -358,7 +369,7 @@ router.post("/account/2fa/verify", async (req, res) => {
   }
 });
 
-router.post("/account/2fa/disable", async (req, res) => {
+router.post("/account/2fa/disable", breakGlassOnly, async (req, res) => {
   try {
     const { userId } = getAuthUser(req);
     const { password } = req.body;
@@ -393,7 +404,7 @@ router.post("/account/2fa/disable", async (req, res) => {
   }
 });
 
-router.put("/account/2fa/frequency", async (req, res) => {
+router.put("/account/2fa/frequency", breakGlassOnly, async (req, res) => {
   try {
     const { userId } = getAuthUser(req);
     const { frequency } = req.body;

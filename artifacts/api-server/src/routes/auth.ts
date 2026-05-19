@@ -22,6 +22,24 @@ const ALLOWED_EMAIL_DOMAIN = "@scopicsoftware.com";
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 const MAX_OUTSTANDING_TOKENS_PER_USER = 3;
 
+// Password-based login (and its supporting flows: register, 2FA, forgot/reset password)
+// is disabled by default. Keycloak SSO is the only supported login method.
+// Set BREAK_GLASS_PASSWORD_LOGIN=true to re-enable the legacy password routes
+// for emergency access if Keycloak is unreachable.
+const BREAK_GLASS_PASSWORD_LOGIN = process.env.BREAK_GLASS_PASSWORD_LOGIN === "true";
+
+if (!BREAK_GLASS_PASSWORD_LOGIN) {
+  console.info("[auth] Password login DISABLED — Keycloak SSO only. Set BREAK_GLASS_PASSWORD_LOGIN=true to re-enable.");
+}
+
+function breakGlassOnly(req: import("express").Request, res: import("express").Response, next: import("express").NextFunction): void {
+  if (!BREAK_GLASS_PASSWORD_LOGIN) {
+    res.status(404).json({ message: "Not found" });
+    return;
+  }
+  next();
+}
+
 function redactEmail(email: string): string {
   const [local, domain] = email.split("@");
   if (!local || !domain) return "***";
@@ -50,7 +68,7 @@ function needs2fa(user: User): boolean {
   return elapsed >= getTotpFrequencyMs(user.totpFrequency || "weekly");
 }
 
-router.post("/auth/register", async (req, res) => {
+router.post("/auth/register", breakGlassOnly, async (req, res) => {
   const ip = (req.ip || req.socket.remoteAddress || "unknown").toString();
   try {
     const { email, password, name } = req.body;
@@ -119,7 +137,7 @@ router.post("/auth/register", async (req, res) => {
   }
 });
 
-router.post("/auth/login", async (req, res) => {
+router.post("/auth/login", breakGlassOnly, async (req, res) => {
   let parsed: { email: string; password: string };
   try {
     parsed = LoginBody.parse(req.body);
@@ -138,6 +156,12 @@ router.post("/auth/login", async (req, res) => {
     if (!user) {
       console.warn(`[login] rejected ${email ? redactEmail(email) : "(missing)"}: no account with that email`);
       res.status(401).json({ message: "Invalid email or password" });
+      return;
+    }
+
+    if (!user.passwordHash) {
+      console.warn(`[login] rejected ${redactEmail(email)}: account has no password (SSO-only)`);
+      res.status(401).json({ message: "This account uses single sign-on. Please sign in with Scopic SSO." });
       return;
     }
 
@@ -181,7 +205,7 @@ router.post("/auth/login", async (req, res) => {
   }
 });
 
-router.post("/auth/verify-2fa", async (req, res) => {
+router.post("/auth/verify-2fa", breakGlassOnly, async (req, res) => {
   try {
     const { tempToken, code } = req.body;
 
@@ -252,7 +276,7 @@ router.post("/auth/verify-2fa", async (req, res) => {
   }
 });
 
-router.post("/auth/forgot-password", async (req, res) => {
+router.post("/auth/forgot-password", breakGlassOnly, async (req, res) => {
   // Always respond with the same generic 200 — never leak whether the
   // email maps to a real account, whether mail config is missing, or
   // whether the upstream mailer failed. All diagnostics go to logs.
@@ -339,7 +363,7 @@ router.post("/auth/forgot-password", async (req, res) => {
   }
 });
 
-router.post("/auth/reset-password", async (req, res) => {
+router.post("/auth/reset-password", breakGlassOnly, async (req, res) => {
   try {
     const { token, newPassword } = req.body || {};
 
@@ -463,6 +487,7 @@ router.get("/auth/me", requireAuth, async (req, res) => {
       totpEnabled: user.totpEnabled || false,
       role: user.role,
       hiddenTools: Array.isArray(user.hiddenTools) ? user.hiddenTools : [],
+      loginMethod: user.keycloakSub ? "sso" : "password",
     });
   } catch (err) {
     console.error("Get me error:", err);
