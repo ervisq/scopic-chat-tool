@@ -6,3 +6,9 @@ id = "5aCla9z6VCBZHjkOoXoLD"
 uri = "file://attached_assets/scopic_logo_1_1776970385236.png"
 type = "image"
 title = "Scopic Chat logo"
+
+[[outputs]]
+id = "rKZYjIIfd23SPmwSGRKKw"
+uri = "file://attached_assets/scopic_chat_logo_512.png"
+type = "image"
+title = "Scopic Chat logo (sign-in, 512x512)"
