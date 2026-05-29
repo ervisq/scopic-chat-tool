@@ -45,9 +45,14 @@ export async function cleanupOrphanedTeamworkCredentials(): Promise<number> {
       undecodable += 1;
       continue;
     }
+    // A valid OAuth row has either a refresh token or (for Teamwork's
+    // long-lived-token flow) an access token. Only legacy { apiToken } rows
+    // lack both and should be treated as orphans.
     const hasRefreshToken =
       typeof decoded.refreshToken === "string" && (decoded.refreshToken as string).length > 0;
-    if (!hasRefreshToken) {
+    const hasAccessToken =
+      typeof decoded.accessToken === "string" && (decoded.accessToken as string).length > 0;
+    if (!hasRefreshToken && !hasAccessToken) {
       orphanIds.push(row.id);
     }
   }

@@ -86,7 +86,12 @@ export async function listUserConnections(userId: number) {
     if (c.provider === "teamwork") {
       try {
         const decoded = JSON.parse(decrypt(c.credentialsEncrypted)) as Record<string, unknown>;
-        connected = typeof decoded.refreshToken === "string" && decoded.refreshToken.length > 0;
+        // Teamwork OAuth2 returns a long-lived access token and (usually) no
+        // refresh token, so an access token alone is a valid connection.
+        // Legacy { apiToken } rows have neither and stay not-connected.
+        const hasRefresh = typeof decoded.refreshToken === "string" && decoded.refreshToken.length > 0;
+        const hasAccess = typeof decoded.accessToken === "string" && decoded.accessToken.length > 0;
+        connected = hasRefresh || hasAccess;
       } catch {
         connected = false;
       }

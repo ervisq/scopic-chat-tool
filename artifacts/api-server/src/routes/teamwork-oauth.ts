@@ -135,33 +135,32 @@ router.get("/teamwork/callback", async (req, res) => {
     const siteUrl = normalizeSiteUrl(rawSiteUrl);
 
     if (!accessToken) {
-      console.error("Teamwork OAuth: no access token received", data);
+      // Do NOT log `data` — it may contain a long-lived access token.
+      console.error("Teamwork OAuth: no access token received in token response");
       res.redirect(`${frontendUrl}?teamwork_error=no_access_token`);
       return;
     }
 
-    if (!refreshToken) {
-      console.error("Teamwork OAuth: no refresh token received", data);
-      res.redirect(`${frontendUrl}?teamwork_error=no_refresh_token`);
-      return;
-    }
-
     if (!siteUrl) {
-      console.error("Teamwork OAuth: no site URL returned in installation", data);
+      // Do NOT log `data` — it may contain a long-lived access token.
+      console.error("Teamwork OAuth: no site URL returned in installation");
       res.redirect(`${frontendUrl}?teamwork_error=no_site_url`);
       return;
     }
 
+    // Teamwork's OAuth2 returns a long-lived access token and does NOT issue a
+    // refresh token. Store the access token as the credential; only persist a
+    // refresh token when Teamwork actually provides one (future-proofing).
     await saveUserCredentials(
       userId,
       "teamwork",
-      { refreshToken },
+      refreshToken ? { accessToken, refreshToken } : { accessToken },
       siteUrl,
     );
 
-    // Seed the token cache with the access_token we just got so the very first
-    // API call after connect doesn't need to immediately refresh.
-    if (expiresIn) {
+    // When a refresh token IS present, seed the token cache with the access
+    // token we just got so the first API call doesn't immediately refresh.
+    if (refreshToken && expiresIn) {
       try {
         const { seedAccessTokenCache } = await import("../services/teamworkTokenManager");
         await seedAccessTokenCache(refreshToken, accessToken, expiresIn);

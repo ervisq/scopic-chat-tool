@@ -163,8 +163,16 @@ export async function getTeamworkAccessToken(userId: number): Promise<{ accessTo
   if (!cred) return null;
 
   const refreshToken = cred.credentials?.refreshToken as string | undefined;
+  const storedAccessToken = cred.credentials?.accessToken as string | undefined;
   const siteUrl = cred.instanceUrl;
-  if (!refreshToken || !siteUrl) return null;
+  if (!siteUrl) return null;
+
+  // Teamwork's OAuth2 issues long-lived access tokens and no refresh token.
+  // When we have no refresh token, use the stored access token directly.
+  if (!refreshToken) {
+    if (!storedAccessToken) return null;
+    return { accessToken: storedAccessToken, siteUrl };
+  }
 
   const clientId = process.env.TEAMWORK_CLIENT_ID || "";
   if (!clientId) {
