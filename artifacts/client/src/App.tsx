@@ -12,6 +12,7 @@ import ConnectionsPage from "@/pages/connections-page";
 import AccountPage from "@/pages/account-page";
 import OnboardingTour, { isTourCompleted, type TourStep } from "@/components/onboarding-tour";
 import { ToolVisibilityProvider, useToolVisibility } from "@/lib/tool-visibility";
+import { ObjectDetailProvider } from "@/components/object-detail-provider";
 import { Toaster } from "@/components/ui/toaster";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -214,14 +215,16 @@ function AuthGateInner() {
       initialHiddenTools={user?.hiddenTools}
     >
       <OAuthCallbackNotifier />
-      <AppLayout
-        activePage={page}
-        onNavigate={setPage}
-        user={user}
-        onLogout={logout}
-      >
-        {content}
-      </AppLayout>
+      <ObjectDetailProvider token={token}>
+        <AppLayout
+          activePage={page}
+          onNavigate={setPage}
+          user={user}
+          onLogout={logout}
+        >
+          {content}
+        </AppLayout>
+      </ObjectDetailProvider>
       {showTour && (
         <OnboardingTour
           steps={TOUR_STEPS}

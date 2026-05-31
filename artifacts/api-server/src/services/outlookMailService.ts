@@ -181,6 +181,93 @@ export async function getRecentEmails(
   return (response.value || []).map(mapMessage);
 }
 
+export interface MailAttachment {
+  id: string;
+  name: string;
+  contentType: string;
+  size: number;
+  isInline: boolean;
+}
+
+export interface MailDetail {
+  id: string;
+  subject: string;
+  from: string;
+  to: string[];
+  cc: string[];
+  receivedAt: string;
+  isRead: boolean;
+  hasAttachments: boolean;
+  bodyContentType: "html" | "text";
+  bodyContent: string;
+  attachments: MailAttachment[];
+}
+
+function formatRecipients(arr: any[]): string[] {
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .map((r) => {
+      const name = r?.emailAddress?.name;
+      const address = r?.emailAddress?.address;
+      if (name && address) return `${name} <${address}>`;
+      return address || name || "";
+    })
+    .filter(Boolean);
+}
+
+export async function getEmailDetail(client: Client, userEmail: string, messageId: string): Promise<MailDetail> {
+  // Graph message IDs are opaque and may contain reserved characters (e.g. "/",
+  // "+", "="). Encode them as a single path segment so they can never alter the
+  // request path or traverse into other Graph resources.
+  const encodedUser = encodeURIComponent(userEmail);
+  const encodedId = encodeURIComponent(messageId);
+
+  const m = await client
+    .api(`/users/${encodedUser}/messages/${encodedId}`)
+    .select("id,subject,from,toRecipients,ccRecipients,receivedDateTime,isRead,hasAttachments,body")
+    .get();
+
+  let attachments: MailAttachment[] = [];
+  if (m.hasAttachments) {
+    try {
+      const attRes = await client
+        .api(`/users/${encodedUser}/messages/${encodedId}/attachments`)
+        .select("id,name,contentType,size,isInline")
+        .get();
+      attachments = (attRes?.value || [])
+        .filter((a: any) => !a.isInline)
+        .map((a: any) => ({
+          id: a.id || "",
+          name: a.name || "(unnamed)",
+          contentType: a.contentType || "",
+          size: typeof a.size === "number" ? a.size : 0,
+          isInline: !!a.isInline,
+        }));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[Outlook] Failed to load attachments:", msg);
+    }
+  }
+
+  const bodyContentType: "html" | "text" = m.body?.contentType === "html" ? "html" : "text";
+
+  return {
+    id: m.id || messageId,
+    subject: m.subject || "(No Subject)",
+    from: m.from?.emailAddress?.name
+      ? `${m.from.emailAddress.name} <${m.from.emailAddress.address}>`
+      : m.from?.emailAddress?.address || "Unknown",
+    to: formatRecipients(m.toRecipients),
+    cc: formatRecipients(m.ccRecipients),
+    receivedAt: m.receivedDateTime || "",
+    isRead: !!m.isRead,
+    hasAttachments: !!m.hasAttachments,
+    bodyContentType,
+    bodyContent: m.body?.content || "",
+    attachments,
+  };
+}
+
 export function formatMailResult(result: OutlookMailResult, query: string): string {
   const q = `\n\nQuery: "${query}"`;
 

@@ -379,6 +379,45 @@ function extractTags(tagList: unknown): string[] {
   return tagList.map((tag: Record<string, unknown>) => (tag.name as string) || "").filter(Boolean);
 }
 
+function mapTeamworkTask(t: Record<string, unknown>): TeamworkTask {
+  const assignees = t.assignees as Record<string, unknown>[] | undefined;
+  const project = t.project as Record<string, unknown> | undefined;
+  const taskList = t.taskList as Record<string, unknown> | undefined;
+  return {
+    id: t.id as number,
+    name: (t.name as string) || "Untitled",
+    description: (t.description as string) || "",
+    status: (t.status as string) || "unknown",
+    assignee: assignees && assignees.length > 0 ? extractPersonName(assignees[0] as Record<string, unknown>) : "Unassigned",
+    priority: (t.priority as string) || "none",
+    dueDate: (t.dueDate as string) || "",
+    startDate: (t.startDate as string) || "",
+    progress: (t.progress as number) || 0,
+    estimatedMinutes: (t.estimatedMinutes as number) || 0,
+    projectName: (project?.name as string) || "",
+    taskListName: (taskList?.name as string) || "",
+    tags: extractTags(t.tags),
+    createdAt: (t.createdAt as string) || "",
+    updatedAt: (t.updatedAt as string) || "",
+    parentTaskId: (t.parentTaskId as number) || null,
+    commentCount: (t.commentCount as number) || 0,
+  };
+}
+
+function mapTeamworkComment(c: Record<string, unknown>): TeamworkComment {
+  const author = c.author as Record<string, unknown> | undefined;
+  const task = c.task as Record<string, unknown> | undefined;
+  const project = c.project as Record<string, unknown> | undefined;
+  return {
+    id: c.id as number,
+    body: (c.body as string) || (c.htmlBody as string) || "",
+    author: author ? extractPersonName(author) : "",
+    createdAt: (c.createdAt as string) || "",
+    taskName: (task?.name as string) || "",
+    projectName: (project?.name as string) || "",
+  };
+}
+
 async function fetchTasks(siteUrl: string, apiToken: string, query: string, currentUserId?: number | null, employeePersonId?: number): Promise<TeamworkServiceResult> {
   const client = createClient(siteUrl, apiToken);
   const params = buildTaskParams(query, currentUserId, employeePersonId);
@@ -386,30 +425,7 @@ async function fetchTasks(siteUrl: string, apiToken: string, query: string, curr
   const response = await client.get("/projects/api/v3/tasks.json", { params });
   const tasks = response.data?.tasks || [];
 
-  const mapped: TeamworkTask[] = tasks.slice(0, 25).map((t: Record<string, unknown>) => {
-    const assignees = t.assignees as Record<string, unknown>[] | undefined;
-    const project = t.project as Record<string, unknown> | undefined;
-    const taskList = t.taskList as Record<string, unknown> | undefined;
-    return {
-      id: t.id as number,
-      name: (t.name as string) || "Untitled",
-      description: (t.description as string) || "",
-      status: (t.status as string) || "unknown",
-      assignee: assignees && assignees.length > 0 ? extractPersonName(assignees[0] as Record<string, unknown>) : "Unassigned",
-      priority: (t.priority as string) || "none",
-      dueDate: (t.dueDate as string) || "",
-      startDate: (t.startDate as string) || "",
-      progress: (t.progress as number) || 0,
-      estimatedMinutes: (t.estimatedMinutes as number) || 0,
-      projectName: (project?.name as string) || "",
-      taskListName: (taskList?.name as string) || "",
-      tags: extractTags(t.tags),
-      createdAt: (t.createdAt as string) || "",
-      updatedAt: (t.updatedAt as string) || "",
-      parentTaskId: (t.parentTaskId as number) || null,
-      commentCount: (t.commentCount as number) || 0,
-    };
-  });
+  const mapped: TeamworkTask[] = tasks.slice(0, 25).map((t: Record<string, unknown>) => mapTeamworkTask(t));
 
   return { source: "live", type: "tasks", data: mapped, total: mapped.length };
 }
@@ -609,19 +625,7 @@ async function fetchComments(siteUrl: string, apiToken: string): Promise<Teamwor
   });
   const comments = response.data?.comments || [];
 
-  const mapped: TeamworkComment[] = comments.slice(0, 25).map((c: Record<string, unknown>) => {
-    const author = c.author as Record<string, unknown> | undefined;
-    const task = c.task as Record<string, unknown> | undefined;
-    const project = c.project as Record<string, unknown> | undefined;
-    return {
-      id: c.id as number,
-      body: (c.body as string) || (c.htmlBody as string) || "",
-      author: author ? extractPersonName(author) : "",
-      createdAt: (c.createdAt as string) || "",
-      taskName: (task?.name as string) || "",
-      projectName: (project?.name as string) || "",
-    };
-  });
+  const mapped: TeamworkComment[] = comments.slice(0, 25).map((c: Record<string, unknown>) => mapTeamworkComment(c));
 
   return { source: "live", type: "comments", data: mapped, total: mapped.length };
 }
@@ -944,5 +948,75 @@ export function formatTeamworkResult(result: TeamworkServiceResult, query: strin
     }
     default:
       return `Teamwork data (${result.total} items found) for query: "${query}"`;
+  }
+}
+
+export interface TeamworkTaskDetail {
+  task: TeamworkTask;
+  comments: TeamworkComment[];
+  instanceUrl: string;
+}
+
+export type TeamworkDetailResult =
+  | { source: "live"; detail: TeamworkTaskDetail }
+  | { source: "not_connected" }
+  | { source: "error"; message: string };
+
+export async function getTeamworkTaskDetail(userId: number, taskId: number): Promise<TeamworkDetailResult> {
+  let apiToken: string;
+  let siteUrl: string;
+  try {
+    const cred = await getTeamworkAccessToken(userId);
+    if (!cred) return { source: "not_connected" };
+    apiToken = cred.accessToken;
+    siteUrl = cred.siteUrl;
+  } catch (err) {
+    if (err instanceof TeamworkPermissionError) return { source: "error", message: err.message };
+    throw err;
+  }
+
+  if (!isValidTeamworkUrl(siteUrl)) {
+    return { source: "error", message: "Invalid Teamwork site URL" };
+  }
+
+  const client = createClient(siteUrl, apiToken);
+
+  try {
+    const taskRes = await client.get(`/projects/api/v3/tasks/${taskId}.json`, {
+      params: { include: "projects,assignees,taskLists,tags" },
+    });
+    const rawTask = taskRes.data?.task;
+    if (!rawTask) {
+      return { source: "error", message: "Task not found" };
+    }
+    const task = mapTeamworkTask(rawTask as Record<string, unknown>);
+
+    let comments: TeamworkComment[] = [];
+    try {
+      const commentsRes = await client.get(`/projects/api/v3/tasks/${taskId}/comments.json`, {
+        params: { pageSize: 50, orderBy: "createdAt", orderMode: "asc" },
+      });
+      const rawComments = commentsRes.data?.comments || [];
+      comments = rawComments.map((c: Record<string, unknown>) => mapTeamworkComment(c));
+    } catch (commentErr) {
+      const msg = commentErr instanceof Error ? commentErr.message : String(commentErr);
+      console.error("[Teamwork] Failed to load task comments:", msg);
+    }
+
+    return { source: "live", detail: { task, comments, instanceUrl: siteUrl } };
+  } catch (error: unknown) {
+    if (error instanceof TeamworkPermissionError) {
+      return { source: "error", message: error.message };
+    }
+    const status = (error as { response?: { status?: number } })?.response?.status;
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("Teamwork task detail error:", msg);
+    if (status === 404) {
+      return { source: "error", message: "Task not found" };
+    }
+    if (status === 401 || status === 403) {
+      return { source: "error", message: "Your Teamwork connection has expired or been revoked. Please reconnect Teamwork in Connected Services." };
+    }
+    return { source: "error", message: "Failed to fetch task from Teamwork" };
   }
 }

@@ -1,0 +1,1 @@
+- [Graph path-segment encoding](graph-path-encoding.md) — opaque Microsoft Graph IDs (message ids) must be encodeURIComponent'd before interpolation into `.api()` paths; the SDK does not encode them.

@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, type ReactElement } from "react";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
 import { User, Bot, Link2, Loader2 } from "lucide-react";
 import { cn, isSafeExternalUrl } from "@/lib/utils";
+import { useObjectDetail, type DetailTarget } from "@/components/object-detail-provider";
 import { ToolBadge } from "@/components/chat/tool-badge";
 import { getToolConfig } from "@/lib/tool-config";
 import {
@@ -139,9 +140,38 @@ function highlightToolMentions(text: string): (string | JSX.Element)[] {
   return parts;
 }
 
-function linkifyText(text: string): (string | JSX.Element)[] {
+function detectDetailTarget(url: string): DetailTarget | null {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    if (host.endsWith(".teamwork.com")) {
+      const m = parsed.pathname.match(/\/app\/tasks\/(\d+)/);
+      if (m) {
+        return { type: "teamwork_task", id: Number(m[1]), openUrl: url };
+      }
+    }
+    if (host === "outlook.office.com") {
+      const m = parsed.pathname.match(/\/mail\/[^/]+\/id\/([^/?#]+)/);
+      if (m) {
+        let id = m[1];
+        try {
+          id = decodeURIComponent(id);
+        } catch {
+          // keep raw id if it is not percent-encoded
+        }
+        return { type: "outlook_email", id, openUrl: url };
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function MessageText({ text }: { text: string }) {
+  const { openDetail } = useObjectDetail();
   const urlRegex = /(https?:\/\/[^\s<>"{}|\\^`[\]]+)/g;
-  const parts: (string | JSX.Element)[] = [];
+  const parts: (string | ReactElement)[] = [];
   let lastIndex = 0;
   let match;
 
@@ -151,7 +181,19 @@ function linkifyText(text: string): (string | JSX.Element)[] {
     }
 
     const url = match[1];
-    if (isSafeExternalUrl(url)) {
+    const detailTarget = detectDetailTarget(url);
+    if (detailTarget) {
+      parts.push(
+        <button
+          key={match.index}
+          type="button"
+          onClick={() => openDetail(detailTarget)}
+          className="text-blue-600 dark:text-blue-400 hover:underline break-all bg-transparent border-none p-0 cursor-pointer text-left"
+        >
+          {getUrlLabel(url)}
+        </button>,
+      );
+    } else if (isSafeExternalUrl(url)) {
       parts.push(
         <a
           key={match.index}
@@ -174,7 +216,7 @@ function linkifyText(text: string): (string | JSX.Element)[] {
     parts.push(text.slice(lastIndex));
   }
 
-  return parts;
+  return <>{parts}</>;
 }
 
 const TRUSTED_HOSTS: Array<{ test: (host: string) => boolean; label: (url: URL) => string }> = [
@@ -263,7 +305,7 @@ export function ChatMessageBubble({ message, token }: ChatMessageBubbleProps) {
             </span>
           </div>
           <p className="text-[15px] leading-relaxed text-foreground/90 break-words whitespace-pre-wrap">
-            {isUser ? highlightToolMentions(message.text) : linkifyText(message.text)}
+            {isUser ? highlightToolMentions(message.text) : <MessageText text={message.text} />}
           </p>
           {reconnectProvider && (
             <ReconnectBanner provider={reconnectProvider} token={token} />

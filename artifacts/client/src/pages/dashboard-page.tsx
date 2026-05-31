@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { JiraIcon, TeamworkIcon, OutlookIcon, ZohoIcon, StsIcon } from "../components/chat/tool-icons";
 import { safeExternalUrl } from "@/lib/utils";
+import { useObjectDetail } from "@/components/object-detail-provider";
 import { useToolVisibility } from "@/lib/tool-visibility";
 import { ToolVisibilityPanel } from "@/components/tool-visibility-panel";
 import { ConnectServiceDialog } from "@/components/connect-service-dialog";
@@ -543,6 +544,7 @@ function ExpandableTeamworkRow({
   instanceUrl?: string | null;
 }) {
   const [open, setOpen] = useState(false);
+  const { openDetail } = useObjectDetail();
   const twBase = instanceUrl ? safeExternalUrl(instanceUrl) : "";
   const taskUrl = twBase ? `${twBase}/app/tasks/${task.id}` : "";
 
@@ -560,18 +562,15 @@ function ExpandableTeamworkRow({
         </button>
         <PriorityDot priority={task.priority} />
         <span className="text-xs font-mono text-muted-foreground shrink-0">#{task.id}</span>
-        {taskUrl ? (
-          <a
-            href={taskUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-foreground truncate flex-1 hover:underline hover:text-purple-600 dark:hover:text-purple-400"
-          >
-            {task.title}
-          </a>
-        ) : (
-          <span className="text-xs text-foreground truncate flex-1">{task.title}</span>
-        )}
+        <button
+          type="button"
+          onClick={() =>
+            openDetail({ type: "teamwork_task", id: task.id, openUrl: taskUrl || null })
+          }
+          className="text-xs text-foreground truncate flex-1 text-left bg-transparent border-none cursor-pointer p-0 hover:underline hover:text-purple-600 dark:hover:text-purple-400"
+        >
+          {task.title}
+        </button>
         <StatusBadge status={task.status} />
       </div>
       {open && (
@@ -616,6 +615,7 @@ function ExpandableTeamworkRow({
 
 function ExpandableEmailRow({ email }: { email: OutlookEmailSummary }) {
   const [open, setOpen] = useState(false);
+  const { openDetail } = useObjectDetail();
   const emailUrl = email.id
     ? `https://outlook.office.com/mail/inbox/id/${encodeURIComponent(email.id)}`
     : "";
@@ -633,15 +633,16 @@ function ExpandableEmailRow({ email }: { email: OutlookEmailSummary }) {
           <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
         </button>
         {!email.isRead && <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" />}
-        {emailUrl ? (
-          <a
-            href={emailUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`text-sm truncate flex-1 hover:underline hover:text-sky-600 dark:hover:text-sky-400 ${!email.isRead ? "font-semibold text-foreground" : "text-foreground"}`}
+        {email.id ? (
+          <button
+            type="button"
+            onClick={() =>
+              openDetail({ type: "outlook_email", id: email.id!, openUrl: emailUrl || null })
+            }
+            className={`text-sm truncate flex-1 text-left bg-transparent border-none cursor-pointer p-0 hover:underline hover:text-sky-600 dark:hover:text-sky-400 ${!email.isRead ? "font-semibold text-foreground" : "text-foreground"}`}
           >
             {email.subject}
-          </a>
+          </button>
         ) : (
           <span className={`text-sm truncate flex-1 ${!email.isRead ? "font-semibold text-foreground" : "text-foreground"}`}>
             {email.subject}
