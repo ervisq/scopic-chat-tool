@@ -10,10 +10,6 @@ import {
   Calendar,
   Paperclip,
   MapPin,
-  Filter,
-  X,
-  Eye,
-  ChevronRight,
   User,
   FolderOpen,
   CalendarClock,
@@ -435,107 +431,6 @@ function formatDueDate(dateStr: string): string {
 }
 
 
-function ProjectFilter({
-  projects,
-  selected,
-  onChange,
-  accentColor,
-}: {
-  projects: string[];
-  selected: string;
-  onChange: (val: string) => void;
-  accentColor: string;
-}) {
-  if (projects.length <= 1) return null;
-  return (
-    <div className="flex items-center gap-1.5 mb-2">
-      <Filter className={`w-3.5 h-3.5 ${accentColor} shrink-0`} />
-      <select
-        value={selected}
-        onChange={(e) => onChange(e.target.value)}
-        aria-label="Filter by project"
-        className="text-xs bg-muted/40 border border-border/50 rounded-md px-2 py-1 text-foreground focus:outline-none focus:ring-1 focus:ring-primary/30 truncate max-w-[220px]"
-      >
-        <option value="">All Projects</option>
-        {projects.map((p) => (
-          <option key={p} value={p}>
-            {p}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-function ExpandableJiraRow({
-  ticket,
-  instanceUrl,
-}: {
-  ticket: JiraTicketSummary;
-  instanceUrl?: string | null;
-}) {
-  const [open, setOpen] = useState(false);
-  const jiraBase = instanceUrl ? safeExternalUrl(instanceUrl) : "";
-  const ticketUrl = jiraBase ? `${jiraBase}/browse/${ticket.id}` : "";
-
-  return (
-    <div className="rounded-lg bg-muted/30 overflow-hidden">
-      <div className="flex items-center gap-2 py-2 px-3">
-        <button
-          type="button"
-          className="shrink-0 p-0 bg-transparent border-none cursor-pointer"
-          aria-expanded={open}
-          aria-label={`${open ? "Collapse" : "Expand"} ${ticket.title}`}
-          onClick={() => setOpen(!open)}
-        >
-          <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
-        </button>
-        <PriorityDot priority={ticket.priority} />
-        <span className="text-xs font-mono text-muted-foreground shrink-0">{ticket.id}</span>
-        {ticketUrl ? (
-          <a
-            href={ticketUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-foreground truncate flex-1 hover:underline hover:text-blue-600 dark:hover:text-blue-400"
-          >
-            {ticket.title}
-          </a>
-        ) : (
-          <span className="text-xs text-foreground truncate flex-1">{ticket.title}</span>
-        )}
-        <StatusBadge status={ticket.status} />
-      </div>
-      {open && (
-        <div className="px-3 pb-2.5 pt-0.5 ml-6 space-y-1.5 border-t border-border/30">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <User className="w-3 h-3 shrink-0" />
-            <span>{ticket.assignee || "Unassigned"}</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <FolderOpen className="w-3 h-3 shrink-0" />
-            <span>{ticket.project || "—"}</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="font-medium">Priority:</span>
-            <span>{ticket.priority}</span>
-          </div>
-          {ticketUrl && (
-            <a
-              href={ticketUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:underline mt-1"
-            >
-              Open in Jira <ExternalLink className="w-3 h-3" />
-            </a>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function ExpandableTeamworkRow({
   task,
   tasks,
@@ -600,21 +495,29 @@ function ExpandableEmailRow({
 
   const rowContent = (
     <>
-      {!email.isRead && <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" />}
-      <span
-        className={`text-sm truncate flex-1 ${
-          !email.isRead ? "font-semibold text-foreground" : "text-foreground"
-        }`}
-      >
-        {email.subject}
-      </span>
-      {email.hasAttachments && (
-        <Paperclip className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-      )}
+      <div className="flex items-center gap-2">
+        {!email.isRead && <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" />}
+        <span
+          className={`text-sm truncate flex-1 ${
+            !email.isRead ? "font-semibold text-foreground" : "text-foreground"
+          }`}
+        >
+          {email.subject}
+        </span>
+        {email.hasAttachments && (
+          <Paperclip className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+        )}
+      </div>
+      <div className="flex items-center justify-between mt-1">
+        <span className="text-xs text-muted-foreground truncate">{email.from}</span>
+        <span className="text-xs text-muted-foreground shrink-0 ml-2">
+          {email.receivedAt ? formatRelativeTime(email.receivedAt) : ""}
+        </span>
+      </div>
     </>
   );
 
-  const baseClass = `w-full flex items-center gap-2 py-2 px-3 rounded-lg bg-muted/30 ${
+  const baseClass = `w-full block py-2 px-3 rounded-lg bg-muted/30 ${
     !email.isRead ? "border-l-2 border-sky-500" : ""
   }`;
 
@@ -632,75 +535,6 @@ function ExpandableEmailRow({
     >
       {rowContent}
     </button>
-  );
-}
-
-function ExpandableEventRow({ event }: { event: OutlookEventSummary }) {
-  const [open, setOpen] = useState(false);
-  const eventUrl = event.id
-    ? `https://outlook.office.com/calendar/item/${encodeURIComponent(event.id)}`
-    : "";
-
-  return (
-    <div className="rounded-lg bg-muted/30 overflow-hidden">
-      <div className="flex items-center gap-2 py-2 px-3">
-        <button
-          type="button"
-          className="shrink-0 p-0 bg-transparent border-none cursor-pointer"
-          aria-expanded={open}
-          aria-label={`${open ? "Collapse" : "Expand"} ${event.subject}`}
-          onClick={() => setOpen(!open)}
-        >
-          <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
-        </button>
-        {eventUrl ? (
-          <a
-            href={eventUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm font-medium text-foreground truncate flex-1 hover:underline hover:text-indigo-600 dark:hover:text-indigo-400"
-          >
-            {event.subject}
-          </a>
-        ) : (
-          <span className="text-sm font-medium text-foreground truncate flex-1">{event.subject}</span>
-        )}
-      </div>
-      {open && (
-        <div className="px-3 pb-2.5 pt-0.5 ml-6 space-y-1.5 border-t border-border/30">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Calendar className="w-3 h-3 shrink-0" />
-            <span>
-              {event.isAllDay
-                ? formatEventDate(event.startTime)
-                : `${formatEventDateTime(event.startTime)} – ${formatEventDateTime(event.endTime)}`}
-            </span>
-          </div>
-          {event.location?.displayName && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <MapPin className="w-3 h-3 shrink-0" />
-              <span className="truncate">{event.location.displayName}</span>
-            </div>
-          )}
-          {event.organizer && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <User className="w-3 h-3 shrink-0" />
-              <span>Organizer: {event.organizer}</span>
-            </div>
-          )}
-          {eventUrl && (
-            <a
-              href={eventUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[11px] font-medium text-indigo-600 dark:text-indigo-400 hover:underline mt-1"
-            >
-              Open in Outlook <ExternalLink className="w-3 h-3" />
-            </a>
-          )}
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -862,13 +696,11 @@ function WeeklyHoursPanel({
 function OutlookPanel({
   calendarService,
   emailService,
-  onViewMore,
   onConnect,
   onHide,
 }: {
   calendarService: ServiceData | undefined;
   emailService: ServiceData | undefined;
-  onViewMore: () => void;
   onConnect: () => void;
   onHide: () => void;
 }) {
@@ -988,37 +820,9 @@ function OutlookPanel({
                 ) : emailService?.error ? (
                   <p className="text-sm text-muted-foreground italic">{emailService.error}</p>
                 ) : emails.length > 0 ? (
-                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                  <div className="space-y-2 max-h-[330px] overflow-y-auto">
                     {emails.map((email, idx) => (
-                      <div
-                        key={idx}
-                        className={`py-2 px-3 rounded-lg bg-muted/30 ${!email.isRead ? "border-l-2 border-sky-500" : ""}`}
-                      >
-                        <div className="flex items-center gap-2">
-                          {!email.isRead && <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" />}
-                          {email.id ? (
-                            <a
-                              href={`https://outlook.office.com/mail/inbox/id/${encodeURIComponent(email.id)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={`text-sm truncate flex-1 hover:underline hover:text-sky-600 dark:hover:text-sky-400 ${!email.isRead ? "font-semibold text-foreground" : "text-foreground"}`}
-                            >
-                              {email.subject}
-                            </a>
-                          ) : (
-                            <span className={`text-sm truncate flex-1 ${!email.isRead ? "font-semibold text-foreground" : "text-foreground"}`}>
-                              {email.subject}
-                            </span>
-                          )}
-                          {email.hasAttachments && <Paperclip className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
-                        </div>
-                        <div className="flex items-center justify-between mt-1">
-                          <span className="text-xs text-muted-foreground truncate">{email.from}</span>
-                          <span className="text-xs text-muted-foreground shrink-0 ml-2">
-                            {email.receivedAt ? formatRelativeTime(email.receivedAt) : ""}
-                          </span>
-                        </div>
-                      </div>
+                      <ExpandableEmailRow key={idx} email={email} emails={emails} />
                     ))}
                   </div>
                 ) : (
@@ -1039,7 +843,7 @@ function OutlookPanel({
                 ) : calendarService?.error ? (
                   <p className="text-sm text-muted-foreground italic">{calendarService.error}</p>
                 ) : events.length > 0 ? (
-                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                  <div className="space-y-2 max-h-[360px] overflow-y-auto">
                     {events.map((event, idx) => (
                       <div key={idx} className="py-2 px-3 rounded-lg bg-muted/30">
                         {event.id ? (
@@ -1079,15 +883,7 @@ function OutlookPanel({
           </>
         )}
 
-        {isConnected ? (
-          <button
-            onClick={onViewMore}
-            className="flex items-center justify-center gap-2 w-full mt-4 py-2.5 rounded-xl text-sm font-medium transition-colors bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:opacity-80"
-          >
-            <Eye className="w-4 h-4" />
-            View more
-          </button>
-        ) : (
+        {!isConnected && (
           <button
             onClick={onConnect}
             className="flex items-center justify-center gap-2 w-full mt-4 py-2.5 rounded-xl text-sm font-medium transition-colors bg-indigo-500 text-white hover:opacity-90"
@@ -1103,10 +899,8 @@ function OutlookPanel({
 
 function ZohoSubSummary({
   sub,
-  onViewMore,
 }: {
   sub: ServiceData;
-  onViewMore: () => void;
 }) {
   const style = SERVICE_STYLES[sub.key] || SERVICE_STYLES.zoho;
 
@@ -1240,15 +1034,6 @@ function ZohoSubSummary({
             </div>
           )
         )}
-
-        <button
-          type="button"
-          onClick={onViewMore}
-          className={`flex items-center justify-center gap-1.5 w-full py-1.5 rounded-lg text-xs font-medium transition-colors ${style.bgColor} ${style.textColor} hover:opacity-80`}
-        >
-          <Eye className="w-3.5 h-3.5" />
-          View more
-        </button>
       </div>
     </div>
   );
@@ -1257,8 +1042,6 @@ function ZohoSubSummary({
 function ServiceCard({
   service,
   onConnect,
-  onViewMore,
-  onViewSubMore,
   connecting = false,
   connectingLabel = "Connecting…",
   tileError = null,
@@ -1268,8 +1051,6 @@ function ServiceCard({
 }: {
   service: ServiceData;
   onConnect: () => void;
-  onViewMore: () => void;
-  onViewSubMore?: (sub: ServiceData) => void;
   connecting?: boolean;
   connectingLabel?: string;
   tileError?: string | null;
@@ -1325,11 +1106,9 @@ function ServiceCard({
   const reconnectProvider = service.connected && service.error
     ? detectReconnectProvider(service.error, SERVICE_KEY_TO_TOOL_NAME[service.key])
     : null;
-  const PREVIEW_LIMIT = 8;
+  const PREVIEW_LIMIT = 20;
   const previewTickets = service.key === "jira" ? (service.summary?.tickets || []).slice(0, PREVIEW_LIMIT) : [];
   const previewTasks = service.key === "teamwork" ? (service.summary?.tasks || []).slice(0, PREVIEW_LIMIT) : [];
-  const totalTickets = service.summary?.tickets?.length || 0;
-  const totalTasks = service.summary?.tasks?.length || 0;
 
   return (
     <div className={`rounded-2xl border ${style.borderColor} bg-card overflow-hidden transition-all hover:shadow-md h-full flex flex-col`}>
@@ -1383,11 +1162,7 @@ function ServiceCard({
         {service.connected && isZohoSuite ? (
           <div className={`rounded-xl ${style.bgColor} p-3 grid grid-cols-1 md:grid-cols-2 gap-3`}>
             {service.subServices!.map((sub) => (
-              <ZohoSubSummary
-                key={sub.key}
-                sub={sub}
-                onViewMore={() => onViewSubMore?.(sub)}
-              />
+              <ZohoSubSummary key={sub.key} sub={sub} />
             ))}
           </div>
         ) : service.connected ? (
@@ -1475,7 +1250,7 @@ function ServiceCard({
             )}
 
             {previewTickets.length > 0 && (
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 max-h-[232px] overflow-y-auto">
                 {previewTickets.map((t) => (
                   <div key={t.id} className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-muted/30">
                     <PriorityDot priority={t.priority} />
@@ -1495,48 +1270,21 @@ function ServiceCard({
                     <StatusBadge status={t.status} />
                   </div>
                 ))}
-                {totalTickets > PREVIEW_LIMIT && (
-                  <p className="text-xs text-muted-foreground text-center pt-1">+{totalTickets - PREVIEW_LIMIT} more</p>
-                )}
               </div>
             )}
 
             {previewTasks.length > 0 && (
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 max-h-[232px] overflow-y-auto">
                 {previewTasks.map((t) => (
-                  <div key={t.id} className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-muted/30">
-                    <PriorityDot priority={t.priority} />
-                    <span className="text-xs font-mono text-muted-foreground shrink-0">#{t.id}</span>
-                    {service.instanceUrl ? (
-                      <a
-                        href={`${service.instanceUrl}/app/tasks/${t.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-foreground truncate flex-1 hover:underline hover:text-purple-600 dark:hover:text-purple-400"
-                      >
-                        {t.title}
-                      </a>
-                    ) : (
-                      <span className="text-sm text-foreground truncate flex-1">{t.title}</span>
-                    )}
-                    <StatusBadge status={t.status} />
-                  </div>
+                  <ExpandableTeamworkRow
+                    key={t.id}
+                    task={t}
+                    tasks={previewTasks}
+                    instanceUrl={service.instanceUrl}
+                  />
                 ))}
-                {totalTasks > PREVIEW_LIMIT && (
-                  <p className="text-xs text-muted-foreground text-center pt-1">+{totalTasks - PREVIEW_LIMIT} more</p>
-                )}
               </div>
             )}
-
-            <div className="pt-1">
-              <button
-                onClick={onViewMore}
-                className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-medium transition-colors ${style.bgColor} ${style.textColor} hover:opacity-80`}
-              >
-                <Eye className="w-4 h-4" />
-                View more
-              </button>
-            </div>
           </div>
         ) : (
           <div className="flex-1 flex flex-col">
@@ -1566,401 +1314,6 @@ function ServiceCard({
         )}
       </div>
     </div>
-  );
-}
-
-function ServiceDrawer({
-  service,
-  onClose,
-}: {
-  service: ServiceData | null;
-  onClose: () => void;
-}) {
-  const [projectFilter, setProjectFilter] = useState("");
-  const [activeTab, setActiveTab] = useState<"emails" | "events">("emails");
-
-  useEffect(() => {
-    setProjectFilter("");
-    setActiveTab("emails");
-  }, [service?.key]);
-
-  useEffect(() => {
-    if (!service) return;
-    document.body.style.overflow = "hidden";
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.body.style.overflow = "";
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [service, onClose]);
-
-  if (!service) return null;
-
-  const style = SERVICE_STYLES[service.key] || SERVICE_STYLES.jira;
-  const externalUrl = EXTERNAL_URLS[service.key]?.(service.instanceUrl) || (
-    service.key === "outlook_email" || service.key === "outlook_calendar" ? "https://outlook.office.com" : "#"
-  );
-
-  const isOutlook = service.key === "outlook_email" || service.key === "outlook_calendar";
-
-  const jiraProjects = service.key === "jira" && service.summary?.tickets
-    ? [...new Set(service.summary.tickets.map((t) => t.project).filter(Boolean))].sort()
-    : [];
-
-  const teamworkProjects = service.key === "teamwork" && service.summary?.tasks
-    ? [...new Set(service.summary.tasks.map((t) => t.projectName).filter(Boolean))].sort()
-    : [];
-
-  const filteredJiraTickets = service.summary?.tickets
-    ? (projectFilter ? service.summary.tickets.filter((t) => t.project === projectFilter) : service.summary.tickets)
-    : [];
-
-  const filteredTeamworkTasks = service.summary?.tasks
-    ? (projectFilter ? service.summary.tasks.filter((t) => t.projectName === projectFilter) : service.summary.tasks)
-    : [];
-
-  const emails = service.summary?.emails || [];
-  const events = service.summary?.events || [];
-
-  return (
-    <>
-      <div className="fixed inset-0 bg-black/30 z-40 transition-opacity" onClick={onClose} aria-hidden="true" />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={`${service.name} details`}
-        className="fixed top-0 right-0 bottom-0 w-full sm:w-[420px] bg-card border-l border-border z-50 shadow-2xl flex flex-col animate-in slide-in-from-right duration-200"
-      >
-        <div className="h-14 shrink-0 flex items-center justify-between px-5 border-b border-border/50">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-card flex items-center justify-center shadow-sm border border-border/50">
-              <style.Icon className="w-5 h-5" />
-            </div>
-            <h2 className="font-semibold text-foreground text-base">{service.name}</h2>
-          </div>
-          <button onClick={onClose} aria-label="Close drawer" className="p-1.5 rounded-lg hover:bg-muted/50 transition-colors">
-            <X className="w-5 h-5 text-muted-foreground" />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          {service.error && (
-            <div className="rounded-lg bg-muted/30 px-4 py-3">
-              <p className="text-xs text-muted-foreground italic">{service.error}</p>
-            </div>
-          )}
-
-          {service.key === "jira" && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Your Tasks</p>
-                {service.summary?.openTickets !== undefined && (
-                  <span className={`text-xs font-semibold ${style.textColor}`}>{service.summary.openTickets} open</span>
-                )}
-              </div>
-              <ProjectFilter projects={jiraProjects} selected={projectFilter} onChange={setProjectFilter} accentColor={style.textColor} />
-              {filteredJiraTickets.length === 0 ? (
-                <p className="text-xs text-muted-foreground">{projectFilter ? "No tasks in this project" : "No tasks found"}</p>
-              ) : (
-                <>
-                  {filteredJiraTickets.map((t) => (
-                    <ExpandableJiraRow key={t.id} ticket={t} instanceUrl={service.instanceUrl} />
-                  ))}
-                </>
-              )}
-              <p className="text-[11px] text-muted-foreground">
-                Use <span className="font-mono font-semibold">@JIRA</span> in chat for more
-              </p>
-            </div>
-          )}
-
-          {service.key === "teamwork" && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Your Tasks</p>
-                {service.summary?.activeTasks !== undefined && (
-                  <span className={`text-xs font-semibold ${style.textColor}`}>{service.summary.activeTasks} active</span>
-                )}
-              </div>
-              <ProjectFilter projects={teamworkProjects} selected={projectFilter} onChange={setProjectFilter} accentColor={style.textColor} />
-              {filteredTeamworkTasks.length === 0 ? (
-                <p className="text-xs text-muted-foreground">{projectFilter ? "No tasks in this project" : "No tasks found"}</p>
-              ) : (
-                <>
-                  {filteredTeamworkTasks.map((t) => (
-                    <ExpandableTeamworkRow key={t.id} task={t} tasks={filteredTeamworkTasks} instanceUrl={service.instanceUrl} />
-                  ))}
-                </>
-              )}
-              <p className="text-[11px] text-muted-foreground">
-                Use <span className="font-mono font-semibold">@Teamwork</span> in chat for more
-              </p>
-            </div>
-          )}
-
-          {isOutlook && (
-            <div className="space-y-3">
-              <div className="flex rounded-xl bg-muted/50 p-1 mb-2">
-                <button
-                  onClick={() => setActiveTab("emails")}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors ${
-                    activeTab === "emails"
-                      ? "bg-card text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <Mail className="w-3.5 h-3.5" />
-                  Emails
-                </button>
-                <button
-                  onClick={() => setActiveTab("events")}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors ${
-                    activeTab === "events"
-                      ? "bg-card text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <Calendar className="w-3.5 h-3.5" />
-                  Events
-                </button>
-              </div>
-
-              {activeTab === "emails" && (
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Recent Emails</p>
-                  {emails.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No recent emails</p>
-                  ) : (
-                    emails.map((email, idx) => (
-                      <ExpandableEmailRow key={idx} email={email} emails={emails} />
-                    ))
-                  )}
-                </div>
-              )}
-
-              {activeTab === "events" && (
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Upcoming Events</p>
-                  {events.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No upcoming events</p>
-                  ) : (
-                    events.map((event, idx) => (
-                      <ExpandableEventRow key={idx} event={event} />
-                    ))
-                  )}
-                </div>
-              )}
-
-              <p className="text-[11px] text-muted-foreground">
-                Use <span className="font-mono font-semibold">@Outlook</span> in chat for more
-              </p>
-            </div>
-          )}
-
-          {service.key === "zoho_people" && (
-            <div className="space-y-3">
-              {service.summary?.status && (
-                <div className={`rounded-lg ${style.bgColor} px-4 py-3`}>
-                  <p className={`text-sm font-medium ${style.textColor}`}>{service.summary.status}</p>
-                </div>
-              )}
-              {(service.summary?.onLeaveToday?.length ?? 0) > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">On Leave Today</p>
-                  {service.summary!.onLeaveToday!.map((l, i) => (
-                    <div key={i} className="py-1.5 px-3 rounded-lg bg-muted/30">
-                      <p className="text-sm text-foreground truncate">{l.employee || "—"}</p>
-                      <p className="text-[11px] text-muted-foreground truncate">
-                        {l.leaveType || "Leave"}{l.from ? ` · ${l.from}${l.to && l.to !== l.from ? ` → ${l.to}` : ""}` : ""}{l.dayCount ? ` · ${l.dayCount} day${l.dayCount !== "1" ? "s" : ""}` : ""}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {(service.summary?.recentJoiners?.length ?? 0) > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Recent Joiners (this month)</p>
-                  {service.summary!.recentJoiners!.map((e) => (
-                    <div key={e.id} className="py-1.5 px-3 rounded-lg bg-muted/30">
-                      <p className="text-sm text-foreground truncate">{e.name || "—"}</p>
-                      <p className="text-[11px] text-muted-foreground truncate">
-                        {e.designation || "—"}{e.department ? ` · ${e.department}` : ""}{e.dateOfJoining ? ` · joined ${e.dateOfJoining}` : ""}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <p className="text-[11px] text-muted-foreground">
-                Use <span className="font-mono font-semibold">@ZohoPeople</span> in chat to query data
-              </p>
-            </div>
-          )}
-
-          {service.key === "zoho_crm" && (
-            <div className="space-y-3">
-              {service.summary?.status && (
-                <div className={`rounded-lg ${style.bgColor} px-4 py-3`}>
-                  <p className={`text-sm font-medium ${style.textColor}`}>{service.summary.status}</p>
-                </div>
-              )}
-              {(service.summary?.openDeals?.length ?? 0) > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Top Open Deals</p>
-                  {service.summary!.openDeals!.map((d) => (
-                    <div key={d.id} className="py-1.5 px-3 rounded-lg bg-muted/30">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm text-foreground truncate flex-1">{d.name || "Deal"}</p>
-                        {d.amount && <span className="text-xs font-semibold text-foreground shrink-0">{d.amount}</span>}
-                      </div>
-                      <p className="text-[11px] text-muted-foreground truncate">
-                        {d.account || "—"}{d.stage ? ` · ${d.stage}` : ""}{d.closingDate ? ` · close ${d.closingDate}` : ""}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {(service.summary?.recentLeads?.length ?? 0) > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Recent Leads (last 7 days)</p>
-                  {service.summary!.recentLeads!.map((l) => (
-                    <div key={l.id} className="py-1.5 px-3 rounded-lg bg-muted/30">
-                      <p className="text-sm text-foreground truncate">{l.name || l.email || "Lead"}</p>
-                      <p className="text-[11px] text-muted-foreground truncate">
-                        {l.company || "—"}{l.leadStatus ? ` · ${l.leadStatus}` : ""}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {(service.summary?.tasksDueToday?.length ?? 0) > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Tasks Due Today</p>
-                  {service.summary!.tasksDueToday!.map((t) => (
-                    <div key={t.id} className="py-1.5 px-3 rounded-lg bg-muted/30">
-                      <p className="text-sm text-foreground truncate">{t.subject || "Task"}</p>
-                      <p className="text-[11px] text-muted-foreground truncate">
-                        {t.priority || "—"}{t.status ? ` · ${t.status}` : ""}{t.relatedTo ? ` · ${t.relatedTo}` : ""}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <p className="text-[11px] text-muted-foreground">
-                Use <span className="font-mono font-semibold">@ZohoCRM</span> in chat to query data
-              </p>
-            </div>
-          )}
-
-          {service.key === "zoho_recruit" && (
-            <div className="space-y-3">
-              {service.summary?.status && (
-                <div className={`rounded-lg ${style.bgColor} px-4 py-3`}>
-                  <p className={`text-sm font-medium ${style.textColor}`}>{service.summary.status}</p>
-                </div>
-              )}
-              {(service.summary?.jobOpenings?.length ?? 0) > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Open Positions</p>
-                  {service.summary!.jobOpenings!.map((j) => (
-                    <div key={j.id} className="py-1.5 px-3 rounded-lg bg-muted/30">
-                      <p className="text-sm text-foreground truncate">{j.title}</p>
-                      <p className="text-[11px] text-muted-foreground truncate">
-                        {j.department || "—"}{j.positions ? ` · ${j.positions} position${j.positions !== "1" ? "s" : ""}` : ""}{j.status ? ` · ${j.status}` : ""}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {(service.summary?.upcomingInterviews?.length ?? 0) > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Interviews this week</p>
-                  {service.summary!.upcomingInterviews!.map((iv) => (
-                    <div key={iv.id} className="py-1.5 px-3 rounded-lg bg-muted/30">
-                      <p className="text-sm text-foreground truncate">{iv.candidateName || iv.interviewName || "Interview"}</p>
-                      <p className="text-[11px] text-muted-foreground truncate">
-                        {iv.interviewDate || "—"}{iv.from ? ` · ${iv.from}${iv.to ? `–${iv.to}` : ""}` : ""}{iv.jobOpeningName ? ` · ${iv.jobOpeningName}` : ""}{iv.status ? ` · ${iv.status}` : ""}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {(service.summary?.candidates?.length ?? 0) > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Recent Candidates</p>
-                  {service.summary!.candidates!.map((c) => (
-                    <div key={c.id} className="py-1.5 px-3 rounded-lg bg-muted/30">
-                      <p className="text-sm text-foreground truncate">{c.name || c.email || "Candidate"}</p>
-                      <p className="text-[11px] text-muted-foreground truncate">
-                        {c.currentJobTitle || "—"}{c.currentEmployer ? ` @ ${c.currentEmployer}` : ""}{c.status ? ` · ${c.status}` : ""}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <p className="text-[11px] text-muted-foreground">
-                Use <span className="font-mono font-semibold">@ZohoRecruit</span> in chat for more
-              </p>
-            </div>
-          )}
-
-          {service.key === "zoho_contracts" && (
-            <div className="space-y-3">
-              {service.summary?.status && (
-                <div className={`rounded-lg ${style.bgColor} px-4 py-3`}>
-                  <p className={`text-sm font-medium ${style.textColor}`}>{service.summary.status}</p>
-                </div>
-              )}
-              {(service.summary?.expiringContracts?.length ?? 0) > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Expiring soon (next 30 days)</p>
-                  {service.summary!.expiringContracts!.map((c) => (
-                    <div key={c.id} className="py-1.5 px-3 rounded-lg bg-amber-100/40 dark:bg-amber-900/20">
-                      <p className="text-sm text-foreground truncate">{c.contractName || "Contract"}</p>
-                      <p className="text-[11px] text-muted-foreground truncate">
-                        {c.company || "—"}{c.endDate ? ` · ends ${c.endDate}` : ""}{c.contractValue ? ` · ${c.contractValue}` : ""}{c.contractStatus ? ` · ${c.contractStatus}` : ""}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {(service.summary?.contracts?.length ?? 0) > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Contracts</p>
-                  {service.summary!.contracts!.map((c) => (
-                    <div key={c.id} className="py-1.5 px-3 rounded-lg bg-muted/30">
-                      <p className="text-sm text-foreground truncate">{c.contractName || "Contract"}</p>
-                      <p className="text-[11px] text-muted-foreground truncate">
-                        {c.company || "—"}{c.contractStatus ? ` · ${c.contractStatus}` : ""}{c.endDate ? ` · ends ${c.endDate}` : ""}{c.contractValue ? ` · ${c.contractValue}` : ""}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <p className="text-[11px] text-muted-foreground">
-                Use <span className="font-mono font-semibold">@ZohoContracts</span> in chat for more
-              </p>
-            </div>
-          )}
-        </div>
-
-        {externalUrl !== "#" && (
-          <div className="shrink-0 p-4 border-t border-border/50">
-            <a
-              href={externalUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-medium transition-colors ${style.bgColor} ${style.textColor} hover:opacity-80`}
-            >
-              Open {service.name}
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
-          </div>
-        )}
-      </div>
-    </>
   );
 }
 
@@ -2006,7 +1359,6 @@ export default function DashboardPage({
     return true;
   });
   const [refreshing, setRefreshing] = useState(false);
-  const [drawerService, setDrawerService] = useState<ServiceData | null>(null);
   const [toolSettingsOpen, setToolSettingsOpen] = useState(false);
   const toolMenuRef = useRef<HTMLDivElement>(null);
   const [connectDialogProvider, setConnectDialogProvider] = useState<ProviderConfig | null>(null);
@@ -2261,22 +1613,6 @@ export default function DashboardPage({
     }
   }
 
-  function openOutlookDrawer() {
-    const emailSvc = services.find((s) => s.key === "outlook_email");
-    const calSvc = services.find((s) => s.key === "outlook_calendar");
-    const merged: ServiceData = {
-      key: "outlook_email",
-      name: "Outlook",
-      connected: (emailSvc?.connected ?? false) || (calSvc?.connected ?? false),
-      summary: {
-        emails: emailSvc?.summary?.emails,
-        events: calSvc?.summary?.events,
-      },
-      error: emailSvc?.error || calSvc?.error,
-    };
-    setDrawerService(merged);
-  }
-
   const isServiceHidden = (key: string) => {
     if (key === "zoho") return ZOHO_SUB_TOOL_NAMES.every((t) => isHidden(t));
     const toolName = SERVICE_KEY_TO_TOOL_NAME[key];
@@ -2437,14 +1773,12 @@ export default function DashboardPage({
                           <ServiceCard
                             service={service}
                             onConnect={() => handleTileConnect(service.key)}
-                            onViewMore={() => setDrawerService(service)}
                             connecting={isTileConnecting(service.key)}
                             connectingLabel={tileConnectingLabel(service.key)}
                             tileError={tileErrors[service.key] ?? null}
                             onDisconnect={() => handleDisconnectTile(service.key)}
                             onUpdate={() => handleTileUpdate(service.key)}
                             onHide={() => handleHideTile(service.key)}
-                            onViewSubMore={(sub) => setDrawerService(sub)}
                           />
                         </div>
                       );
@@ -2471,7 +1805,6 @@ export default function DashboardPage({
                     <OutlookPanel
                       calendarService={calendarService}
                       emailService={emailService}
-                      onViewMore={openOutlookDrawer}
                       onConnect={onOpenConnections}
                       onHide={() => handleHideTile("outlook_email")}
                     />
@@ -2484,7 +1817,6 @@ export default function DashboardPage({
         </div>
       </div>
 
-      <ServiceDrawer service={drawerService} onClose={() => setDrawerService(null)} />
       <ConnectServiceDialog
         provider={connectDialogProvider}
         token={token}

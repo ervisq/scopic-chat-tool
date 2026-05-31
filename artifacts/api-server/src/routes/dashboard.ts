@@ -596,7 +596,7 @@ router.get("/dashboard", async (req, res) => {
           (async () => {
             try {
               const [emailsRes, unreadRes] = await Promise.allSettled([
-                getRecentEmails(client, userEmail, 5),
+                getRecentEmails(client, userEmail, 20),
                 client.api(`/users/${userEmail}/mailFolders/Inbox/messages/$count`).filter("isRead eq false").get() as Promise<number | string>,
               ]);
               if (emailsRes.status === "rejected") throw emailsRes.reason;
@@ -629,7 +629,7 @@ router.get("/dashboard", async (req, res) => {
         promises.push(
           (async () => {
             try {
-              const events = await getUpcomingEvents(client, userEmail, 5);
+              const events = await getUpcomingEvents(client, userEmail, 20);
               const now = new Date();
               const endOfToday = new Date();
               endOfToday.setHours(23, 59, 59, 999);
