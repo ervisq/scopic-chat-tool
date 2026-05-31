@@ -211,6 +211,8 @@ export const JIRA_OAUTH_ERROR_MESSAGES: Record<string, string> = {
     "Jira did not grant offline access. Please try again and make sure to accept all permissions.",
   no_jira_site:
     "No Jira sites found for your Atlassian account. Make sure you have access to at least one Jira project.",
+  wrong_site:
+    "Only Scopic's Jira (scopicsoftware.atlassian.net) can be connected. Ask IT to add you to the Scopic Atlassian site.",
   token_exchange_failed: "Failed to complete Jira authorization. Please try again.",
   access_denied:
     "Jira authorization was denied. Please try again and accept the required permissions.",

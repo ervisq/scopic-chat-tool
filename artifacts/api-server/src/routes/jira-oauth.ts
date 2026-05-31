@@ -13,6 +13,29 @@ const JIRA_TOKEN_URL = "https://auth.atlassian.com/oauth/token";
 const JIRA_RESOURCES_URL = "https://api.atlassian.com/oauth/token/accessible-resources";
 const JIRA_SCOPES = "read:jira-work read:jira-user offline_access";
 
+/**
+ * Normalize a configured host value to a bare lowercase hostname, tolerating
+ * accidental protocols, ports, paths, or trailing slashes in the env var.
+ */
+function normalizeHost(raw: string): string {
+  const trimmed = (raw || "").trim().toLowerCase();
+  if (!trimmed) return "";
+  try {
+    return new URL(trimmed).hostname;
+  } catch {
+    return trimmed.replace(/^\/+/, "").split("/")[0].split(":")[0];
+  }
+}
+
+/**
+ * The only Atlassian site that may be connected through this app. Users who
+ * belong to multiple Atlassian organizations must connect Scopic's site, not
+ * a personal/other-company one. Overridable via env without a code change.
+ */
+export const JIRA_ALLOWED_HOST = normalizeHost(
+  process.env.JIRA_ALLOWED_HOST || "scopicsoftware.atlassian.net",
+);
+
 const pendingStates = new Map<string, { userId: number; expiresAt: number }>();
 const STATE_TTL_MS = 10 * 60 * 1000;
 
@@ -121,14 +144,27 @@ router.get("/jira/callback", async (req, res) => {
 
     let cloudId = "";
     let siteUrl = "";
+    let hadAnySite = false;
     try {
       const resourcesResponse = await axios.get(JIRA_RESOURCES_URL, {
         headers: { Authorization: `Bearer ${access_token}` },
       });
       const sites = resourcesResponse.data;
       if (Array.isArray(sites) && sites.length > 0) {
-        cloudId = sites[0].id;
-        siteUrl = sites[0].url || "";
+        hadAnySite = true;
+        // Only allow connecting Scopic's Atlassian site, even if the user has
+        // access to multiple Atlassian organizations.
+        const match = sites.find((site: { id?: string; url?: string }) => {
+          try {
+            return new URL(site.url || "").hostname.toLowerCase() === JIRA_ALLOWED_HOST;
+          } catch {
+            return false;
+          }
+        });
+        if (match) {
+          cloudId = match.id || "";
+          siteUrl = match.url || "";
+        }
       }
     } catch (resourceErr: unknown) {
       const msg = resourceErr instanceof Error ? resourceErr.message : String(resourceErr);
@@ -136,6 +172,14 @@ router.get("/jira/callback", async (req, res) => {
     }
 
     if (!cloudId) {
+      if (hadAnySite) {
+        // The user has Atlassian access, just not to the Scopic site.
+        console.error(
+          `Jira OAuth: user has Atlassian sites but none match the allowed host (${JIRA_ALLOWED_HOST})`,
+        );
+        res.redirect(`${frontendUrl}?jira_error=wrong_site`);
+        return;
+      }
       console.error("Jira OAuth: no accessible Jira sites found");
       res.redirect(`${frontendUrl}?jira_error=no_jira_site`);
       return;

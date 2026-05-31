@@ -351,7 +351,7 @@ const SERVICE_STYLES: Record<
 };
 
 const EXTERNAL_URLS: Record<string, (instanceUrl?: string | null) => string> = {
-  jira: (instanceUrl) => instanceUrl || "https://www.atlassian.com/software/jira",
+  jira: () => "https://scopicsoftware.atlassian.net",
   zoho_people: () => "https://people.zoho.com",
   zoho_crm: () => "https://crm.zoho.com",
   zoho_recruit: () => "https://recruit.zoho.com",
