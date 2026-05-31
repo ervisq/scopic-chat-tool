@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { JiraIcon, TeamworkIcon, OutlookIcon, ZohoIcon, StsIcon } from "../components/chat/tool-icons";
 import { safeExternalUrl } from "@/lib/utils";
-import { useObjectDetail } from "@/components/object-detail-provider";
+import { useObjectDetail, type DetailTarget } from "@/components/object-detail-provider";
 import { useToolVisibility } from "@/lib/tool-visibility";
 import { ToolVisibilityPanel } from "@/components/tool-visibility-panel";
 import { ConnectServiceDialog } from "@/components/connect-service-dialog";
@@ -538,148 +538,100 @@ function ExpandableJiraRow({
 
 function ExpandableTeamworkRow({
   task,
+  tasks,
   instanceUrl,
 }: {
   task: TeamworkTaskSummary;
+  tasks: TeamworkTaskSummary[];
   instanceUrl?: string | null;
 }) {
-  const [open, setOpen] = useState(false);
-  const { openDetail } = useObjectDetail();
+  const { openDetailList } = useObjectDetail();
   const twBase = instanceUrl ? safeExternalUrl(instanceUrl) : "";
-  const taskUrl = twBase ? `${twBase}/app/tasks/${task.id}` : "";
+
+  const targets = useMemo<DetailTarget[]>(
+    () =>
+      tasks.map((t) => ({
+        type: "teamwork_task" as const,
+        id: t.id,
+        openUrl: twBase ? `${twBase}/app/tasks/${t.id}` : null,
+        label: t.title,
+      })),
+    [tasks, twBase],
+  );
+
+  const index = tasks.findIndex((t) => t.id === task.id);
 
   return (
-    <div className="rounded-lg bg-muted/30 overflow-hidden">
-      <div className="flex items-center gap-2 py-2 px-3">
-        <button
-          type="button"
-          className="shrink-0 p-0 bg-transparent border-none cursor-pointer"
-          aria-expanded={open}
-          aria-label={`${open ? "Collapse" : "Expand"} ${task.title}`}
-          onClick={() => setOpen(!open)}
-        >
-          <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
-        </button>
-        <PriorityDot priority={task.priority} />
-        <span className="text-xs font-mono text-muted-foreground shrink-0">#{task.id}</span>
-        <button
-          type="button"
-          onClick={() =>
-            openDetail({ type: "teamwork_task", id: task.id, openUrl: taskUrl || null })
-          }
-          className="text-xs text-foreground truncate flex-1 text-left bg-transparent border-none cursor-pointer p-0 hover:underline hover:text-purple-600 dark:hover:text-purple-400"
-        >
-          {task.title}
-        </button>
-        <StatusBadge status={task.status} />
-      </div>
-      {open && (
-        <div className="px-3 pb-2.5 pt-0.5 ml-6 space-y-1.5 border-t border-border/30">
-          {task.assignee && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <User className="w-3 h-3 shrink-0" />
-              <span>{task.assignee}</span>
-            </div>
-          )}
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <FolderOpen className="w-3 h-3 shrink-0" />
-            <span>{task.projectName || "—"}{task.taskListName ? ` / ${task.taskListName}` : ""}</span>
-          </div>
-          {task.dueDate && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <CalendarClock className="w-3 h-3 shrink-0" />
-              <span>Due: {formatDueDate(task.dueDate)}</span>
-            </div>
-          )}
-          {task.progress !== undefined && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <BarChart3 className="w-3 h-3 shrink-0" />
-              <span>Progress: {task.progress}%</span>
-            </div>
-          )}
-          {taskUrl && (
-            <a
-              href={taskUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[11px] font-medium text-purple-600 dark:text-purple-400 hover:underline mt-1"
-            >
-              Open in Teamwork <ExternalLink className="w-3 h-3" />
-            </a>
-          )}
-        </div>
-      )}
-    </div>
+    <button
+      type="button"
+      onClick={() => openDetailList(targets, index < 0 ? 0 : index)}
+      className="w-full flex items-center gap-2 py-2 px-3 rounded-lg bg-muted/30 text-left border-none cursor-pointer transition-colors hover:bg-muted/60"
+    >
+      <PriorityDot priority={task.priority} />
+      <span className="text-xs font-mono text-muted-foreground shrink-0">#{task.id}</span>
+      <span className="text-xs text-foreground truncate flex-1">{task.title}</span>
+      <StatusBadge status={task.status} />
+    </button>
   );
 }
 
-function ExpandableEmailRow({ email }: { email: OutlookEmailSummary }) {
-  const [open, setOpen] = useState(false);
-  const { openDetail } = useObjectDetail();
-  const emailUrl = email.id
-    ? `https://outlook.office.com/mail/inbox/id/${encodeURIComponent(email.id)}`
-    : "";
+function ExpandableEmailRow({
+  email,
+  emails,
+}: {
+  email: OutlookEmailSummary;
+  emails: OutlookEmailSummary[];
+}) {
+  const { openDetailList } = useObjectDetail();
+
+  const targets = useMemo<DetailTarget[]>(
+    () =>
+      emails
+        .filter((e) => e.id)
+        .map((e) => ({
+          type: "outlook_email" as const,
+          id: e.id!,
+          openUrl: `https://outlook.office.com/mail/inbox/id/${encodeURIComponent(e.id!)}`,
+          label: e.subject,
+          unread: !e.isRead,
+        })),
+    [emails],
+  );
+
+  const rowContent = (
+    <>
+      {!email.isRead && <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" />}
+      <span
+        className={`text-sm truncate flex-1 ${
+          !email.isRead ? "font-semibold text-foreground" : "text-foreground"
+        }`}
+      >
+        {email.subject}
+      </span>
+      {email.hasAttachments && (
+        <Paperclip className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+      )}
+    </>
+  );
+
+  const baseClass = `w-full flex items-center gap-2 py-2 px-3 rounded-lg bg-muted/30 ${
+    !email.isRead ? "border-l-2 border-sky-500" : ""
+  }`;
+
+  if (!email.id) {
+    return <div className={baseClass}>{rowContent}</div>;
+  }
+
+  const index = targets.findIndex((t) => t.id === email.id);
 
   return (
-    <div className={`rounded-lg bg-muted/30 overflow-hidden ${!email.isRead ? "border-l-2 border-sky-500" : ""}`}>
-      <div className="flex items-center gap-2 py-2 px-3">
-        <button
-          type="button"
-          className="shrink-0 p-0 bg-transparent border-none cursor-pointer"
-          aria-expanded={open}
-          aria-label={`${open ? "Collapse" : "Expand"} ${email.subject}`}
-          onClick={() => setOpen(!open)}
-        >
-          <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
-        </button>
-        {!email.isRead && <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" />}
-        {email.id ? (
-          <button
-            type="button"
-            onClick={() =>
-              openDetail({ type: "outlook_email", id: email.id!, openUrl: emailUrl || null })
-            }
-            className={`text-sm truncate flex-1 text-left bg-transparent border-none cursor-pointer p-0 hover:underline hover:text-sky-600 dark:hover:text-sky-400 ${!email.isRead ? "font-semibold text-foreground" : "text-foreground"}`}
-          >
-            {email.subject}
-          </button>
-        ) : (
-          <span className={`text-sm truncate flex-1 ${!email.isRead ? "font-semibold text-foreground" : "text-foreground"}`}>
-            {email.subject}
-          </span>
-        )}
-        {email.hasAttachments && <Paperclip className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
-      </div>
-      {open && (
-        <div className="px-3 pb-2.5 pt-0.5 ml-6 space-y-1.5 border-t border-border/30">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <User className="w-3 h-3 shrink-0" />
-            <span className="truncate">{email.from}</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Calendar className="w-3 h-3 shrink-0" />
-            <span>{email.receivedAt ? formatRelativeTime(email.receivedAt) : "Unknown"}</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Mail className="w-3 h-3 shrink-0" />
-            <span>{email.isRead ? "Read" : "Unread"}{email.hasAttachments ? " · Has attachments" : ""}</span>
-          </div>
-          {email.preview && (
-            <p className="text-xs text-muted-foreground/80 italic line-clamp-3 mt-1">{email.preview}</p>
-          )}
-          {emailUrl && (
-            <a
-              href={emailUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-600 dark:text-sky-400 hover:underline mt-1"
-            >
-              Open in Outlook <ExternalLink className="w-3 h-3" />
-            </a>
-          )}
-        </div>
-      )}
-    </div>
+    <button
+      type="button"
+      onClick={() => openDetailList(targets, index < 0 ? 0 : index)}
+      className={`${baseClass} text-left border-none cursor-pointer transition-colors hover:bg-muted/60`}
+    >
+      {rowContent}
+    </button>
   );
 }
 
@@ -1739,7 +1691,7 @@ function ServiceDrawer({
               ) : (
                 <>
                   {filteredTeamworkTasks.map((t) => (
-                    <ExpandableTeamworkRow key={t.id} task={t} instanceUrl={service.instanceUrl} />
+                    <ExpandableTeamworkRow key={t.id} task={t} tasks={filteredTeamworkTasks} instanceUrl={service.instanceUrl} />
                   ))}
                 </>
               )}
@@ -1783,7 +1735,7 @@ function ServiceDrawer({
                     <p className="text-xs text-muted-foreground">No recent emails</p>
                   ) : (
                     emails.map((email, idx) => (
-                      <ExpandableEmailRow key={idx} email={email} />
+                      <ExpandableEmailRow key={idx} email={email} emails={emails} />
                     ))
                   )}
                 </div>

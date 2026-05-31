@@ -22,11 +22,28 @@ import {
 } from "lucide-react";
 
 export type DetailTarget =
-  | { type: "teamwork_task"; id: number; openUrl?: string | null }
-  | { type: "outlook_email"; id: string; openUrl?: string | null };
+  | {
+      type: "teamwork_task";
+      id: number;
+      openUrl?: string | null;
+      label?: string;
+    }
+  | {
+      type: "outlook_email";
+      id: string;
+      openUrl?: string | null;
+      label?: string;
+      unread?: boolean;
+    };
 
 interface ObjectDetailContextValue {
+  /** Open the popup for a single object (no list pane) — used by chat. */
   openDetail: (target: DetailTarget) => void;
+  /**
+   * Open the master-detail popup with a list of sibling objects, pre-selecting
+   * the one at `index`. Used by dashboard tiles.
+   */
+  openDetailList: (targets: DetailTarget[], index: number) => void;
 }
 
 const ObjectDetailContext = createContext<ObjectDetailContextValue | null>(null);
@@ -121,39 +138,142 @@ export function ObjectDetailProvider({
   token: string | null | undefined;
   children: React.ReactNode;
 }) {
-  const [target, setTarget] = useState<DetailTarget | null>(null);
+  const [targets, setTargets] = useState<DetailTarget[]>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [showList, setShowList] = useState(false);
   const [open, setOpen] = useState(false);
 
   const openDetail = useCallback((next: DetailTarget) => {
-    setTarget(next);
+    setTargets([next]);
+    setActiveIndex(0);
+    setShowList(false);
     setOpen(true);
   }, []);
 
-  const value = useMemo(() => ({ openDetail }), [openDetail]);
+  const openDetailList = useCallback(
+    (next: DetailTarget[], index: number) => {
+      if (next.length === 0) return;
+      const safeIndex = Math.min(Math.max(index, 0), next.length - 1);
+      setTargets(next);
+      setActiveIndex(safeIndex);
+      setShowList(true);
+      setOpen(true);
+    },
+    [],
+  );
+
+  const value = useMemo(
+    () => ({ openDetail, openDetailList }),
+    [openDetail, openDetailList],
+  );
 
   function handleOpenChange(next: boolean) {
     setOpen(next);
     if (!next) {
-      // Keep target briefly so the close animation doesn't flash empty content.
-      setTimeout(() => setTarget(null), 200);
+      // Keep targets briefly so the close animation doesn't flash empty content.
+      setTimeout(() => {
+        setTargets([]);
+        setActiveIndex(0);
+        setShowList(false);
+      }, 200);
     }
   }
+
+  const activeTarget = targets[activeIndex] ?? null;
 
   return (
     <ObjectDetailContext.Provider value={value}>
       {children}
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
-          {target ? (
-            <DetailBody target={target} token={token} />
-          ) : (
+        <DialogContent
+          className={`${
+            showList ? "max-w-4xl" : "max-w-2xl"
+          } max-h-[85vh] overflow-hidden flex flex-col`}
+        >
+          {!activeTarget ? (
             <DialogHeader>
               <DialogTitle>Details</DialogTitle>
             </DialogHeader>
+          ) : showList ? (
+            <div className="flex flex-col sm:flex-row gap-0 sm:gap-4 flex-1 min-h-0 overflow-hidden -m-6">
+              <DetailList
+                targets={targets}
+                activeIndex={activeIndex}
+                onSelect={setActiveIndex}
+              />
+              <div className="flex-1 min-w-0 flex flex-col overflow-hidden p-6 sm:pl-0">
+                <DetailBody
+                  key={`${activeTarget.type}-${activeTarget.id}`}
+                  target={activeTarget}
+                  token={token}
+                />
+              </div>
+            </div>
+          ) : (
+            <DetailBody target={activeTarget} token={token} />
           )}
         </DialogContent>
       </Dialog>
     </ObjectDetailContext.Provider>
+  );
+}
+
+function DetailList({
+  targets,
+  activeIndex,
+  onSelect,
+}: {
+  targets: DetailTarget[];
+  activeIndex: number;
+  onSelect: (index: number) => void;
+}) {
+  return (
+    <div className="shrink-0 sm:w-64 flex flex-col border-b sm:border-b-0 sm:border-r border-border bg-muted/20 overflow-hidden max-h-44 sm:max-h-none">
+      <p className="px-4 pt-4 pb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground shrink-0">
+        Items ({targets.length})
+      </p>
+      <ul className="overflow-y-auto flex-1 px-2 pb-2 space-y-0.5">
+        {targets.map((t, i) => {
+          const active = i === activeIndex;
+          const isEmail = t.type === "outlook_email";
+          const label = t.label || (isEmail ? "(No Subject)" : `#${t.id}`);
+          return (
+            <li key={`${t.type}-${t.id}-${i}`}>
+              <button
+                type="button"
+                onClick={() => onSelect(i)}
+                aria-current={active ? "true" : undefined}
+                className={`w-full text-left rounded-md px-2.5 py-2 cursor-pointer border-none transition-colors ${
+                  active
+                    ? "bg-accent text-accent-foreground"
+                    : "bg-transparent hover:bg-muted/60"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  {isEmail ? (
+                    <Mail className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+                  ) : (
+                    <span className="text-[11px] font-mono text-muted-foreground shrink-0">
+                      #{t.id}
+                    </span>
+                  )}
+                  <span
+                    className={`text-sm truncate flex-1 ${
+                      isEmail && t.unread ? "font-semibold" : ""
+                    }`}
+                  >
+                    {label}
+                  </span>
+                  {isEmail && t.unread && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0" />
+                  )}
+                </div>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 
