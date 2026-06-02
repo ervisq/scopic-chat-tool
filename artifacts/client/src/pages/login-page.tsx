@@ -18,10 +18,15 @@ const ERROR_MESSAGES: Record<string, string> = {
 
 const RETRY_DELAYS_MS = [5000, 10000, 20000, 40000, 60000];
 
+const TOKEN_KEY = "auth_token";
+const USER_KEY = "auth_user";
+
 export default function LoginPage({ ssoError }: LoginPageProps) {
   const baseUrl = useMemo(() => import.meta.env.BASE_URL.replace(/\/$/, ""), []);
   const loginUrl = `${baseUrl}/api/auth/keycloak/login`;
   const healthUrl = `${baseUrl}/api/auth/keycloak/health`;
+  const devLoginUrl = `${baseUrl}/api/auth/dev-login`;
+  const isDev = import.meta.env.DEV;
 
   const isOutage = ssoError === "sso_unavailable";
   const errorMessage = ssoError && !isOutage
@@ -31,6 +36,31 @@ export default function LoginPage({ ssoError }: LoginPageProps) {
   const [recovered, setRecovered] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [checking, setChecking] = useState(false);
+  const [devLoading, setDevLoading] = useState(false);
+  const [devError, setDevError] = useState<string | null>(null);
+
+  async function handleDevLogin() {
+    setDevLoading(true);
+    setDevError(null);
+    try {
+      const res = await fetch(devLoginUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Dev login failed");
+      }
+      const data = await res.json();
+      localStorage.setItem(TOKEN_KEY, data.token);
+      localStorage.removeItem(USER_KEY);
+      window.location.replace(baseUrl || "/");
+    } catch (err) {
+      setDevError(err instanceof Error ? err.message : "Dev login failed");
+      setDevLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (!isOutage || recovered) return;
@@ -135,6 +165,26 @@ export default function LoginPage({ ssoError }: LoginPageProps) {
         >
           {isOutage && !recovered ? "Sign-in unavailable" : "Sign in with Scopic SSO"}
         </a>
+
+        {isDev && (
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={handleDevLogin}
+              disabled={devLoading}
+              data-testid="dev-login-button"
+              className="w-full block text-center py-3 rounded-xl font-medium transition-colors text-[15px] border border-dashed border-border bg-muted/40 text-muted-foreground hover:bg-muted disabled:opacity-60"
+            >
+              {devLoading ? "Signing in…" : "Sign in as test user (dev)"}
+            </button>
+            {devError && (
+              <p className="mt-2 text-center text-xs text-destructive">{devError}</p>
+            )}
+            <p className="mt-2 text-center text-[11px] text-muted-foreground">
+              Dev only — bypasses Keycloak. Hidden in the published app.
+            </p>
+          </div>
+        )}
 
         <p className="text-center text-xs text-muted-foreground mt-6">
           You'll be redirected to auth.scopicsoftware.com to sign in.

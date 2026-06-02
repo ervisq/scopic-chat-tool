@@ -39,6 +39,61 @@ function breakGlassOnly(req: import("express").Request, res: import("express").R
   next();
 }
 
+// Dev-only Keycloak bypass: lets developers sign in locally without going
+// through Scopic SSO. Hard-gated on NODE_ENV === "development" so it can never
+// run in the published/production app (the route returns 404 there).
+const IS_DEV = process.env.NODE_ENV === "development";
+const DEV_LOGIN_DEFAULT_EMAIL = "ervis.q@scopicsoftware.com";
+
+if (IS_DEV) {
+  console.info(`[auth] DEV login bypass ENABLED — POST /api/auth/dev-login (default: ${DEV_LOGIN_DEFAULT_EMAIL}). Never available in production.`);
+}
+
+router.post("/auth/dev-login", async (req, res) => {
+  if (!IS_DEV) {
+    res.status(404).json({ message: "Not found" });
+    return;
+  }
+  try {
+    const rawEmail = typeof req.body?.email === "string" ? req.body.email : "";
+    const email = (rawEmail.trim().toLowerCase() || DEV_LOGIN_DEFAULT_EMAIL);
+
+    if (!email.endsWith(ALLOWED_EMAIL_DOMAIN)) {
+      res.status(400).json({ message: `Dev login email must end with ${ALLOWED_EMAIL_DOMAIN}` });
+      return;
+    }
+
+    let [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+
+    if (!user) {
+      const name = email.split("@")[0] || "Dev User";
+      const role = email === DEV_LOGIN_DEFAULT_EMAIL ? "admin" : "user";
+      [user] = await db
+        .insert(users)
+        .values({ email, name, passwordHash: null, role })
+        .returning();
+      console.info(`[auth/dev-login] provisioned dev user ${email} (role=${role})`);
+    }
+
+    const token = signToken({
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      tokenVersion: user.tokenVersion,
+    });
+
+    console.info(`[auth/dev-login] issued token for ${email} (role=${user.role})`);
+    res.json({
+      token,
+      user: { email: user.email, name: user.name, role: user.role },
+    });
+  } catch (err) {
+    console.error("[auth/dev-login] failed:", err);
+    res.status(500).json({ message: "Dev login failed" });
+  }
+});
+
 function redactEmail(email: string): string {
   const [local, domain] = email.split("@");
   if (!local || !domain) return "***";
