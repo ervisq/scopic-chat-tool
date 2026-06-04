@@ -1,1 +1,2 @@
 - [Graph path-segment encoding](graph-path-encoding.md) — opaque Microsoft Graph IDs (message ids) must be encodeURIComponent'd before interpolation into `.api()` paths; the SDK does not encode them.
+- [Gitea auto-sync](gitea-sync.md) — post-merge script pushes merged HEAD to Gitea via GITEA_TOKEN; GitHub origin is divergent/stale so it is NOT the mirror source.

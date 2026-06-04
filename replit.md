@@ -47,6 +47,18 @@ The project is structured as a pnpm monorepo using TypeScript, Node.js 24, and p
 - `lib/api-zod`: Generated Zod schemas for validation.
 - `lib/db`: Drizzle ORM configuration for PostgreSQL interaction.
 
+# Gitea Mirror (automatic sync)
+
+The project's code lives at **Gitea**: https://gitea.com/ervisq/scopic-chat-tool (branch `main`).
+
+How updates reach Gitea:
+- A best-effort Gitea push is built into the **post-merge script** (`scripts/post-merge.sh`), which Replit runs automatically after every task merge. After dependencies/migrations are applied, it pushes the latest merged commit (`HEAD`) to Gitea's `main` branch.
+- Authentication uses the `GITEA_TOKEN` secret (already stored, push permission confirmed). The token is never written to disk and is redacted from any log output.
+- The push is **non-fatal**: if it fails (transient network issue, or a diverged Gitea history), post-merge setup still succeeds and logs a `[gitea-sync] WARNING`. So a sync hiccup never blocks dependency installation or migrations.
+- To sync manually/on demand at any time, run `bash scripts/post-merge.sh` (or just the push: `git push "https://ervisq:$GITEA_TOKEN@gitea.com/ervisq/scopic-chat-tool.git" HEAD:main`).
+
+Note: GitHub (`origin`) is on a separate, divergent history and is **not** used as the sync source. The workspace itself is the source of truth, which is why the sync pushes the merged commit directly rather than using a Gitea pull-mirror from GitHub.
+
 # External Dependencies
 
 - **Database:** PostgreSQL (with Drizzle ORM)
