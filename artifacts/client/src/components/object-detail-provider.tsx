@@ -19,6 +19,9 @@ import {
   Paperclip,
   Calendar,
   Users,
+  Search,
+  CircleDot,
+  Flag,
 } from "lucide-react";
 
 export type DetailTarget =
@@ -27,6 +30,7 @@ export type DetailTarget =
       id: number;
       openUrl?: string | null;
       label?: string;
+      status?: string;
     }
   | {
       type: "outlook_email";
@@ -34,6 +38,13 @@ export type DetailTarget =
       openUrl?: string | null;
       label?: string;
       unread?: boolean;
+    }
+  | {
+      type: "jira_issue";
+      id: string;
+      openUrl?: string | null;
+      label?: string;
+      status?: string;
     };
 
 interface ObjectDetailContextValue {
@@ -101,6 +112,31 @@ interface MailDetail {
     contentType: string;
     size: number;
   }>;
+}
+
+interface JiraIssueDetail {
+  issue: {
+    id: string;
+    summary: string;
+    status: string;
+    assignee: string;
+    priority: string;
+    project: string;
+    issueType: string;
+    description: string;
+    reporter: string;
+    created: string;
+    updated: string;
+    dueDate: string;
+    labels: string[];
+  };
+  comments: Array<{
+    id: string;
+    body: string;
+    author: string;
+    createdAt: string;
+  }>;
+  instanceUrl: string | null;
 }
 
 function formatDateTime(value: string): string {
@@ -227,52 +263,161 @@ function DetailList({
   activeIndex: number;
   onSelect: (index: number) => void;
 }) {
+  const listType = targets[0]?.type;
+  const isEmailList = listType === "outlook_email";
+  const isStatusList = listType === "teamwork_task" || listType === "jira_issue";
+
+  const [search, setSearch] = useState("");
+  const [readFilter, setReadFilter] = useState<"all" | "unread" | "read">("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  const statusOptions = useMemo(() => {
+    if (!isStatusList) return [];
+    const seen = new Set<string>();
+    for (const t of targets) {
+      if ((t.type === "teamwork_task" || t.type === "jira_issue") && t.status) {
+        seen.add(t.status);
+      }
+    }
+    return Array.from(seen).sort((a, b) => a.localeCompare(b));
+  }, [targets, isStatusList]);
+
+  const visible = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return targets
+      .map((t, i) => ({ t, i }))
+      .filter(({ t }) => {
+        if (term) {
+          const haystack = `${t.label || ""} ${t.id}`.toLowerCase();
+          if (!haystack.includes(term)) return false;
+        }
+        if (isEmailList && t.type === "outlook_email" && readFilter !== "all") {
+          const unread = !!t.unread;
+          if (readFilter === "unread" && !unread) return false;
+          if (readFilter === "read" && unread) return false;
+        }
+        if (
+          isStatusList &&
+          statusFilter !== "all" &&
+          (t.type === "teamwork_task" || t.type === "jira_issue")
+        ) {
+          if ((t.status || "") !== statusFilter) return false;
+        }
+        return true;
+      });
+  }, [targets, search, readFilter, statusFilter, isEmailList, isStatusList]);
+
+  const readFilters: Array<{ value: "all" | "unread" | "read"; label: string }> = [
+    { value: "all", label: "All" },
+    { value: "unread", label: "Unread" },
+    { value: "read", label: "Read" },
+  ];
+
   return (
-    <div className="shrink-0 sm:w-64 flex flex-col border-b sm:border-b-0 sm:border-r border-border bg-muted/20 overflow-hidden max-h-44 sm:max-h-none">
-      <p className="px-4 pt-4 pb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground shrink-0">
-        Items ({targets.length})
-      </p>
-      <ul className="overflow-y-auto flex-1 px-2 pb-2 space-y-0.5">
-        {targets.map((t, i) => {
-          const active = i === activeIndex;
-          const isEmail = t.type === "outlook_email";
-          const label = t.label || (isEmail ? "(No Subject)" : `#${t.id}`);
-          return (
-            <li key={`${t.type}-${t.id}-${i}`}>
+    <div className="shrink-0 sm:w-72 flex flex-col border-b sm:border-b-0 sm:border-r border-border bg-muted/20 overflow-hidden max-h-60 sm:max-h-none">
+      <div className="px-3 pt-4 pb-2 shrink-0 space-y-2.5">
+        <p className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Items ({visible.length}
+          {visible.length !== targets.length ? ` / ${targets.length}` : ""})
+        </p>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search…"
+            className="w-full rounded-md border border-border bg-background pl-8 pr-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+        </div>
+        {isEmailList && (
+          <div className="flex items-center gap-1 rounded-md bg-muted/60 p-0.5">
+            {readFilters.map((f) => (
               <button
+                key={f.value}
                 type="button"
-                onClick={() => onSelect(i)}
-                aria-current={active ? "true" : undefined}
-                className={`w-full text-left rounded-md px-2.5 py-2 cursor-pointer border-none transition-colors ${
-                  active
-                    ? "bg-accent text-accent-foreground"
-                    : "bg-transparent hover:bg-muted/60"
+                onClick={() => setReadFilter(f.value)}
+                className={`flex-1 rounded px-2 py-1 text-xs font-medium cursor-pointer border-none transition-colors ${
+                  readFilter === f.value
+                    ? "bg-background text-foreground shadow-sm"
+                    : "bg-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <div className="flex items-center gap-2">
-                  {isEmail ? (
-                    <Mail className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
-                  ) : (
-                    <span className="text-[11px] font-mono text-muted-foreground shrink-0">
-                      #{t.id}
-                    </span>
-                  )}
-                  <span
-                    className={`text-sm truncate flex-1 ${
-                      isEmail && t.unread ? "font-semibold" : ""
-                    }`}
-                  >
-                    {label}
-                  </span>
-                  {isEmail && t.unread && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0" />
-                  )}
-                </div>
+                {f.label}
               </button>
-            </li>
-          );
-        })}
-      </ul>
+            ))}
+          </div>
+        )}
+        {isStatusList && statusOptions.length > 0 && (
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+          >
+            <option value="all">All statuses</option>
+            {statusOptions.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+      {visible.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center px-4 py-8">
+          <p className="text-sm text-muted-foreground text-center">No matches</p>
+        </div>
+      ) : (
+        <ul className="overflow-y-auto flex-1 px-2 pb-2 space-y-0.5">
+          {visible.map(({ t, i }) => {
+            const active = i === activeIndex;
+            const isEmail = t.type === "outlook_email";
+            const isJira = t.type === "jira_issue";
+            const label =
+              t.label || (isEmail ? "(No Subject)" : `${isJira ? "" : "#"}${t.id}`);
+            return (
+              <li key={`${t.type}-${t.id}-${i}`}>
+                <button
+                  type="button"
+                  onClick={() => onSelect(i)}
+                  aria-current={active ? "true" : undefined}
+                  className={`w-full text-left rounded-md px-2.5 py-2 cursor-pointer border-none transition-colors ${
+                    active
+                      ? "bg-accent text-accent-foreground"
+                      : "bg-transparent hover:bg-muted/60"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    {isEmail ? (
+                      <Mail className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+                    ) : (
+                      <span className="text-[11px] font-mono text-muted-foreground shrink-0">
+                        {isJira ? t.id : `#${t.id}`}
+                      </span>
+                    )}
+                    <span
+                      className={`text-sm truncate flex-1 ${
+                        isEmail && t.unread ? "font-semibold" : ""
+                      }`}
+                    >
+                      {label}
+                    </span>
+                    {isEmail && t.unread && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0" />
+                    )}
+                  </div>
+                  {(t.type === "teamwork_task" || t.type === "jira_issue") &&
+                    t.status && (
+                      <span className="mt-1 inline-block text-[10px] font-medium text-muted-foreground">
+                        {t.status}
+                      </span>
+                    )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }
@@ -288,6 +433,7 @@ function DetailBody({
   const [error, setError] = useState<string | null>(null);
   const [teamwork, setTeamwork] = useState<TeamworkTaskDetail | null>(null);
   const [email, setEmail] = useState<MailDetail | null>(null);
+  const [jira, setJira] = useState<JiraIssueDetail | null>(null);
 
   const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -298,11 +444,16 @@ function DetailBody({
       setError(null);
       setTeamwork(null);
       setEmail(null);
+      setJira(null);
       try {
-        const url =
-          target.type === "teamwork_task"
-            ? `${baseUrl}/api/details/teamwork/task/${target.id}`
-            : `${baseUrl}/api/details/outlook/email?id=${encodeURIComponent(target.id)}`;
+        let url: string;
+        if (target.type === "teamwork_task") {
+          url = `${baseUrl}/api/details/teamwork/task/${target.id}`;
+        } else if (target.type === "jira_issue") {
+          url = `${baseUrl}/api/details/jira/issue/${encodeURIComponent(target.id)}`;
+        } else {
+          url = `${baseUrl}/api/details/outlook/email?id=${encodeURIComponent(target.id)}`;
+        }
         const res = await fetch(url, {
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
@@ -321,6 +472,8 @@ function DetailBody({
         if (cancelled) return;
         if (target.type === "teamwork_task") {
           setTeamwork(data as TeamworkTaskDetail);
+        } else if (target.type === "jira_issue") {
+          setJira(data as JiraIssueDetail);
         } else {
           setEmail(data as MailDetail);
         }
@@ -366,6 +519,10 @@ function DetailBody({
 
   if (email) {
     return <OutlookEmailDetailView detail={email} openUrl={target.openUrl} />;
+  }
+
+  if (jira) {
+    return <JiraIssueDetailView detail={jira} openUrl={target.openUrl} />;
   }
 
   return (
@@ -419,9 +576,13 @@ function TeamworkTaskDetailView({
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle className="pr-8 break-words">{task.name}</DialogTitle>
-        <p className="text-xs font-mono text-muted-foreground">#{task.id}</p>
+      <DialogHeader className="pb-3 mb-3 border-b border-border">
+        <p className="text-[11px] font-mono uppercase tracking-wide text-muted-foreground">
+          Teamwork · #{task.id}
+        </p>
+        <DialogTitle className="pr-8 break-words text-lg leading-snug">
+          {task.name}
+        </DialogTitle>
       </DialogHeader>
 
       <div className="overflow-y-auto flex-1 space-y-3 pr-1">
@@ -506,6 +667,125 @@ function TeamworkTaskDetailView({
   );
 }
 
+function JiraIssueDetailView({
+  detail,
+  openUrl,
+}: {
+  detail: JiraIssueDetail;
+  openUrl?: string | null;
+}) {
+  const { issue, comments, instanceUrl } = detail;
+  const jiraBase = instanceUrl ? safeExternalUrl(instanceUrl) : "";
+  const href = openUrl || (jiraBase ? `${jiraBase}/browse/${issue.id}` : "");
+
+  return (
+    <>
+      <DialogHeader className="pb-3 mb-3 border-b border-border">
+        <p className="text-[11px] font-mono uppercase tracking-wide text-muted-foreground">
+          Jira · {issue.id}
+          {issue.issueType ? ` · ${issue.issueType}` : ""}
+        </p>
+        <DialogTitle className="pr-8 break-words text-lg leading-snug">
+          {issue.summary}
+        </DialogTitle>
+      </DialogHeader>
+
+      <div className="overflow-y-auto flex-1 space-y-3 pr-1">
+        <div className="flex flex-wrap items-center gap-2">
+          {issue.status && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
+              <CircleDot className="w-3 h-3" />
+              {issue.status}
+            </span>
+          )}
+          {issue.priority && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
+              <Flag className="w-3 h-3" />
+              {issue.priority}
+            </span>
+          )}
+        </div>
+
+        {issue.assignee && (
+          <DetailRow icon={<User className="w-4 h-4" />}>
+            <span className="font-medium text-foreground">Assignee:</span>{" "}
+            {issue.assignee}
+          </DetailRow>
+        )}
+        {issue.reporter && (
+          <DetailRow icon={<Users className="w-4 h-4" />}>
+            <span className="font-medium text-foreground">Reporter:</span>{" "}
+            {issue.reporter}
+          </DetailRow>
+        )}
+        <DetailRow icon={<FolderOpen className="w-4 h-4" />}>
+          {issue.project || "—"}
+        </DetailRow>
+        {issue.dueDate && (
+          <DetailRow icon={<CalendarClock className="w-4 h-4" />}>
+            Due: {formatDateTime(issue.dueDate)}
+          </DetailRow>
+        )}
+        {issue.updated && (
+          <DetailRow icon={<Calendar className="w-4 h-4" />}>
+            Updated: {formatDateTime(issue.updated)}
+          </DetailRow>
+        )}
+        {issue.labels && issue.labels.length > 0 && (
+          <DetailRow icon={<Tag className="w-4 h-4" />}>
+            {issue.labels.join(", ")}
+          </DetailRow>
+        )}
+
+        {issue.description && (
+          <div className="pt-1">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+              Description
+            </h4>
+            <p className="text-sm text-foreground/90 whitespace-pre-wrap break-words">
+              {issue.description}
+            </p>
+          </div>
+        )}
+
+        <div className="pt-1">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-1.5">
+            <MessageSquare className="w-3.5 h-3.5" />
+            Comments ({comments.length})
+          </h4>
+          {comments.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No comments.</p>
+          ) : (
+            <ul className="space-y-2.5">
+              {comments.map((c) => (
+                <li key={c.id} className="rounded-lg bg-muted/40 p-2.5">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-xs font-medium text-foreground">
+                      {c.author || "Unknown"}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {formatDateTime(c.createdAt)}
+                    </span>
+                  </div>
+                  <p className="text-sm text-foreground/90 whitespace-pre-wrap break-words">
+                    {c.body}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      {href && (
+        <div className="pt-2 border-t border-border">
+          <OpenInButton href={href} label="Open in Jira" />
+        </div>
+      )}
+    </>
+  );
+}
+
 function OutlookEmailDetailView({
   detail,
   openUrl,
@@ -530,8 +810,11 @@ function OutlookEmailDetailView({
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle className="pr-8 break-words">
+      <DialogHeader className="pb-3 mb-3 border-b border-border">
+        <p className="text-[11px] font-mono uppercase tracking-wide text-muted-foreground">
+          Outlook · Email
+        </p>
+        <DialogTitle className="pr-8 break-words text-lg leading-snug">
           {detail.subject || "(No Subject)"}
         </DialogTitle>
       </DialogHeader>

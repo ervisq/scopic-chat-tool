@@ -1,10 +1,38 @@
 import { Router, type IRouter } from "express";
 import { getAuthUser } from "../middlewares/auth";
 import { getTeamworkTaskDetail } from "../services/teamworkService";
+import { getJiraIssueDetail } from "../services/jiraService";
 import { getGraphClient, isGraphConfigured } from "../services/microsoftGraphClient";
 import { getEmailDetail } from "../services/outlookMailService";
 
 const router: IRouter = Router();
+
+router.get("/details/jira/issue/:key", async (req, res) => {
+  try {
+    const auth = getAuthUser(req);
+    const issueKey = req.params.key;
+    // Jira issue keys look like PROJ-123 — reject anything else before issuing a request.
+    if (!/^[A-Za-z][A-Za-z0-9]+-\d+$/.test(issueKey)) {
+      res.status(400).json({ message: "Invalid issue key" });
+      return;
+    }
+
+    const result = await getJiraIssueDetail(auth.userId, issueKey);
+    if (result.source === "not_connected") {
+      res.status(409).json({ message: "Your Jira account is not connected." });
+      return;
+    }
+    if (result.source === "error") {
+      res.status(502).json({ message: result.message });
+      return;
+    }
+    res.json(result.detail);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[ObjectDetail] Jira issue error:", msg);
+    res.status(500).json({ message: "Failed to load Jira issue" });
+  }
+});
 
 router.get("/details/teamwork/task/:id", async (req, res) => {
   try {

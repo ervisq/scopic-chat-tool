@@ -361,6 +361,156 @@ export async function queryJira(query: string, userId?: number, opts?: JiraQuery
   return { tickets: [], total: 0, source: "not_connected" };
 }
 
+export interface JiraIssueDetail {
+  issue: {
+    id: string;
+    summary: string;
+    status: string;
+    assignee: string;
+    priority: string;
+    project: string;
+    issueType: string;
+    description: string;
+    reporter: string;
+    created: string;
+    updated: string;
+    dueDate: string;
+    labels: string[];
+  };
+  comments: Array<{ id: string; body: string; author: string; createdAt: string }>;
+  instanceUrl: string | null;
+}
+
+export type JiraIssueDetailResult =
+  | { source: "live"; detail: JiraIssueDetail }
+  | { source: "not_connected" }
+  | { source: "error"; message: string };
+
+/** Recursively extract plain text from an Atlassian Document Format (ADF) node. */
+function extractAdfText(node: any): string {
+  if (!node) return "";
+  if (typeof node === "string") return node;
+  if (Array.isArray(node)) return node.map(extractAdfText).join("");
+  let text = "";
+  if (typeof node.text === "string") text += node.text;
+  if (Array.isArray(node.content)) {
+    const inner = node.content.map(extractAdfText).join("");
+    const blockTypes = new Set([
+      "paragraph",
+      "heading",
+      "bulletList",
+      "orderedList",
+      "listItem",
+      "blockquote",
+      "codeBlock",
+    ]);
+    text += blockTypes.has(node.type) ? `${inner}\n` : inner;
+  }
+  return text;
+}
+
+function adfToPlainText(value: unknown): string {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  return extractAdfText(value).replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function mapIssueDetail(issue: any, instanceUrl: string | null): JiraIssueDetail {
+  const fields = issue?.fields || {};
+  const rawComments = fields.comment?.comments || [];
+  return {
+    issue: {
+      id: issue?.key || "",
+      summary: fields.summary || "No title",
+      status: mapStatus(fields.status),
+      assignee: mapAssignee(fields.assignee),
+      priority: mapPriority(fields.priority),
+      project: fields.project?.name || fields.project?.key || "",
+      issueType: fields.issuetype?.name || "",
+      description: adfToPlainText(fields.description),
+      reporter: fields.reporter?.displayName || "",
+      created: fields.created || "",
+      updated: fields.updated || "",
+      dueDate: fields.duedate || "",
+      labels: Array.isArray(fields.labels) ? fields.labels.map((l: unknown) => String(l)) : [],
+    },
+    comments: (Array.isArray(rawComments) ? rawComments : []).map((c: any) => ({
+      id: String(c?.id || ""),
+      body: adfToPlainText(c?.body),
+      author: c?.author?.displayName || "Unknown",
+      createdAt: c?.created || "",
+    })),
+    instanceUrl,
+  };
+}
+
+const ISSUE_DETAIL_FIELDS =
+  "summary,status,assignee,priority,project,issuetype,created,updated,duedate,description,reporter,labels,comment";
+
+export async function getJiraIssueDetail(userId: number, issueKey: string): Promise<JiraIssueDetailResult> {
+  if (!userId) return { source: "not_connected" };
+
+  const cred = await getUserCredentials(userId, "jira");
+  if (!cred) return { source: "not_connected" };
+
+  const { refreshToken, cloudId, authType, email, apiToken } = cred.credentials;
+
+  try {
+    if (authType === "oauth" && refreshToken && cloudId) {
+      const clientId = process.env.JIRA_CLIENT_ID || "";
+      const clientSecret = process.env.JIRA_CLIENT_SECRET || "";
+      if (!clientId || !clientSecret) {
+        throw new Error("Jira OAuth is not configured on this server");
+      }
+      const tokenResult = await getJiraAccessToken(clientId, clientSecret, refreshToken);
+      if (tokenResult.newRefreshToken) {
+        await saveUserCredentials(userId, "jira", {
+          refreshToken: tokenResult.newRefreshToken,
+          cloudId,
+          authType: "oauth",
+        }, cred.instanceUrl);
+      }
+      const response = await axios.get(
+        `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${encodeURIComponent(issueKey)}`,
+        {
+          params: { fields: ISSUE_DETAIL_FIELDS },
+          headers: { Authorization: `Bearer ${tokenResult.accessToken}`, Accept: "application/json" },
+        },
+      );
+      return { source: "live", detail: mapIssueDetail(response.data, cred.instanceUrl) };
+    }
+
+    if (email && apiToken && cred.instanceUrl) {
+      if (!isValidJiraUrl(cred.instanceUrl)) {
+        return { source: "error", message: "Invalid Jira instance URL" };
+      }
+      const baseUrl = cred.instanceUrl.replace(/\/$/, "");
+      const response = await axios.get(
+        `${baseUrl}/rest/api/3/issue/${encodeURIComponent(issueKey)}`,
+        {
+          params: { fields: ISSUE_DETAIL_FIELDS },
+          auth: { username: email, password: apiToken },
+          headers: { Accept: "application/json" },
+        },
+      );
+      return { source: "live", detail: mapIssueDetail(response.data, cred.instanceUrl) };
+    }
+
+    return { source: "not_connected" };
+  } catch (error: unknown) {
+    const status = (error as { response?: { status?: number } })?.response?.status;
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("Jira issue detail error:", msg);
+    if (status === 404) {
+      return { source: "error", message: "Issue not found" };
+    }
+    if (status === 401 || status === 403) {
+      return { source: "error", message: "Your Jira connection has expired or been revoked. Please reconnect Jira in Connected Services." };
+    }
+    return { source: "error", message: "Failed to fetch issue from Jira" };
+  }
+}
+
 export function formatJiraResult(result: JiraServiceResult, query: string): string {
   if (result.source === "not_connected") {
     return "Your Jira account is not connected. Please go to Connected Services (Settings icon) to link your Jira credentials.";

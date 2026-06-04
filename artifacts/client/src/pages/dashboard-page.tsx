@@ -450,6 +450,7 @@ function ExpandableTeamworkRow({
         id: t.id,
         openUrl: twBase ? `${twBase}/app/tasks/${t.id}` : null,
         label: t.title,
+        status: t.status,
       })),
     [tasks, twBase],
   );
@@ -466,6 +467,46 @@ function ExpandableTeamworkRow({
       <span className="text-xs font-mono text-muted-foreground shrink-0">#{task.id}</span>
       <span className="text-xs text-foreground truncate flex-1">{task.title}</span>
       <StatusBadge status={task.status} />
+    </button>
+  );
+}
+
+function ExpandableJiraRow({
+  ticket,
+  tickets,
+  instanceUrl,
+}: {
+  ticket: JiraTicketSummary;
+  tickets: JiraTicketSummary[];
+  instanceUrl?: string | null;
+}) {
+  const { openDetailList } = useObjectDetail();
+  const jiraBase = instanceUrl ? safeExternalUrl(instanceUrl) : "";
+
+  const targets = useMemo<DetailTarget[]>(
+    () =>
+      tickets.map((t) => ({
+        type: "jira_issue" as const,
+        id: t.id,
+        openUrl: jiraBase ? `${jiraBase}/browse/${t.id}` : null,
+        label: t.title,
+        status: t.status,
+      })),
+    [tickets, jiraBase],
+  );
+
+  const index = tickets.findIndex((t) => t.id === ticket.id);
+
+  return (
+    <button
+      type="button"
+      onClick={() => openDetailList(targets, index < 0 ? 0 : index)}
+      className="w-full flex items-center gap-2 py-1.5 px-3 rounded-lg bg-muted/30 text-left border-none cursor-pointer transition-colors hover:bg-muted/60"
+    >
+      <PriorityDot priority={ticket.priority} />
+      <span className="text-xs font-mono text-muted-foreground shrink-0">{ticket.id}</span>
+      <span className="text-sm text-foreground truncate flex-1">{ticket.title}</span>
+      <StatusBadge status={ticket.status} />
     </button>
   );
 }
@@ -1252,23 +1293,12 @@ function ServiceCard({
             {previewTickets.length > 0 && (
               <div className="space-y-1.5 max-h-[232px] overflow-y-auto">
                 {previewTickets.map((t) => (
-                  <div key={t.id} className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-muted/30">
-                    <PriorityDot priority={t.priority} />
-                    <span className="text-xs font-mono text-muted-foreground shrink-0">{t.id}</span>
-                    {service.instanceUrl ? (
-                      <a
-                        href={`${service.instanceUrl}/browse/${t.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-foreground truncate flex-1 hover:underline hover:text-blue-600 dark:hover:text-blue-400"
-                      >
-                        {t.title}
-                      </a>
-                    ) : (
-                      <span className="text-sm text-foreground truncate flex-1">{t.title}</span>
-                    )}
-                    <StatusBadge status={t.status} />
-                  </div>
+                  <ExpandableJiraRow
+                    key={t.id}
+                    ticket={t}
+                    tickets={previewTickets}
+                    instanceUrl={service.instanceUrl}
+                  />
                 ))}
               </div>
             )}
