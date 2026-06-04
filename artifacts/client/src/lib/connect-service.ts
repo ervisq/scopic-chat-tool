@@ -85,7 +85,7 @@ function apiBase(): string {
 
 export const OAUTH_ORIGIN_STORAGE_KEY = "workhub:oauth_origin";
 
-export type OAuthOriginPage = "dashboard" | "connections" | "chat" | "admin" | "account";
+export type OAuthOriginPage = "dashboard" | "chat" | "admin" | "account";
 
 export async function startOAuthConnect(
   providerKey: string,
@@ -136,7 +136,6 @@ export function consumeOAuthOrigin(): OAuthOriginPage | null {
     if (value) sessionStorage.removeItem(OAUTH_ORIGIN_STORAGE_KEY);
     if (
       value === "dashboard" ||
-      value === "connections" ||
       value === "chat" ||
       value === "admin" ||
       value === "account"

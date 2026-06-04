@@ -8,7 +8,6 @@ import ChatPage from "@/pages/chat-page";
 import LoginPage from "@/pages/login-page";
 import AuthSsoCallback from "@/pages/auth-sso-callback";
 import AdminPage from "@/pages/admin-page";
-import ConnectionsPage from "@/pages/connections-page";
 import AccountPage from "@/pages/account-page";
 import OnboardingTour, { isTourCompleted, type TourStep } from "@/components/onboarding-tour";
 import { ToolVisibilityProvider, useToolVisibility } from "@/lib/tool-visibility";
@@ -66,13 +65,6 @@ const TOUR_STEPS: TourStep[] = [
     title: "How to Use Chat",
     description: "Just type naturally — like \"how many hours did I log this week\" or \"my open Jira tickets\". You can also type @ to see available tools.",
     position: "top",
-  },
-  {
-    target: "nav-connections",
-    title: "Connected Services",
-    description: "Connect your accounts here — Jira, Zoho, STS, and Teamwork. Each service needs a one-time setup before you can query it in chat.",
-    position: "right",
-    navigateTo: "connections",
   },
   {
     target: "nav-account",
@@ -133,7 +125,7 @@ function AuthGateInner() {
       const currentEmail = user.email;
       if (currentEmail !== lastAuthUser) {
         setLastAuthUser(currentEmail);
-        const validPages: Page[] = ["dashboard", "chat", "admin", "connections", "account"];
+        const validPages: Page[] = ["dashboard", "chat", "admin", "account"];
         // If the user is returning from an OAuth callback (e.g. JIRA/Zoho),
         // restore them to the page they started the connection from rather
         // than their default landing page. Otherwise fall back to the
@@ -192,10 +184,8 @@ function AuthGateInner() {
 
   if (page === "admin") {
     content = <AdminPage userRole={user?.role} />;
-  } else if (page === "connections") {
-    content = <ConnectionsPage token={token} />;
   } else if (page === "chat") {
-    content = <ChatPage onOpenConnections={() => setPage("connections")} token={token} />;
+    content = <ChatPage onOpenConnections={() => setPage("dashboard")} token={token} />;
   } else if (page === "account") {
     content = <AccountPage token={token} onUpdateUser={updateUser} onSetToken={setToken} onRestartTour={() => setShowTour(true)} userEmail={user?.email} />;
   } else {
@@ -203,7 +193,7 @@ function AuthGateInner() {
       <DashboardPage
         user={user}
         token={token}
-        onOpenConnections={() => setPage("connections")}
+        onOpenConnections={() => setPage("dashboard")}
       />
     );
   }

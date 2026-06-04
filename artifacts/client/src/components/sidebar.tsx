@@ -1,7 +1,6 @@
 import {
   LayoutDashboard,
   MessageSquare,
-  Settings,
   Shield,
   LogOut,
   ChevronLeft,
@@ -11,7 +10,7 @@ import {
 import { useState, useEffect } from "react";
 import { BrandLogo } from "./brand-logo";
 
-export type Page = "dashboard" | "chat" | "admin" | "connections" | "account";
+export type Page = "dashboard" | "chat" | "admin" | "account";
 
 interface SidebarProps {
   activePage: Page;
@@ -23,7 +22,6 @@ interface SidebarProps {
 const NAV_ITEMS: { page: Page; label: string; icon: typeof LayoutDashboard; adminOnly?: boolean }[] = [
   { page: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { page: "chat", label: "Chat", icon: MessageSquare },
-  { page: "connections", label: "Services", icon: Settings },
   { page: "admin", label: "Admin", icon: Shield, adminOnly: true },
   { page: "account", label: "My Account", icon: UserCircle },
 ];

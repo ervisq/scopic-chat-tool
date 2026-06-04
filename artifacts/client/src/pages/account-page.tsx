@@ -355,7 +355,6 @@ function PreferencesTab({ token, onUpdateUser, onRestartTour, userEmail }: { tok
   const PAGE_OPTIONS = [
     { value: "dashboard", label: "Dashboard" },
     { value: "chat", label: "Chat" },
-    { value: "connections", label: "Services" },
     { value: "admin", label: "Admin" },
   ];
 
