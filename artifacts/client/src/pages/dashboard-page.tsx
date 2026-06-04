@@ -938,6 +938,22 @@ function OutlookPanel({
   );
 }
 
+function zohoRecruitRecordUrl(module: string, id: string): string {
+  return `https://recruit.zoho.com/recruit/EntityInfo.do?module=${module}&id=${encodeURIComponent(id)}`;
+}
+
+function zohoCrmRecordUrl(tab: string, id: string): string {
+  return `https://crm.zoho.com/crm/tab/${tab}/${encodeURIComponent(id)}`;
+}
+
+function zohoContractRecordUrl(id: string): string {
+  return `https://contracts.zoho.com/zohocontracts/app#/contracts/${encodeURIComponent(id)}`;
+}
+
+function zohoPeopleEmployeeUrl(id: string): string {
+  return `https://people.zoho.com/people/viewEmployee.do?empId=${encodeURIComponent(id)}`;
+}
+
 function buildZohoTargets(data: ServiceData): {
   candidates: DetailTarget[];
   jobs: DetailTarget[];
@@ -972,7 +988,7 @@ function buildZohoTargets(data: ServiceData): {
       id: c.id,
       label: c.name,
       status: c.status,
-      openUrl: recruitUrl,
+      openUrl: c.id ? zohoRecruitRecordUrl("Candidates", c.id) : recruitUrl,
       data: c,
     })),
     jobs: (s.jobOpenings ?? []).map((j) => ({
@@ -980,7 +996,7 @@ function buildZohoTargets(data: ServiceData): {
       id: j.id,
       label: j.title,
       status: j.status,
-      openUrl: recruitUrl,
+      openUrl: j.id ? zohoRecruitRecordUrl("JobOpenings", j.id) : recruitUrl,
       data: j,
     })),
     interviews: (s.upcomingInterviews ?? []).map((iv) => ({
@@ -988,7 +1004,7 @@ function buildZohoTargets(data: ServiceData): {
       id: iv.id,
       label: iv.interviewName,
       status: iv.status,
-      openUrl: recruitUrl,
+      openUrl: iv.id ? zohoRecruitRecordUrl("Interviews", iv.id) : recruitUrl,
       data: iv,
     })),
     deals: (s.openDeals ?? []).map((d) => ({
@@ -996,7 +1012,7 @@ function buildZohoTargets(data: ServiceData): {
       id: d.id,
       label: d.name,
       status: d.stage,
-      openUrl: crmUrl,
+      openUrl: d.id ? zohoCrmRecordUrl("Deals", d.id) : crmUrl,
       data: d,
     })),
     leads: (s.recentLeads ?? []).map((l) => ({
@@ -1004,7 +1020,7 @@ function buildZohoTargets(data: ServiceData): {
       id: l.id,
       label: l.name,
       status: l.leadStatus,
-      openUrl: crmUrl,
+      openUrl: l.id ? zohoCrmRecordUrl("Leads", l.id) : crmUrl,
       data: l,
     })),
     crmTasks: (s.tasksDueToday ?? []).map((t) => ({
@@ -1012,7 +1028,7 @@ function buildZohoTargets(data: ServiceData): {
       id: t.id,
       label: t.subject,
       status: t.status,
-      openUrl: crmUrl,
+      openUrl: t.id ? zohoCrmRecordUrl("Tasks", t.id) : crmUrl,
       data: t,
     })),
     contracts: contractRows.map((c) => ({
@@ -1020,7 +1036,7 @@ function buildZohoTargets(data: ServiceData): {
       id: c.id,
       label: c.contractName,
       status: c.contractStatus,
-      openUrl: contractsUrl,
+      openUrl: c.id ? zohoContractRecordUrl(c.id) : contractsUrl,
       data: c,
     })),
     contractRows,
@@ -1036,7 +1052,7 @@ function buildZohoTargets(data: ServiceData): {
       type: "zoho_people_joiner",
       id: j.id,
       label: j.name,
-      openUrl: peopleUrl,
+      openUrl: j.id ? zohoPeopleEmployeeUrl(j.id) : peopleUrl,
       data: j,
     })),
   };
