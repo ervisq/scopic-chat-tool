@@ -938,6 +938,259 @@ function OutlookPanel({
   );
 }
 
+function buildZohoTargets(data: ServiceData): {
+  candidates: DetailTarget[];
+  jobs: DetailTarget[];
+  interviews: DetailTarget[];
+  deals: DetailTarget[];
+  leads: DetailTarget[];
+  crmTasks: DetailTarget[];
+  contracts: DetailTarget[];
+  contractRows: ContractSummary[];
+  leave: DetailTarget[];
+  joiners: DetailTarget[];
+} {
+  const s = data.summary || {};
+  const recruitUrl = EXTERNAL_URLS.zoho_recruit();
+  const crmUrl = EXTERNAL_URLS.zoho_crm();
+  const contractsUrl = EXTERNAL_URLS.zoho_contracts();
+  const peopleUrl = EXTERNAL_URLS.zoho_people();
+
+  const contractRowsSeen = new Set<string>();
+  const contractRows = [
+    ...(s.contracts ?? []),
+    ...(s.expiringContracts ?? []),
+  ].filter((c) => {
+    if (!c.id || contractRowsSeen.has(c.id)) return false;
+    contractRowsSeen.add(c.id);
+    return true;
+  });
+
+  return {
+    candidates: (s.candidates ?? []).map((c) => ({
+      type: "zoho_recruit_candidate",
+      id: c.id,
+      label: c.name,
+      status: c.status,
+      openUrl: recruitUrl,
+      data: c,
+    })),
+    jobs: (s.jobOpenings ?? []).map((j) => ({
+      type: "zoho_recruit_job",
+      id: j.id,
+      label: j.title,
+      status: j.status,
+      openUrl: recruitUrl,
+      data: j,
+    })),
+    interviews: (s.upcomingInterviews ?? []).map((iv) => ({
+      type: "zoho_recruit_interview",
+      id: iv.id,
+      label: iv.interviewName,
+      status: iv.status,
+      openUrl: recruitUrl,
+      data: iv,
+    })),
+    deals: (s.openDeals ?? []).map((d) => ({
+      type: "zoho_crm_deal",
+      id: d.id,
+      label: d.name,
+      status: d.stage,
+      openUrl: crmUrl,
+      data: d,
+    })),
+    leads: (s.recentLeads ?? []).map((l) => ({
+      type: "zoho_crm_lead",
+      id: l.id,
+      label: l.name,
+      status: l.leadStatus,
+      openUrl: crmUrl,
+      data: l,
+    })),
+    crmTasks: (s.tasksDueToday ?? []).map((t) => ({
+      type: "zoho_crm_task",
+      id: t.id,
+      label: t.subject,
+      status: t.status,
+      openUrl: crmUrl,
+      data: t,
+    })),
+    contracts: contractRows.map((c) => ({
+      type: "zoho_contract",
+      id: c.id,
+      label: c.contractName,
+      status: c.contractStatus,
+      openUrl: contractsUrl,
+      data: c,
+    })),
+    contractRows,
+    leave: (s.onLeaveToday ?? []).map((l, i) => ({
+      type: "zoho_people_leave",
+      id: `leave-${i}`,
+      label: l.employee,
+      status: l.leaveType,
+      openUrl: peopleUrl,
+      data: l,
+    })),
+    joiners: (s.recentJoiners ?? []).map((j) => ({
+      type: "zoho_people_joiner",
+      id: j.id,
+      label: j.name,
+      openUrl: peopleUrl,
+      data: j,
+    })),
+  };
+}
+
+function ZohoRowButton({
+  targets,
+  index,
+  primary,
+  secondary,
+  status,
+}: {
+  targets: DetailTarget[];
+  index: number;
+  primary: string;
+  secondary?: string;
+  status?: string;
+}) {
+  const { openDetailList } = useObjectDetail();
+  return (
+    <button
+      type="button"
+      onClick={() => openDetailList(targets, index)}
+      className="w-full flex items-center gap-2 py-1.5 px-3 rounded-lg bg-muted/30 text-left transition-colors hover:bg-muted/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <span className="text-xs text-foreground truncate flex-1">{primary || "—"}</span>
+      {secondary && (
+        <span className="text-[11px] font-semibold text-muted-foreground shrink-0">{secondary}</span>
+      )}
+      {status && <StatusBadge status={status} />}
+    </button>
+  );
+}
+
+function ZohoSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <p className="px-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {title}
+      </p>
+      <div className="space-y-1">{children}</div>
+    </div>
+  );
+}
+
+const ZOHO_DETAIL_KEYS = [
+  "zoho_recruit",
+  "zoho_crm",
+  "zoho_contracts",
+  "zoho_people",
+];
+
+function ZohoClickableLists({ data, max = 20 }: { data: ServiceData; max?: number }) {
+  const t = useMemo(() => buildZohoTargets(data), [data]);
+  const s = data.summary || {};
+
+  if (data.error || !ZOHO_DETAIL_KEYS.includes(data.key)) return null;
+
+  const hasAny =
+    t.candidates.length ||
+    t.jobs.length ||
+    t.interviews.length ||
+    t.deals.length ||
+    t.leads.length ||
+    t.crmTasks.length ||
+    t.contracts.length ||
+    t.leave.length ||
+    t.joiners.length;
+  if (!hasAny) return null;
+
+  return (
+    <div className="space-y-2.5 max-h-[300px] overflow-y-auto">
+      {data.key === "zoho_recruit" && (
+        <>
+          {t.candidates.length > 0 && (
+            <ZohoSection title="Candidates">
+              {(s.candidates ?? []).slice(0, max).map((c, i) => (
+                <ZohoRowButton key={c.id} targets={t.candidates} index={i} primary={c.name} status={c.status} />
+              ))}
+            </ZohoSection>
+          )}
+          {t.jobs.length > 0 && (
+            <ZohoSection title="Job openings">
+              {(s.jobOpenings ?? []).slice(0, max).map((j, i) => (
+                <ZohoRowButton key={j.id} targets={t.jobs} index={i} primary={j.title} status={j.status} />
+              ))}
+            </ZohoSection>
+          )}
+          {t.interviews.length > 0 && (
+            <ZohoSection title="Upcoming interviews">
+              {(s.upcomingInterviews ?? []).slice(0, max).map((iv, i) => (
+                <ZohoRowButton key={iv.id} targets={t.interviews} index={i} primary={iv.interviewName} secondary={iv.candidateName} status={iv.status} />
+              ))}
+            </ZohoSection>
+          )}
+        </>
+      )}
+
+      {data.key === "zoho_crm" && (
+        <>
+          {t.deals.length > 0 && (
+            <ZohoSection title="Open deals">
+              {(s.openDeals ?? []).slice(0, max).map((d, i) => (
+                <ZohoRowButton key={d.id} targets={t.deals} index={i} primary={d.name} secondary={d.amount} status={d.stage} />
+              ))}
+            </ZohoSection>
+          )}
+          {t.leads.length > 0 && (
+            <ZohoSection title="Recent leads">
+              {(s.recentLeads ?? []).slice(0, max).map((l, i) => (
+                <ZohoRowButton key={l.id} targets={t.leads} index={i} primary={l.name} secondary={l.company} status={l.leadStatus} />
+              ))}
+            </ZohoSection>
+          )}
+          {t.crmTasks.length > 0 && (
+            <ZohoSection title="Tasks due today">
+              {(s.tasksDueToday ?? []).slice(0, max).map((task, i) => (
+                <ZohoRowButton key={task.id} targets={t.crmTasks} index={i} primary={task.subject} status={task.status} />
+              ))}
+            </ZohoSection>
+          )}
+        </>
+      )}
+
+      {data.key === "zoho_contracts" && t.contracts.length > 0 && (
+        <ZohoSection title="Contracts">
+          {t.contractRows.slice(0, max).map((c, i) => (
+            <ZohoRowButton key={c.id} targets={t.contracts} index={i} primary={c.contractName} status={c.contractStatus} />
+          ))}
+        </ZohoSection>
+      )}
+
+      {data.key === "zoho_people" && (
+        <>
+          {t.leave.length > 0 && (
+            <ZohoSection title="On leave today">
+              {(s.onLeaveToday ?? []).slice(0, max).map((l, i) => (
+                <ZohoRowButton key={`leave-${i}`} targets={t.leave} index={i} primary={l.employee} secondary={l.leaveType} />
+              ))}
+            </ZohoSection>
+          )}
+          {t.joiners.length > 0 && (
+            <ZohoSection title="Recent joiners">
+              {(s.recentJoiners ?? []).slice(0, max).map((j, i) => (
+                <ZohoRowButton key={j.id} targets={t.joiners} index={i} primary={j.name} secondary={j.designation} />
+              ))}
+            </ZohoSection>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function ZohoSubSummary({
   sub,
 }: {
@@ -1034,47 +1287,7 @@ function ZohoSubSummary({
           </div>
         )}
 
-        {sub.key === "zoho_people" && !sub.error && (
-          ((sub.summary?.onLeaveToday?.length ?? 0) > 0 || (sub.summary?.recentJoiners?.length ?? 0) > 0) && (
-            <div className="mb-2 space-y-1 max-h-[120px] overflow-y-auto">
-              {(sub.summary?.onLeaveToday ?? []).slice(0, 20).map((l, i) => (
-                <p key={`leave-${i}`} className="text-[11px] text-muted-foreground truncate">
-                  <span className="text-muted-foreground/80">On leave:</span> {l.employee || "—"}
-                  {l.leaveType ? ` · ${l.leaveType}` : ""}
-                </p>
-              ))}
-              {(sub.summary?.recentJoiners ?? [])
-                .slice(0, 20)
-                .map((j) => (
-                  <p key={`joiner-${j.id}`} className="text-[11px] text-muted-foreground truncate">
-                    <span className="text-muted-foreground/80">Joined:</span> {j.name || "—"}
-                    {j.designation ? ` · ${j.designation}` : ""}
-                  </p>
-                ))}
-            </div>
-          )
-        )}
-        {sub.key === "zoho_crm" && !sub.error && (
-          ((sub.summary?.openDeals?.length ?? 0) > 0 || (sub.summary?.tasksDueToday?.length ?? 0) > 0) && (
-            <div className="mb-2 space-y-1 max-h-[120px] overflow-y-auto">
-              {(sub.summary?.openDeals ?? []).slice(0, 20).map((d) => (
-                <div key={`deal-${d.id}`} className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] text-muted-foreground truncate flex-1">{d.name || "Deal"}</span>
-                  {d.amount && (
-                    <span className="text-[11px] font-semibold text-muted-foreground shrink-0">{d.amount}</span>
-                  )}
-                </div>
-              ))}
-              {(sub.summary?.tasksDueToday ?? [])
-                .slice(0, 20)
-                .map((t) => (
-                  <p key={`task-${t.id}`} className="text-[11px] text-muted-foreground truncate">
-                    <span className="text-muted-foreground/80">Due today:</span> {t.subject || "Task"}
-                  </p>
-                ))}
-            </div>
-          )
-        )}
+        <ZohoClickableLists data={sub} />
       </div>
     </div>
   );
@@ -1251,44 +1464,7 @@ function ServiceCard({
               </div>
             )}
 
-            {service.key === "zoho_people" && !service.error && (
-              <div className="space-y-1.5">
-                {(service.summary?.onLeaveToday ?? []).slice(0, 3).map((l, i) => (
-                  <div key={`leave-${i}`} className="py-1.5 px-3 rounded-lg bg-muted/30">
-                    <p className="text-xs text-foreground truncate">
-                      <span className="text-muted-foreground">On leave:</span> {l.employee || "—"}
-                      {l.leaveType ? ` · ${l.leaveType}` : ""}
-                    </p>
-                  </div>
-                ))}
-                {(service.summary?.recentJoiners ?? []).slice(0, 3 - Math.min((service.summary?.onLeaveToday?.length ?? 0), 3)).map((j) => (
-                  <div key={`joiner-${j.id}`} className="py-1.5 px-3 rounded-lg bg-muted/30">
-                    <p className="text-xs text-foreground truncate">
-                      <span className="text-muted-foreground">Joined:</span> {j.name || "—"}
-                      {j.designation ? ` · ${j.designation}` : ""}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {service.key === "zoho_crm" && !service.error && (
-              <div className="space-y-1.5">
-                {(service.summary?.openDeals ?? []).slice(0, 3).map((d) => (
-                  <div key={`deal-${d.id}`} className="flex items-center justify-between gap-2 py-1.5 px-3 rounded-lg bg-muted/30">
-                    <span className="text-xs text-foreground truncate flex-1">{d.name || "Deal"}</span>
-                    {d.amount && <span className="text-xs font-semibold text-muted-foreground shrink-0">{d.amount}</span>}
-                  </div>
-                ))}
-                {(service.summary?.tasksDueToday ?? []).slice(0, 3 - Math.min((service.summary?.openDeals?.length ?? 0), 3)).map((t) => (
-                  <div key={`task-${t.id}`} className="py-1.5 px-3 rounded-lg bg-amber-100/40 dark:bg-amber-900/20">
-                    <p className="text-xs text-foreground truncate">
-                      <span className="text-muted-foreground">Due today:</span> {t.subject || "Task"}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
+            <ZohoClickableLists data={service} />
 
             {previewTickets.length > 0 && (
               <div className="space-y-1.5 max-h-[232px] overflow-y-auto">
@@ -1421,6 +1597,32 @@ export default function DashboardPage({
 
   useEffect(() => {
     fetchDashboard();
+  }, []);
+
+  useEffect(() => {
+    function onEmailRead(e: Event) {
+      const id = (e as CustomEvent<{ id?: string }>).detail?.id;
+      if (!id) return;
+      setServices((prev) =>
+        prev.map((s) => {
+          if (s.key !== "outlook_email" || !s.summary?.emails) return s;
+          let changed = false;
+          const emails = s.summary.emails.map((m) => {
+            if (m.id === id && !m.isRead) {
+              changed = true;
+              return { ...m, isRead: true };
+            }
+            return m;
+          });
+          if (!changed) return s;
+          const unreadCount = Math.max(0, (s.summary.unreadCount ?? 0) - 1);
+          return { ...s, summary: { ...s.summary, emails, unreadCount } };
+        }),
+      );
+    }
+    window.addEventListener("outlook:email-read", onEmailRead as EventListener);
+    return () =>
+      window.removeEventListener("outlook:email-read", onEmailRead as EventListener);
   }, []);
 
   useEffect(() => {

@@ -3,7 +3,7 @@ import { getAuthUser } from "../middlewares/auth";
 import { getTeamworkTaskDetail } from "../services/teamworkService";
 import { getJiraIssueDetail } from "../services/jiraService";
 import { getGraphClient, isGraphConfigured } from "../services/microsoftGraphClient";
-import { getEmailDetail } from "../services/outlookMailService";
+import { getEmailDetail, markEmailRead } from "../services/outlookMailService";
 
 const router: IRouter = Router();
 
@@ -104,6 +104,52 @@ router.get("/details/outlook/email", async (req, res) => {
       return;
     }
     res.status(500).json({ message: "Failed to load email" });
+  }
+});
+
+router.post("/details/outlook/email/read", async (req, res) => {
+  try {
+    const auth = getAuthUser(req);
+
+    if (!isGraphConfigured()) {
+      res.status(409).json({ message: "Microsoft Outlook is not configured on this server." });
+      return;
+    }
+    const userEmail = auth.email;
+    if (!userEmail) {
+      res.status(409).json({ message: "Could not determine your email address." });
+      return;
+    }
+
+    const messageId = typeof req.body?.id === "string" ? req.body.id : "";
+    if (!messageId) {
+      res.status(400).json({ message: "Missing email id" });
+      return;
+    }
+    // Defense-in-depth: reject obviously malformed/abusive ids before issuing
+    // any Graph request (mirrors the GET email-detail route).
+    if (
+      messageId.length > 1000 ||
+      messageId.includes("..") ||
+      // eslint-disable-next-line no-control-regex
+      /[\u0000-\u001f\u007f]/.test(messageId)
+    ) {
+      res.status(400).json({ message: "Invalid email id" });
+      return;
+    }
+
+    const client = getGraphClient();
+    await markEmailRead(client, userEmail, messageId);
+    res.json({ ok: true });
+  } catch (err: unknown) {
+    const status = (err as { statusCode?: number })?.statusCode;
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[ObjectDetail] Outlook mark-read error:", msg);
+    if (status === 404) {
+      res.status(404).json({ message: "Email not found" });
+      return;
+    }
+    res.status(500).json({ message: "Failed to mark email as read" });
   }
 });
 

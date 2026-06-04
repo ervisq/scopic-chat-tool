@@ -24,6 +24,86 @@ import {
   Flag,
 } from "lucide-react";
 
+export interface ZohoRecruitCandidateData {
+  id: string;
+  name: string;
+  email: string;
+  status: string;
+  currentJobTitle: string;
+  currentEmployer: string;
+}
+
+export interface ZohoRecruitJobData {
+  id: string;
+  title: string;
+  department: string;
+  status: string;
+  positions: string;
+}
+
+export interface ZohoRecruitInterviewData {
+  id: string;
+  interviewName: string;
+  candidateName: string;
+  interviewDate: string;
+  from: string;
+  to: string;
+  jobOpeningName: string;
+  status: string;
+}
+
+export interface ZohoCrmDealData {
+  id: string;
+  name: string;
+  stage: string;
+  amount: string;
+  closingDate: string;
+  account: string;
+}
+
+export interface ZohoCrmLeadData {
+  id: string;
+  name: string;
+  company: string;
+  leadStatus: string;
+  email: string;
+}
+
+export interface ZohoCrmTaskData {
+  id: string;
+  subject: string;
+  status: string;
+  priority: string;
+  relatedTo: string;
+}
+
+export interface ZohoContractData {
+  id: string;
+  contractName: string;
+  contractType: string;
+  contractStatus: string;
+  company: string;
+  startDate: string;
+  endDate: string;
+  contractValue: string;
+}
+
+export interface ZohoPeopleLeaveData {
+  employee: string;
+  leaveType: string;
+  from: string;
+  to: string;
+  dayCount: string;
+}
+
+export interface ZohoPeopleJoinerData {
+  id: string;
+  name: string;
+  designation: string;
+  department: string;
+  dateOfJoining: string;
+}
+
 export type DetailTarget =
   | {
       type: "teamwork_task";
@@ -45,6 +125,78 @@ export type DetailTarget =
       openUrl?: string | null;
       label?: string;
       status?: string;
+    }
+  | {
+      type: "zoho_recruit_candidate";
+      id: string;
+      openUrl?: string | null;
+      label?: string;
+      status?: string;
+      data: ZohoRecruitCandidateData;
+    }
+  | {
+      type: "zoho_recruit_job";
+      id: string;
+      openUrl?: string | null;
+      label?: string;
+      status?: string;
+      data: ZohoRecruitJobData;
+    }
+  | {
+      type: "zoho_recruit_interview";
+      id: string;
+      openUrl?: string | null;
+      label?: string;
+      status?: string;
+      data: ZohoRecruitInterviewData;
+    }
+  | {
+      type: "zoho_crm_deal";
+      id: string;
+      openUrl?: string | null;
+      label?: string;
+      status?: string;
+      data: ZohoCrmDealData;
+    }
+  | {
+      type: "zoho_crm_lead";
+      id: string;
+      openUrl?: string | null;
+      label?: string;
+      status?: string;
+      data: ZohoCrmLeadData;
+    }
+  | {
+      type: "zoho_crm_task";
+      id: string;
+      openUrl?: string | null;
+      label?: string;
+      status?: string;
+      data: ZohoCrmTaskData;
+    }
+  | {
+      type: "zoho_contract";
+      id: string;
+      openUrl?: string | null;
+      label?: string;
+      status?: string;
+      data: ZohoContractData;
+    }
+  | {
+      type: "zoho_people_leave";
+      id: string;
+      openUrl?: string | null;
+      label?: string;
+      status?: string;
+      data: ZohoPeopleLeaveData;
+    }
+  | {
+      type: "zoho_people_joiner";
+      id: string;
+      openUrl?: string | null;
+      label?: string;
+      status?: string;
+      data: ZohoPeopleJoinerData;
     };
 
 interface ObjectDetailContextValue {
@@ -198,6 +350,14 @@ export function ObjectDetailProvider({
     [],
   );
 
+  const markTargetEmailRead = useCallback((id: string) => {
+    setTargets((prev) =>
+      prev.map((t) =>
+        t.type === "outlook_email" && t.id === id ? { ...t, unread: false } : t,
+      ),
+    );
+  }, []);
+
   const value = useMemo(
     () => ({ openDetail, openDetailList }),
     [openDetail, openDetailList],
@@ -242,11 +402,16 @@ export function ObjectDetailProvider({
                   key={`${activeTarget.type}-${activeTarget.id}`}
                   target={activeTarget}
                   token={token}
+                  onEmailRead={markTargetEmailRead}
                 />
               </div>
             </div>
           ) : (
-            <DetailBody target={activeTarget} token={token} />
+            <DetailBody
+              target={activeTarget}
+              token={token}
+              onEmailRead={markTargetEmailRead}
+            />
           )}
         </DialogContent>
       </Dialog>
@@ -373,8 +538,14 @@ function DetailList({
             const active = i === activeIndex;
             const isEmail = t.type === "outlook_email";
             const isJira = t.type === "jira_issue";
+            const isZoho = t.type.startsWith("zoho_");
             const label =
-              t.label || (isEmail ? "(No Subject)" : `${isJira ? "" : "#"}${t.id}`);
+              t.label ||
+              (isEmail
+                ? "(No Subject)"
+                : isZoho
+                  ? "(Item)"
+                  : `${isJira ? "" : "#"}${t.id}`);
             return (
               <li key={`${t.type}-${t.id}-${i}`}>
                 <button
@@ -390,6 +561,8 @@ function DetailList({
                   <div className="flex items-center gap-2">
                     {isEmail ? (
                       <Mail className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+                    ) : isZoho ? (
+                      <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground shrink-0" />
                     ) : (
                       <span className="text-[11px] font-mono text-muted-foreground shrink-0">
                         {isJira ? t.id : `#${t.id}`}
@@ -406,12 +579,11 @@ function DetailList({
                       <span className="w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0" />
                     )}
                   </div>
-                  {(t.type === "teamwork_task" || t.type === "jira_issue") &&
-                    t.status && (
-                      <span className="mt-1 inline-block text-[10px] font-medium text-muted-foreground">
-                        {t.status}
-                      </span>
-                    )}
+                  {"status" in t && t.status && (
+                    <span className="mt-1 inline-block text-[10px] font-medium text-muted-foreground">
+                      {t.status}
+                    </span>
+                  )}
                 </button>
               </li>
             );
@@ -425,9 +597,11 @@ function DetailList({
 function DetailBody({
   target,
   token,
+  onEmailRead,
 }: {
   target: DetailTarget;
   token: string | null | undefined;
+  onEmailRead?: (id: string) => void;
 }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -445,6 +619,12 @@ function DetailBody({
       setTeamwork(null);
       setEmail(null);
       setJira(null);
+      if (target.type.startsWith("zoho_")) {
+        // Zoho detail is rendered from data already loaded on the dashboard;
+        // there is no per-record fetch.
+        setLoading(false);
+        return;
+      }
       try {
         let url: string;
         if (target.type === "teamwork_task") {
@@ -475,7 +655,34 @@ function DetailBody({
         } else if (target.type === "jira_issue") {
           setJira(data as JiraIssueDetail);
         } else {
-          setEmail(data as MailDetail);
+          const mail = data as MailDetail;
+          setEmail(mail);
+          if (target.type === "outlook_email" && !mail.isRead) {
+            const emailId = target.id;
+            fetch(`${baseUrl}/api/details/outlook/email/read`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              body: JSON.stringify({ id: emailId }),
+            })
+              .then((r) => {
+                if (!r.ok) return;
+                if (!cancelled) {
+                  setEmail((prev) => (prev ? { ...prev, isRead: true } : prev));
+                }
+                onEmailRead?.(emailId);
+                window.dispatchEvent(
+                  new CustomEvent("outlook:email-read", {
+                    detail: { id: emailId },
+                  }),
+                );
+              })
+              .catch(() => {
+                /* mark-as-read is best-effort; ignore failures */
+              });
+          }
         }
       } catch {
         if (!cancelled) setError("Could not load details. Please try again.");
@@ -487,7 +694,7 @@ function DetailBody({
     return () => {
       cancelled = true;
     };
-  }, [target, token, baseUrl]);
+  }, [target, token, baseUrl, onEmailRead]);
 
   if (loading) {
     return (
@@ -525,6 +732,29 @@ function DetailBody({
     return <JiraIssueDetailView detail={jira} openUrl={target.openUrl} />;
   }
 
+  switch (target.type) {
+    case "zoho_recruit_candidate":
+      return <ZohoRecruitCandidateDetailView data={target.data} openUrl={target.openUrl} />;
+    case "zoho_recruit_job":
+      return <ZohoRecruitJobDetailView data={target.data} openUrl={target.openUrl} />;
+    case "zoho_recruit_interview":
+      return <ZohoRecruitInterviewDetailView data={target.data} openUrl={target.openUrl} />;
+    case "zoho_crm_deal":
+      return <ZohoCrmDealDetailView data={target.data} openUrl={target.openUrl} />;
+    case "zoho_crm_lead":
+      return <ZohoCrmLeadDetailView data={target.data} openUrl={target.openUrl} />;
+    case "zoho_crm_task":
+      return <ZohoCrmTaskDetailView data={target.data} openUrl={target.openUrl} />;
+    case "zoho_contract":
+      return <ZohoContractDetailView data={target.data} openUrl={target.openUrl} />;
+    case "zoho_people_leave":
+      return <ZohoPeopleLeaveDetailView data={target.data} openUrl={target.openUrl} />;
+    case "zoho_people_joiner":
+      return <ZohoPeopleJoinerDetailView data={target.data} openUrl={target.openUrl} />;
+    default:
+      break;
+  }
+
   return (
     <DialogHeader>
       <DialogTitle>Details</DialogTitle>
@@ -544,6 +774,15 @@ function OpenInButton({ href, label }: { href: string; label: string }) {
     >
       {label} <ExternalLink className="w-3.5 h-3.5" />
     </a>
+  );
+}
+
+function DetailFooter({ href, label }: { href: string; label: string }) {
+  if (!href) return null;
+  return (
+    <div className="pt-2 border-t border-border flex justify-end">
+      <OpenInButton href={href} label={label} />
+    </div>
   );
 }
 
@@ -659,7 +898,7 @@ function TeamworkTaskDetailView({
       </div>
 
       {href && (
-        <div className="pt-2 border-t border-border">
+        <div className="pt-2 border-t border-border flex justify-end">
           <OpenInButton href={href} label="Open in Teamwork" />
         </div>
       )}
@@ -778,7 +1017,7 @@ function JiraIssueDetailView({
       </div>
 
       {href && (
-        <div className="pt-2 border-t border-border">
+        <div className="pt-2 border-t border-border flex justify-end">
           <OpenInButton href={href} label="Open in Jira" />
         </div>
       )}
@@ -886,10 +1125,364 @@ function OutlookEmailDetailView({
       </div>
 
       {href && (
-        <div className="pt-2 border-t border-border">
+        <div className="pt-2 border-t border-border flex justify-end">
           <OpenInButton href={href} label="Open in Outlook" />
         </div>
       )}
     </>
+  );
+}
+
+function StatusPill({ value }: { value: string }) {
+  if (!value) return null;
+  return (
+    <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
+      {value}
+    </span>
+  );
+}
+
+function ZohoDetailShell({
+  source,
+  title,
+  pills,
+  href,
+  openLabel,
+  children,
+}: {
+  source: string;
+  title: string;
+  pills?: React.ReactNode;
+  href: string;
+  openLabel: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <>
+      <DialogHeader className="pb-3 mb-3 border-b border-border">
+        <p className="text-[11px] font-mono uppercase tracking-wide text-muted-foreground">
+          {source}
+        </p>
+        <DialogTitle className="pr-8 break-words text-lg leading-snug">
+          {title}
+        </DialogTitle>
+      </DialogHeader>
+
+      <div className="overflow-y-auto flex-1 space-y-3 pr-1">
+        {pills && <div className="flex flex-wrap items-center gap-2">{pills}</div>}
+        {children}
+      </div>
+
+      <DetailFooter href={href} label={openLabel} />
+    </>
+  );
+}
+
+function ZohoRecruitCandidateDetailView({
+  data,
+  openUrl,
+}: {
+  data: ZohoRecruitCandidateData;
+  openUrl?: string | null;
+}) {
+  return (
+    <ZohoDetailShell
+      source="Zoho Recruit · Candidate"
+      title={data.name || "Candidate"}
+      pills={<StatusPill value={data.status} />}
+      href={openUrl || ""}
+      openLabel="Open in Zoho Recruit"
+    >
+      {data.email && (
+        <DetailRow icon={<Mail className="w-4 h-4" />}>{data.email}</DetailRow>
+      )}
+      {data.currentJobTitle && (
+        <DetailRow icon={<BarChart3 className="w-4 h-4" />}>
+          <span className="font-medium text-foreground">Current title:</span>{" "}
+          {data.currentJobTitle}
+        </DetailRow>
+      )}
+      {data.currentEmployer && (
+        <DetailRow icon={<FolderOpen className="w-4 h-4" />}>
+          <span className="font-medium text-foreground">Employer:</span>{" "}
+          {data.currentEmployer}
+        </DetailRow>
+      )}
+    </ZohoDetailShell>
+  );
+}
+
+function ZohoRecruitJobDetailView({
+  data,
+  openUrl,
+}: {
+  data: ZohoRecruitJobData;
+  openUrl?: string | null;
+}) {
+  return (
+    <ZohoDetailShell
+      source="Zoho Recruit · Job Opening"
+      title={data.title || "Job Opening"}
+      pills={<StatusPill value={data.status} />}
+      href={openUrl || ""}
+      openLabel="Open in Zoho Recruit"
+    >
+      {data.department && (
+        <DetailRow icon={<FolderOpen className="w-4 h-4" />}>
+          <span className="font-medium text-foreground">Department:</span>{" "}
+          {data.department}
+        </DetailRow>
+      )}
+      {data.positions && (
+        <DetailRow icon={<Users className="w-4 h-4" />}>
+          <span className="font-medium text-foreground">Positions:</span>{" "}
+          {data.positions}
+        </DetailRow>
+      )}
+    </ZohoDetailShell>
+  );
+}
+
+function ZohoRecruitInterviewDetailView({
+  data,
+  openUrl,
+}: {
+  data: ZohoRecruitInterviewData;
+  openUrl?: string | null;
+}) {
+  return (
+    <ZohoDetailShell
+      source="Zoho Recruit · Interview"
+      title={data.interviewName || "Interview"}
+      pills={<StatusPill value={data.status} />}
+      href={openUrl || ""}
+      openLabel="Open in Zoho Recruit"
+    >
+      {data.candidateName && (
+        <DetailRow icon={<User className="w-4 h-4" />}>
+          <span className="font-medium text-foreground">Candidate:</span>{" "}
+          {data.candidateName}
+        </DetailRow>
+      )}
+      {data.jobOpeningName && (
+        <DetailRow icon={<FolderOpen className="w-4 h-4" />}>
+          <span className="font-medium text-foreground">Job opening:</span>{" "}
+          {data.jobOpeningName}
+        </DetailRow>
+      )}
+      {data.interviewDate && (
+        <DetailRow icon={<Calendar className="w-4 h-4" />}>
+          {data.interviewDate}
+          {data.from || data.to ? ` · ${data.from || "?"} – ${data.to || "?"}` : ""}
+        </DetailRow>
+      )}
+    </ZohoDetailShell>
+  );
+}
+
+function ZohoCrmDealDetailView({
+  data,
+  openUrl,
+}: {
+  data: ZohoCrmDealData;
+  openUrl?: string | null;
+}) {
+  return (
+    <ZohoDetailShell
+      source="Zoho CRM · Deal"
+      title={data.name || "Deal"}
+      pills={<StatusPill value={data.stage} />}
+      href={openUrl || ""}
+      openLabel="Open in Zoho CRM"
+    >
+      {data.amount && (
+        <DetailRow icon={<BarChart3 className="w-4 h-4" />}>
+          <span className="font-medium text-foreground">Amount:</span> {data.amount}
+        </DetailRow>
+      )}
+      {data.account && (
+        <DetailRow icon={<FolderOpen className="w-4 h-4" />}>
+          <span className="font-medium text-foreground">Account:</span>{" "}
+          {data.account}
+        </DetailRow>
+      )}
+      {data.closingDate && (
+        <DetailRow icon={<CalendarClock className="w-4 h-4" />}>
+          <span className="font-medium text-foreground">Closing:</span>{" "}
+          {data.closingDate}
+        </DetailRow>
+      )}
+    </ZohoDetailShell>
+  );
+}
+
+function ZohoCrmLeadDetailView({
+  data,
+  openUrl,
+}: {
+  data: ZohoCrmLeadData;
+  openUrl?: string | null;
+}) {
+  return (
+    <ZohoDetailShell
+      source="Zoho CRM · Lead"
+      title={data.name || "Lead"}
+      pills={<StatusPill value={data.leadStatus} />}
+      href={openUrl || ""}
+      openLabel="Open in Zoho CRM"
+    >
+      {data.company && (
+        <DetailRow icon={<FolderOpen className="w-4 h-4" />}>
+          <span className="font-medium text-foreground">Company:</span>{" "}
+          {data.company}
+        </DetailRow>
+      )}
+      {data.email && (
+        <DetailRow icon={<Mail className="w-4 h-4" />}>{data.email}</DetailRow>
+      )}
+    </ZohoDetailShell>
+  );
+}
+
+function ZohoCrmTaskDetailView({
+  data,
+  openUrl,
+}: {
+  data: ZohoCrmTaskData;
+  openUrl?: string | null;
+}) {
+  return (
+    <ZohoDetailShell
+      source="Zoho CRM · Task"
+      title={data.subject || "Task"}
+      pills={
+        <>
+          <StatusPill value={data.status} />
+          {data.priority && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
+              <Flag className="w-3 h-3" />
+              {data.priority}
+            </span>
+          )}
+        </>
+      }
+      href={openUrl || ""}
+      openLabel="Open in Zoho CRM"
+    >
+      {data.relatedTo && (
+        <DetailRow icon={<FolderOpen className="w-4 h-4" />}>
+          <span className="font-medium text-foreground">Related to:</span>{" "}
+          {data.relatedTo}
+        </DetailRow>
+      )}
+    </ZohoDetailShell>
+  );
+}
+
+function ZohoContractDetailView({
+  data,
+  openUrl,
+}: {
+  data: ZohoContractData;
+  openUrl?: string | null;
+}) {
+  return (
+    <ZohoDetailShell
+      source="Zoho Contracts · Contract"
+      title={data.contractName || "Contract"}
+      pills={<StatusPill value={data.contractStatus} />}
+      href={openUrl || ""}
+      openLabel="Open in Zoho Contracts"
+    >
+      {data.contractType && (
+        <DetailRow icon={<Tag className="w-4 h-4" />}>
+          <span className="font-medium text-foreground">Type:</span>{" "}
+          {data.contractType}
+        </DetailRow>
+      )}
+      {data.company && (
+        <DetailRow icon={<FolderOpen className="w-4 h-4" />}>
+          <span className="font-medium text-foreground">Company:</span>{" "}
+          {data.company}
+        </DetailRow>
+      )}
+      {(data.startDate || data.endDate) && (
+        <DetailRow icon={<CalendarClock className="w-4 h-4" />}>
+          {data.startDate || "?"} – {data.endDate || "?"}
+        </DetailRow>
+      )}
+      {data.contractValue && (
+        <DetailRow icon={<BarChart3 className="w-4 h-4" />}>
+          <span className="font-medium text-foreground">Value:</span>{" "}
+          {data.contractValue}
+        </DetailRow>
+      )}
+    </ZohoDetailShell>
+  );
+}
+
+function ZohoPeopleLeaveDetailView({
+  data,
+  openUrl,
+}: {
+  data: ZohoPeopleLeaveData;
+  openUrl?: string | null;
+}) {
+  return (
+    <ZohoDetailShell
+      source="Zoho People · Leave"
+      title={data.employee || "Leave"}
+      pills={<StatusPill value={data.leaveType} />}
+      href={openUrl || ""}
+      openLabel="Open in Zoho People"
+    >
+      {(data.from || data.to) && (
+        <DetailRow icon={<CalendarClock className="w-4 h-4" />}>
+          {data.from || "?"} – {data.to || "?"}
+        </DetailRow>
+      )}
+      {data.dayCount && (
+        <DetailRow icon={<BarChart3 className="w-4 h-4" />}>
+          <span className="font-medium text-foreground">Days:</span>{" "}
+          {data.dayCount}
+        </DetailRow>
+      )}
+    </ZohoDetailShell>
+  );
+}
+
+function ZohoPeopleJoinerDetailView({
+  data,
+  openUrl,
+}: {
+  data: ZohoPeopleJoinerData;
+  openUrl?: string | null;
+}) {
+  return (
+    <ZohoDetailShell
+      source="Zoho People · New Joiner"
+      title={data.name || "New Joiner"}
+      href={openUrl || ""}
+      openLabel="Open in Zoho People"
+    >
+      {data.designation && (
+        <DetailRow icon={<BarChart3 className="w-4 h-4" />}>
+          <span className="font-medium text-foreground">Designation:</span>{" "}
+          {data.designation}
+        </DetailRow>
+      )}
+      {data.department && (
+        <DetailRow icon={<FolderOpen className="w-4 h-4" />}>
+          <span className="font-medium text-foreground">Department:</span>{" "}
+          {data.department}
+        </DetailRow>
+      )}
+      {data.dateOfJoining && (
+        <DetailRow icon={<Calendar className="w-4 h-4" />}>
+          <span className="font-medium text-foreground">Joined:</span>{" "}
+          {data.dateOfJoining}
+        </DetailRow>
+      )}
+    </ZohoDetailShell>
   );
 }

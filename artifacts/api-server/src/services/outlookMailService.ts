@@ -268,6 +268,20 @@ export async function getEmailDetail(client: Client, userEmail: string, messageI
   };
 }
 
+export async function markEmailRead(
+  client: Client,
+  userEmail: string,
+  messageId: string,
+): Promise<void> {
+  // Graph message IDs are opaque and may contain reserved characters; encode
+  // them as a single path segment so they can never alter the request path.
+  const encodedUser = encodeURIComponent(userEmail);
+  const encodedId = encodeURIComponent(messageId);
+  await client
+    .api(`/users/${encodedUser}/messages/${encodedId}`)
+    .update({ isRead: true });
+}
+
 export function formatMailResult(result: OutlookMailResult, query: string): string {
   const q = `\n\nQuery: "${query}"`;
 
