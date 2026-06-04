@@ -33,16 +33,3 @@ sync_gitea() {
   return 0
 }
 sync_gitea
-
-# TEMPORARY one-time GitHub update (Task #165). Force-overwrites GitHub's
-# divergent/stale `main` with the current code. Removed after this run.
-sync_github_once() {
-  echo "[github-sync] Force-pushing HEAD -> github main ..."
-  if git push origin HEAD:main --force-with-lease=main:d0fbb9ec22339075c92d47278c00eb5465920596 2>&1 | sed -E 's#https://[^@/]*@#https://***REDACTED***@#g'; then
-    echo "[github-sync] GitHub updated successfully."
-  else
-    echo "[github-sync] WARNING: push to GitHub failed."
-  fi
-  return 0
-}
-sync_github_once
