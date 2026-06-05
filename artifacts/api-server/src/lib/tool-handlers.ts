@@ -63,8 +63,9 @@ async function teamworkHandler(args: Record<string, unknown>, userId: number): P
   const dateFrom = (args.date_range_start as string) || undefined;
   const dateTo = (args.date_range_end as string) || undefined;
   const billableOnly = (args.billable_only as boolean) || undefined;
+  const project = (args.project as string) || undefined;
   const result = await queryTeamwork(query, userId, {
-    employee, category, assigneeScope, status, priority, dateFrom, dateTo, billableOnly,
+    employee, category, assigneeScope, status, priority, dateFrom, dateTo, billableOnly, project,
   });
   return { reply: formatTeamworkResult(result, query || "your request") };
 }

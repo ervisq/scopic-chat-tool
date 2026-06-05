@@ -138,6 +138,11 @@ export const TOOL_DEFINITIONS: ChatCompletionTool[] = [
             type: "boolean",
             description: "For category 'time': return only billable entries. Default false.",
           },
+          project: {
+            type: "string",
+            description:
+              "Project name to scope the query to (e.g. 'tasks for project MedCad', 'hours on the Acme project'). Resolved against the Teamwork project list, so pass the project name as written. Applies to tasks and time.",
+          },
           employee: {
             type: "string",
             description:

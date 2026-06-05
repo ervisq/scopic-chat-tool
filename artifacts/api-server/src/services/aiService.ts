@@ -56,8 +56,10 @@ Teamwork guidelines (query_teamwork):
 - assignee_scope: "me" for the caller's own items ("my tasks", "my hours"); "unassigned" for tasks with nobody assigned; otherwise "all". When the user names ANOTHER person, keep assignee_scope "all" and put the name in "employee".
 - status (tasks only): "active" = open/incomplete, "completed" = done, "overdue" = late. priority: high/medium/low.
 - date_range_start/date_range_end (YYYY-MM-DD): set whenever the user gives a time period. For category "time" these filter time logs by date; for "tasks" they filter by due date. Resolve relative dates with the rules above.
-- "query" holds ONLY free-text search keywords (a task/project/person name to match); leave it "" when the user is just listing or filtering.
+- project: set this to the project NAME when the user scopes to a project ("tasks for project MedCad", "hours on the Acme project"). Do NOT put the project name in "query".
+- "query" holds ONLY free-text search keywords to match in the task/item name; leave it "" when the user is just listing or filtering (including project/assignee/status filters).
 - Examples:
+  - "my tasks for project MedCad" → category: "tasks", assignee_scope: "me", project: "MedCad"
   - "how many hours did I log last week" → category: "time", assignee_scope: "me", date_range_start/end: last week
   - "John's overdue tasks" → category: "tasks", employee: "John", status: "overdue"
   - "what do the messages on Project X say" → category: "messages", query: "Project X"
