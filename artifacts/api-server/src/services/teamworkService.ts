@@ -165,6 +165,10 @@ export interface TeamworkQueryOptions {
   dateTo?: string;
   /** For time: only billable entries. */
   billableOnly?: boolean;
+  /** Project name to scope tasks/time to (LLM-provided); resolved to projectId. */
+  project?: string;
+  /** Resolved Teamwork project id (internal). */
+  projectId?: number;
   /** Optional free-text search keywords (LLM-provided). */
   searchText?: string;
 }
@@ -210,6 +214,29 @@ async function resolveTeamworkPerson(siteUrl: string, apiToken: string, term: st
     console.error("Teamwork person lookup failed:", (err as Error).message);
     return { matches: [], lookupSucceeded: false };
   }
+}
+
+type ResolvedProject = { id: number; name: string } | { notFound: true } | { ambiguous: string[] };
+
+/** Resolves a project name to a Teamwork project id (tasks/time are filtered by id, not name). */
+async function resolveTeamworkProject(siteUrl: string, apiToken: string, term: string): Promise<ResolvedProject> {
+  const client = createClient(siteUrl, apiToken);
+  const response = await client.get("/projects/api/v3/projects.json", {
+    params: { searchTerm: term, pageSize: 25 },
+  });
+  const projects = (response.data?.projects || []) as Record<string, unknown>[];
+  const mapped = projects
+    .map((p) => ({ id: (p.id as number) || 0, name: (p.name as string) || "" }))
+    .filter((p) => p.id > 0);
+  if (mapped.length === 0) return { notFound: true };
+
+  const lowered = term.toLowerCase();
+  const exact = mapped.filter((p) => p.name.toLowerCase() === lowered);
+  if (exact.length === 1) return exact[0];
+  const contains = mapped.filter((p) => p.name.toLowerCase().includes(lowered));
+  if (contains.length === 1) return contains[0];
+  if (contains.length === 0) return { notFound: true };
+  return { ambiguous: contains.slice(0, 5).map((p) => p.name) };
 }
 
 function isValidTeamworkUrl(url: string): boolean {
@@ -298,6 +325,7 @@ function buildTaskParams(
   if (opts.dateFrom) params["dueDateFrom"] = opts.dateFrom;
   if (opts.dateTo) params["dueDateTo"] = opts.dateTo;
 
+  if (opts.projectId) params["projectIds"] = opts.projectId;
   if (opts.searchText) params["searchTerm"] = opts.searchText;
 
   return params;
@@ -474,6 +502,7 @@ async function fetchTimeEntries(siteUrl: string, apiToken: string, opts: Teamwor
   }
   if (opts.dateFrom) params["startDate"] = opts.dateFrom;
   if (opts.dateTo) params["endDate"] = opts.dateTo;
+  if (opts.projectId) params["projectIds"] = opts.projectId;
 
   const response = await client.get("/projects/api/v3/time.json", { params });
   const entries = response.data?.timelogs || [];
@@ -687,6 +716,18 @@ export async function queryTeamwork(query: string, userId?: number, opts?: Teamw
     }
     employeePersonId = matches[0].id;
     employeeContext = matches[0].displayName || matches[0].email || term;
+  }
+
+  if (opts?.project && opts.project.trim()) {
+    const term = opts.project.trim();
+    const resolved = await resolveTeamworkProject(siteUrl, apiToken, term);
+    if ("notFound" in resolved) {
+      return { source: "live", type: category, data: [], total: 0, instanceUrl: siteUrl, employeeMessage: `No Teamwork project matched "${term}".` };
+    }
+    if ("ambiguous" in resolved) {
+      return { source: "live", type: category, data: [], total: 0, instanceUrl: siteUrl, employeeMessage: `Multiple Teamwork projects matched "${term}": ${resolved.ambiguous.join(", ")}. Please be more specific.` };
+    }
+    effectiveOpts.projectId = resolved.id;
   }
 
   try {
