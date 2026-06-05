@@ -1,5 +1,5 @@
 import { getUserCredentials } from "../lib/credential-store";
-import { queryZohoPeople, formatPeopleResult } from "./zohoPeopleService";
+import { queryZohoPeople, formatPeopleResult, type PeopleSubIntent } from "./zohoPeopleService";
 import { queryZohoCrm, formatCrmResult, type CrmSearchOptions } from "./zohoCrmService";
 import { queryZohoRecruit, formatRecruitResult, type RecruitSearchOptions } from "./zohoRecruitService";
 import { queryZohoContracts, formatContractsResult, ContractsSearchOptions } from "./zohoContractsService";
@@ -79,7 +79,7 @@ async function handlePermissionError(
 export async function queryZohoPeopleDirect(
   query: string,
   userId?: number,
-  opts?: { employee?: string },
+  opts?: { employee?: string; subIntent?: PeopleSubIntent; period?: string },
 ): Promise<ZohoDirectResult> {
   if (!userId) {
     return {
@@ -94,7 +94,7 @@ export async function queryZohoPeopleDirect(
   const { refreshToken, clientId, clientSecret, accountsDomain } = credsOrError;
 
   try {
-    const result = await queryZohoPeople(query, clientId, clientSecret, refreshToken, accountsDomain, opts?.employee);
+    const result = await queryZohoPeople(query, clientId, clientSecret, refreshToken, accountsDomain, opts?.employee, opts?.subIntent, opts?.period);
     return { reply: formatPeopleResult(result, query), source: "live" };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

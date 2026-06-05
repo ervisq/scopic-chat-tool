@@ -35,87 +35,48 @@ function escapeOData(value: string): string {
   return value.replace(/'/g, "''");
 }
 
-function getDateRangeFilter(query: string): string | null {
-  const lower = query.toLowerCase();
-  const now = new Date();
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-  if (lower.includes("today")) {
-    return `receivedDateTime ge ${startOfDay.toISOString()}`;
-  }
-
-  if (lower.includes("yesterday")) {
-    const yesterday = new Date(startOfDay);
-    yesterday.setDate(yesterday.getDate() - 1);
-    return `receivedDateTime ge ${yesterday.toISOString()} and receivedDateTime lt ${startOfDay.toISOString()}`;
-  }
-
-  if (lower.includes("this week") || lower.includes("past week") || lower.includes("last 7 days")) {
-    const weekAgo = new Date(startOfDay);
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    return `receivedDateTime ge ${weekAgo.toISOString()}`;
-  }
-
-  if (lower.includes("last week")) {
-    const dayOfWeek = now.getDay();
-    const thisMonday = new Date(startOfDay);
-    thisMonday.setDate(thisMonday.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
-    const lastMonday = new Date(thisMonday);
-    lastMonday.setDate(lastMonday.getDate() - 7);
-    return `receivedDateTime ge ${lastMonday.toISOString()} and receivedDateTime lt ${thisMonday.toISOString()}`;
-  }
-
-  if (lower.includes("this month") || lower.includes("past month") || lower.includes("last 30 days")) {
-    const monthAgo = new Date(startOfDay);
-    monthAgo.setDate(monthAgo.getDate() - 30);
-    return `receivedDateTime ge ${monthAgo.toISOString()}`;
-  }
-
-  if (lower.includes("last month")) {
-    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    return `receivedDateTime ge ${lastMonthStart.toISOString()} and receivedDateTime lt ${thisMonthStart.toISOString()}`;
-  }
-
-  return null;
+export interface MailQueryOptions {
+  dateFrom?: string;
+  dateTo?: string;
+  unreadOnly?: boolean;
+  fromSender?: string;
+  hasAttachments?: boolean;
+  /** Free-text keywords to search for (LLM-provided). */
+  searchText?: string;
 }
 
-function buildSearchFilter(query: string): { filter?: string; search?: string; top: number } {
-  const lower = query.toLowerCase();
+/**
+ * Builds the Graph request purely from structured LLM-provided filters.
+ * Note: Graph cannot combine $filter and $search on /messages, so when any
+ * structured filter is present we use $filter and ignore free-text search.
+ */
+function buildMailRequest(opts: MailQueryOptions): { filter?: string; search?: string; top: number } {
   const top = 20;
+  const clauses: string[] = [];
 
-  const fromMatch = lower.match(/from\s+(\S+@\S+)/);
-  if (fromMatch) {
-    const dateFilter = getDateRangeFilter(query);
-    const fromFilter = `from/emailAddress/address eq '${escapeOData(fromMatch[1])}'`;
-    return { filter: dateFilter ? `${fromFilter} and ${dateFilter}` : fromFilter, top };
+  if (opts.fromSender) {
+    clauses.push(`from/emailAddress/address eq '${escapeOData(opts.fromSender)}'`);
+  }
+  if (opts.unreadOnly) {
+    clauses.push("isRead eq false");
+  }
+  if (opts.hasAttachments) {
+    clauses.push("hasAttachments eq true");
+  }
+  if (opts.dateFrom) {
+    clauses.push(`receivedDateTime ge ${escapeOData(opts.dateFrom)}T00:00:00Z`);
+  }
+  if (opts.dateTo) {
+    clauses.push(`receivedDateTime le ${escapeOData(opts.dateTo)}T23:59:59Z`);
   }
 
-  if (lower.includes("unread")) {
-    const dateFilter = getDateRangeFilter(query);
-    const unreadFilter = "isRead eq false";
-    return { filter: dateFilter ? `${unreadFilter} and ${dateFilter}` : unreadFilter, top };
+  if (clauses.length > 0) {
+    return { filter: clauses.join(" and "), top };
   }
 
-  if (lower.includes("attachment") || lower.includes("attached")) {
-    const dateFilter = getDateRangeFilter(query);
-    const attachFilter = "hasAttachments eq true";
-    return { filter: dateFilter ? `${attachFilter} and ${dateFilter}` : attachFilter, top };
-  }
-
-  const dateFilter = getDateRangeFilter(query);
-  if (dateFilter) {
-    return { filter: dateFilter, top };
-  }
-
-  const subjectMatch = lower.match(/subject[:\s]+["']?([^"']+)["']?/);
-  if (subjectMatch) {
-    return { search: `"subject:${escapeOData(subjectMatch[1].trim())}"`, top };
-  }
-
-  const cleanQuery = query.replace(/^(search|find|show|get|list|my|recent|latest|emails?|mail)\s*/i, "").trim();
-  if (cleanQuery.length > 2) {
-    return { search: `"${escapeOData(cleanQuery)}"`, top };
+  const text = opts.searchText?.trim();
+  if (text && text.length > 2) {
+    return { search: `"${escapeOData(text)}"`, top };
   }
 
   return { top: 15 };
@@ -125,8 +86,10 @@ export async function queryOutlookMail(
   client: Client,
   userEmail: string,
   query: string,
+  opts: MailQueryOptions = {},
 ): Promise<OutlookMailResult> {
-  const { filter, search, top } = buildSearchFilter(query);
+  void query;
+  const { filter, search, top } = buildMailRequest(opts);
 
   let request = client
     .api(`/users/${userEmail}/messages`)

@@ -21,7 +21,7 @@ export function useChat() {
   const sendMessage = useCallback(
     (text: string) => {
       const userMessage: Message = {
-        id: crypto.randomUUID(),
+        id: self.crypto.randomUUID?.() ?? Math.random().toString(36).slice(2) + Date.now().toString(36),
         text,
         sender: "user",
         timestamp: new Date(),
@@ -44,7 +44,7 @@ export function useChat() {
           onSuccess: (response) => {
             const botToolName = response.toolCommand?.tool;
             const botMessage: Message = {
-              id: crypto.randomUUID(),
+              id: self.crypto.randomUUID?.() ?? Math.random().toString(36).slice(2) + Date.now().toString(36),
               text: response.reply,
               sender: "bot",
               timestamp: response.timestamp
@@ -65,7 +65,7 @@ export function useChat() {
           onError: (error) => {
             console.error("Failed to send message:", error);
             const errorMessage: Message = {
-              id: crypto.randomUUID(),
+              id: self.crypto.randomUUID?.() ?? Math.random().toString(36).slice(2) + Date.now().toString(36),
               text: "Sorry, I encountered an error trying to process that message.",
               sender: "bot",
               timestamp: new Date(),

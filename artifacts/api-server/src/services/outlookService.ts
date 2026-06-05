@@ -6,43 +6,24 @@ import { db } from "@workspace/db";
 import { users } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 
-type OutlookCategory = "mail" | "calendar" | "contacts";
+export type OutlookCategory = "mail" | "calendar" | "contacts";
+
+/** All Outlook decisions come from the LLM router; nothing is parsed from the message. */
+export interface OutlookQueryOptions {
+  category?: OutlookCategory;
+  /** YYYY-MM-DD, LLM-resolved. */
+  dateFrom?: string;
+  dateTo?: string;
+  /** mail filters */
+  unreadOnly?: boolean;
+  fromSender?: string;
+  hasAttachments?: boolean;
+  /** calendar: compute free/available slots instead of listing events */
+  freeTime?: boolean;
+}
 
 const verifiedMailboxes = new Map<string, { verified: boolean; expiresAt: number }>();
 const MAILBOX_CACHE_TTL_MS = 30 * 60 * 1000;
-
-function detectCategory(query: string): OutlookCategory {
-  const lower = query.toLowerCase();
-
-  if (
-    lower.includes("calendar") ||
-    lower.includes("meeting") ||
-    lower.includes("schedule") ||
-    lower.includes("event") ||
-    lower.includes("appointment") ||
-    lower.includes("busy") ||
-    lower.includes("free time") ||
-    lower.includes("free slot") ||
-    lower.includes("availability") ||
-    lower.includes("today's agenda") ||
-    lower.includes("agenda")
-  ) {
-    return "calendar";
-  }
-
-  if (
-    lower.includes("contact") ||
-    lower.includes("phone") ||
-    lower.includes("address book") ||
-    lower.includes("phone number") ||
-    lower.includes("find person") ||
-    lower.includes("look up person")
-  ) {
-    return "contacts";
-  }
-
-  return "mail";
-}
 
 async function getUserEmail(userId: number): Promise<string | null> {
   const [user] = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).limit(1);
@@ -73,6 +54,7 @@ async function verifyMailboxExists(email: string): Promise<boolean> {
 export async function queryOutlookDirect(
   query: string,
   userId: number,
+  opts: OutlookQueryOptions = {},
 ): Promise<{ reply: string }> {
   if (!isGraphConfigured()) {
     return { reply: "Microsoft Outlook integration is not configured on this server. Server admin needs to set MICROSOFT_TENANT_ID, MICROSOFT_CLIENT_ID, and MICROSOFT_CLIENT_SECRET." };
@@ -90,11 +72,15 @@ export async function queryOutlookDirect(
     }
 
     const client = getGraphClient();
-    const category = detectCategory(query);
+    const category = opts.category || "mail";
 
     switch (category) {
       case "calendar": {
-        const result = await queryOutlookCalendar(client, userEmail, query);
+        const result = await queryOutlookCalendar(client, userEmail, query, {
+          dateFrom: opts.dateFrom,
+          dateTo: opts.dateTo,
+          freeTime: opts.freeTime,
+        });
         return { reply: formatCalendarResult(result, query) };
       }
       case "contacts": {
@@ -103,7 +89,14 @@ export async function queryOutlookDirect(
       }
       case "mail":
       default: {
-        const result = await queryOutlookMail(client, userEmail, query);
+        const result = await queryOutlookMail(client, userEmail, query, {
+          dateFrom: opts.dateFrom,
+          dateTo: opts.dateTo,
+          unreadOnly: opts.unreadOnly,
+          fromSender: opts.fromSender,
+          hasAttachments: opts.hasAttachments,
+          searchText: query,
+        });
         return { reply: formatMailResult(result, query) };
       }
     }

@@ -125,8 +125,17 @@ export interface TeamworkActivity {
   itemLink: string;
 }
 
-type TeamworkData = TeamworkTask[] | TeamworkProject[] | TeamworkTaskList[] | TeamworkMilestone[] | TeamworkTimeEntry[] | TeamworkPerson[] | TeamworkTeam[] | TeamworkComment[] | TeamworkTag[] | TeamworkActivity[];
-type ResultType = "tasks" | "projects" | "tasklists" | "milestones" | "time" | "people" | "teams" | "comments" | "tags" | "activity";
+export interface TeamworkMessage {
+  id: number;
+  title: string;
+  body: string;
+  author: string;
+  postedAt: string;
+  projectName: string;
+}
+
+type TeamworkData = TeamworkTask[] | TeamworkProject[] | TeamworkTaskList[] | TeamworkMilestone[] | TeamworkTimeEntry[] | TeamworkPerson[] | TeamworkTeam[] | TeamworkComment[] | TeamworkMessage[] | TeamworkTag[] | TeamworkActivity[];
+type ResultType = "tasks" | "projects" | "tasklists" | "milestones" | "time" | "people" | "teams" | "comments" | "messages" | "tags" | "activity";
 
 export interface TeamworkServiceResult {
   source: "live" | "not_connected" | "error";
@@ -139,8 +148,25 @@ export interface TeamworkServiceResult {
   employeeMessage?: string;
 }
 
+export type TeamworkCategory = ResultType;
+
 export interface TeamworkQueryOptions {
   employee?: string;
+  /** Which kind of Teamwork data to fetch (LLM-provided). Defaults to "tasks". */
+  category?: TeamworkCategory;
+  /** For tasks/time: whose items to return (LLM-provided). */
+  assigneeScope?: "me" | "all" | "unassigned";
+  /** For tasks: status filter (LLM-provided). */
+  status?: "active" | "completed" | "overdue" | "all";
+  /** For tasks: priority filter (LLM-provided). */
+  priority?: "high" | "medium" | "low" | "all";
+  /** Date range (YYYY-MM-DD), LLM-resolved. For time = log date; for tasks = due date. */
+  dateFrom?: string;
+  dateTo?: string;
+  /** For time: only billable entries. */
+  billableOnly?: boolean;
+  /** Optional free-text search keywords (LLM-provided). */
+  searchText?: string;
 }
 
 interface ResolvedTeamworkPerson {
@@ -216,41 +242,6 @@ function createClient(siteUrl: string, accessToken: string) {
   });
 }
 
-type QueryCategory = "tasks" | "projects" | "tasklists" | "milestones" | "time" | "people" | "teams" | "comments" | "tags" | "activity";
-
-function detectCategory(query: string): QueryCategory {
-  const lower = query.toLowerCase();
-
-  if (lower.includes("comment") || lower.includes("discussion") || lower.includes("note on task") || lower.includes("reply") || lower.includes("feedback on")) {
-    return "comments";
-  }
-  if (lower.includes("tag") || lower.includes("label") || lower.includes("category")) {
-    return "tags";
-  }
-  if (lower.includes("activity") || lower.includes("recent changes") || lower.includes("what happened") || lower.includes("history") || lower.includes("changelog")) {
-    return "activity";
-  }
-  if (lower.includes("time") || lower.includes("hour") || lower.includes("log") || lower.includes("timesheet") || lower.includes("tracked") || lower.includes("billable")) {
-    return "time";
-  }
-  if (lower.includes("milestone") || lower.includes("deadline")) {
-    return "milestones";
-  }
-  if (lower.includes("task list") || lower.includes("tasklist") || lower.includes("list of task")) {
-    return "tasklists";
-  }
-  if (lower.includes("team") && !lower.includes("task") && !lower.includes("project") && !lower.includes("teamwork")) {
-    return "teams";
-  }
-  if (lower.includes("project update") || lower.includes("project status") || lower.includes("project") || lower.includes("workspace")) {
-    return "projects";
-  }
-  if (lower.includes("people") || lower.includes("team member") || lower.includes("teammate") || lower.includes("person") || lower.includes("coworker") || lower.includes("who is") || lower.includes("who are") || lower.includes("staff") || lower.includes("employee") || lower.includes("contact")) {
-    return "people";
-  }
-  return "tasks";
-}
-
 async function fetchCurrentUserId(siteUrl: string, apiToken: string): Promise<number | null> {
   try {
     const client = createClient(siteUrl, apiToken);
@@ -266,105 +257,48 @@ async function fetchCurrentUserId(siteUrl: string, apiToken: string): Promise<nu
   }
 }
 
-function extractAssigneeFilter(query: string): string | null {
-  const lower = query.toLowerCase();
-  const assignedToMatch = lower.match(/assigned\s+to\s+["']?([^"',]+)["']?/);
-  if (assignedToMatch) return assignedToMatch[1].trim();
-  const byMatch = lower.match(/(?:tasks?\s+(?:for|by))\s+["']?([^"',]+)["']?/);
-  if (byMatch) return byMatch[1].trim();
-  return null;
-}
-
-function extractDueDateFilter(query: string): { startDate?: string; endDate?: string } {
-  const lower = query.toLowerCase();
-  const today = new Date();
-  const fmt = (d: Date) => d.toISOString().split("T")[0];
-
-  if (lower.includes("due today")) {
-    const d = fmt(today);
-    return { startDate: d, endDate: d };
-  }
-  if (lower.includes("due this week") || lower.includes("this week")) {
-    const end = new Date(today);
-    end.setDate(today.getDate() + (7 - today.getDay()));
-    return { startDate: fmt(today), endDate: fmt(end) };
-  }
-  if (lower.includes("due this month") || lower.includes("this month")) {
-    const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-    return { startDate: fmt(today), endDate: fmt(end) };
-  }
-  if (lower.includes("due next week") || lower.includes("next week")) {
-    const start = new Date(today);
-    start.setDate(today.getDate() + (7 - today.getDay()) + 1);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    return { startDate: fmt(start), endDate: fmt(end) };
-  }
-
-  const dateMatch = lower.match(/due\s+(?:before|by)\s+(\d{4}-\d{2}-\d{2})/);
-  if (dateMatch) {
-    return { endDate: dateMatch[1] };
-  }
-  const afterMatch = lower.match(/due\s+after\s+(\d{4}-\d{2}-\d{2})/);
-  if (afterMatch) {
-    return { startDate: afterMatch[1] };
-  }
-
-  return {};
-}
-
-function buildTaskParams(query: string, currentUserId?: number | null, employeePersonId?: number): Record<string, string | number | boolean> {
-  const lower = query.toLowerCase();
+/** Builds Teamwork task query params purely from structured LLM-provided filters. */
+function buildTaskParams(
+  opts: TeamworkQueryOptions,
+  currentUserId?: number | null,
+  employeePersonId?: number,
+): Record<string, string | number | boolean> {
   const params: Record<string, string | number | boolean> = {
     pageSize: 25,
     include: "projects,assignees,taskLists,tags",
+    orderBy: "dueDate",
+    orderMode: "asc",
   };
 
   if (employeePersonId) {
     params["responsiblePartyIds"] = employeePersonId;
-  } else if (lower.includes("my") || lower.includes("assigned to me")) {
+  } else if (opts.assigneeScope === "me") {
     if (currentUserId) {
       params["responsiblePartyIds"] = currentUserId;
     } else {
       params["assignedToMe"] = true;
     }
-  } else {
-    const assignee = extractAssigneeFilter(query);
-    if (assignee && assignee !== "me") {
-      params["searchAssignees"] = assignee;
-    }
   }
+  // "unassigned" / "all" need no special param beyond the defaults.
 
-  if (lower.includes("completed") || lower.includes("done") || lower.includes("closed")) {
+  if (opts.status === "completed") {
     params["includeCompletedTasks"] = true;
     params["completedOnly"] = true;
-  } else if (lower.includes("overdue") || lower.includes("late")) {
+  } else if (opts.status === "overdue") {
     params["includeOverdueTasks"] = true;
     params["overdueOnly"] = true;
-  } else if (lower.includes("active") || lower.includes("open") || lower.includes("in progress")) {
+  } else if (opts.status === "active") {
     params["includeCompletedTasks"] = false;
   }
 
-  if (lower.includes("latest") || lower.includes("recent")) {
-    params["orderBy"] = "updatedAt";
-    params["orderMode"] = "desc";
+  if (opts.priority && opts.priority !== "all") {
+    params["priority"] = opts.priority;
   }
 
-  if (lower.includes("high priority") || lower.includes("urgent") || lower.includes("critical")) {
-    params["priority"] = "high";
-  } else if (lower.includes("medium priority")) {
-    params["priority"] = "medium";
-  } else if (lower.includes("low priority")) {
-    params["priority"] = "low";
-  }
+  if (opts.dateFrom) params["dueDateFrom"] = opts.dateFrom;
+  if (opts.dateTo) params["dueDateTo"] = opts.dateTo;
 
-  const dueDateFilter = extractDueDateFilter(query);
-  if (dueDateFilter.startDate) {
-    params["dueDateFrom"] = dueDateFilter.startDate;
-  }
-  if (dueDateFilter.endDate) {
-    params["dueDateTo"] = dueDateFilter.endDate;
-  }
+  if (opts.searchText) params["searchTerm"] = opts.searchText;
 
   return params;
 }
@@ -418,9 +352,9 @@ function mapTeamworkComment(c: Record<string, unknown>): TeamworkComment {
   };
 }
 
-async function fetchTasks(siteUrl: string, apiToken: string, query: string, currentUserId?: number | null, employeePersonId?: number): Promise<TeamworkServiceResult> {
+async function fetchTasks(siteUrl: string, apiToken: string, opts: TeamworkQueryOptions, currentUserId?: number | null, employeePersonId?: number): Promise<TeamworkServiceResult> {
   const client = createClient(siteUrl, apiToken);
-  const params = buildTaskParams(query, currentUserId, employeePersonId);
+  const params = buildTaskParams(opts, currentUserId, employeePersonId);
 
   const response = await client.get("/projects/api/v3/tasks.json", { params });
   const tasks = response.data?.tasks || [];
@@ -430,23 +364,19 @@ async function fetchTasks(siteUrl: string, apiToken: string, query: string, curr
   return { source: "live", type: "tasks", data: mapped, total: mapped.length };
 }
 
-async function fetchProjects(siteUrl: string, apiToken: string, query: string): Promise<TeamworkServiceResult> {
+async function fetchProjects(siteUrl: string, apiToken: string, opts: TeamworkQueryOptions): Promise<TeamworkServiceResult> {
   const client = createClient(siteUrl, apiToken);
-  const lower = query.toLowerCase();
   const params: Record<string, string | number | boolean> = {
     pageSize: 25,
     include: "companies,tags",
+    orderBy: "lastActivityAt",
+    orderMode: "desc",
   };
 
-  if (lower.includes("active") || lower.includes("current")) {
+  if (opts.status === "active") {
     params["status"] = "active";
-  } else if (lower.includes("completed") || lower.includes("archived")) {
+  } else if (opts.status === "completed") {
     params["status"] = "completed";
-  }
-
-  if (lower.includes("recent") || lower.includes("update") || lower.includes("latest")) {
-    params["orderBy"] = "lastActivityAt";
-    params["orderMode"] = "desc";
   }
 
   const response = await client.get("/projects/api/v3/projects.json", { params });
@@ -526,27 +456,29 @@ async function fetchMilestones(siteUrl: string, apiToken: string): Promise<Teamw
   return { source: "live", type: "milestones", data: mapped, total: mapped.length };
 }
 
-async function fetchTimeEntries(siteUrl: string, apiToken: string, query: string, employeePersonId?: number): Promise<TeamworkServiceResult> {
+async function fetchTimeEntries(siteUrl: string, apiToken: string, opts: TeamworkQueryOptions, employeePersonId?: number): Promise<TeamworkServiceResult> {
   const client = createClient(siteUrl, apiToken);
-  const lower = query.toLowerCase();
+  // Larger page so hour totals over a date range are accurate (not capped at 25).
   const params: Record<string, string | number | boolean> = {
-    pageSize: 25,
+    pageSize: 500,
     include: "tags",
   };
 
   if (employeePersonId) {
     params["userIds"] = employeePersonId;
-  } else if (lower.includes("my") || lower.includes("mine")) {
+  } else if (opts.assigneeScope === "me") {
     params["assignedToMe"] = true;
   }
-  if (lower.includes("billable")) {
+  if (opts.billableOnly) {
     params["isBillable"] = true;
   }
+  if (opts.dateFrom) params["startDate"] = opts.dateFrom;
+  if (opts.dateTo) params["endDate"] = opts.dateTo;
 
   const response = await client.get("/projects/api/v3/time.json", { params });
   const entries = response.data?.timelogs || [];
 
-  const mapped: TeamworkTimeEntry[] = entries.slice(0, 25).map((e: Record<string, unknown>) => {
+  const mapped: TeamworkTimeEntry[] = entries.slice(0, 500).map((e: Record<string, unknown>) => {
     const project = e.project as Record<string, unknown> | undefined;
     const task = e.task as Record<string, unknown> | undefined;
     const person = e.user as Record<string, unknown> | undefined;
@@ -630,6 +562,30 @@ async function fetchComments(siteUrl: string, apiToken: string): Promise<Teamwor
   return { source: "live", type: "comments", data: mapped, total: mapped.length };
 }
 
+async function fetchMessages(siteUrl: string, apiToken: string): Promise<TeamworkServiceResult> {
+  const client = createClient(siteUrl, apiToken);
+  const response = await client.get("/projects/api/v3/messages.json", {
+    params: { pageSize: 25, orderBy: "createdAt", orderMode: "desc", include: "projects" },
+  });
+  const messages = response.data?.messages || response.data?.posts || [];
+
+  const mapped: TeamworkMessage[] = messages.slice(0, 25).map((m: Record<string, unknown>) => {
+    const project = m.project as Record<string, unknown> | undefined;
+    const author = (m.author || m.postedBy || m.createdBy) as Record<string, unknown> | undefined;
+    const rawBody = (m.body as string) || (m.htmlBody as string) || (m.contents as string) || "";
+    return {
+      id: (m.id as number) || 0,
+      title: (m.title as string) || (m.subject as string) || "Untitled",
+      body: rawBody.replace(/<[^>]+>/g, "").trim(),
+      author: author ? extractPersonName(author) : "",
+      postedAt: (m.postedDateTime as string) || (m.createdAt as string) || "",
+      projectName: (project?.name as string) || "",
+    };
+  });
+
+  return { source: "live", type: "messages", data: mapped, total: mapped.length };
+}
+
 async function fetchTags(siteUrl: string, apiToken: string): Promise<TeamworkServiceResult> {
   const client = createClient(siteUrl, apiToken);
   const response = await client.get("/projects/api/v3/tags.json", {
@@ -706,9 +662,12 @@ export async function queryTeamwork(query: string, userId?: number, opts?: Teamw
     return { source: "error", type: "tasks", data: [], total: 0, message: "Invalid Teamwork site URL" };
   }
 
-  const category = detectCategory(query);
-  const lower = query.toLowerCase();
-  const needsMyUserId = category === "tasks" && (lower.includes("my") || lower.includes("assigned to me"));
+  const category: TeamworkCategory = opts?.category || "tasks";
+  const effectiveOpts: TeamworkQueryOptions = {
+    ...opts,
+    searchText: (query || "").trim() || undefined,
+  };
+  const needsMyUserId = category === "tasks" && opts?.assigneeScope === "me";
   const currentUserId = needsMyUserId ? await fetchCurrentUserId(siteUrl, apiToken) : null;
 
   let employeePersonId: number | undefined;
@@ -734,7 +693,7 @@ export async function queryTeamwork(query: string, userId?: number, opts?: Teamw
     let result: TeamworkServiceResult;
     switch (category) {
       case "projects":
-        result = await fetchProjects(siteUrl, apiToken, query);
+        result = await fetchProjects(siteUrl, apiToken, effectiveOpts);
         break;
       case "tasklists":
         result = await fetchTaskLists(siteUrl, apiToken);
@@ -743,7 +702,7 @@ export async function queryTeamwork(query: string, userId?: number, opts?: Teamw
         result = await fetchMilestones(siteUrl, apiToken);
         break;
       case "time":
-        result = await fetchTimeEntries(siteUrl, apiToken, query, employeePersonId);
+        result = await fetchTimeEntries(siteUrl, apiToken, effectiveOpts, employeePersonId);
         break;
       case "people":
         result = await fetchPeople(siteUrl, apiToken);
@@ -754,6 +713,9 @@ export async function queryTeamwork(query: string, userId?: number, opts?: Teamw
       case "comments":
         result = await fetchComments(siteUrl, apiToken);
         break;
+      case "messages":
+        result = await fetchMessages(siteUrl, apiToken);
+        break;
       case "tags":
         result = await fetchTags(siteUrl, apiToken);
         break;
@@ -762,7 +724,7 @@ export async function queryTeamwork(query: string, userId?: number, opts?: Teamw
         break;
       case "tasks":
       default:
-        result = await fetchTasks(siteUrl, apiToken, query, currentUserId, employeePersonId);
+        result = await fetchTasks(siteUrl, apiToken, effectiveOpts, currentUserId, employeePersonId);
         break;
     }
     result.instanceUrl = siteUrl;
@@ -925,6 +887,18 @@ export function formatTeamworkResult(result: TeamworkServiceResult, query: strin
         return line;
       });
       return `Teamwork comments (${result.total} found):\n${lines.join("\n")}\n\nQuery: "${query}"`;
+    }
+    case "messages": {
+      const messages = result.data as TeamworkMessage[];
+      const lines = messages.map((m) => {
+        let line = `• ${m.title}`;
+        if (m.author) line += ` — ${m.author}`;
+        if (m.postedAt) line += ` (${m.postedAt})`;
+        if (m.projectName) line += ` | ${m.projectName}`;
+        if (m.body) line += `\n  ${m.body.substring(0, 300)}${m.body.length > 300 ? "..." : ""}`;
+        return line;
+      });
+      return `Teamwork messages (${result.total} found):\n${lines.join("\n")}\n\nQuery: "${query}"`;
     }
     case "tags": {
       const tags = result.data as TeamworkTag[];

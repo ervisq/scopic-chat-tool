@@ -1,7 +1,18 @@
-import { queryJira, formatJiraResult } from "../services/jiraService";
+import { queryJira, formatJiraResult, type JiraQueryOptions } from "../services/jiraService";
 import { queryZohoPeopleDirect, queryZohoCrmDirect, queryZohoRecruitDirect, queryZohoContractsDirect } from "../services/zohoService";
+import type { PeopleSubIntent } from "../services/zohoPeopleService";
+
+const PEOPLE_SUB_INTENTS: ReadonlySet<string> = new Set([
+  "employee_detail", "directory", "birthdays", "anniversaries", "new_joiners",
+  "leave_today", "leave", "attendance", "departments", "timesheets", "headcount", "manager",
+]);
 import { querySts, formatStsResult } from "../services/stsService";
-import { queryTeamwork, formatTeamworkResult } from "../services/teamworkService";
+import { queryTeamwork, formatTeamworkResult, type TeamworkQueryOptions, type TeamworkCategory } from "../services/teamworkService";
+
+const TEAMWORK_CATEGORIES: ReadonlySet<string> = new Set([
+  "tasks", "projects", "milestones", "tasklists", "time",
+  "teams", "people", "comments", "messages", "tags", "activity",
+]);
 import { queryOutlookDirect } from "../services/outlookService";
 
 export interface ToolResult {
@@ -30,30 +41,61 @@ async function stsHandler(args: Record<string, unknown>, userId: number): Promis
 }
 
 async function jiraHandler(args: Record<string, unknown>, userId: number): Promise<ToolResult> {
-  const query = (args.query as string) || "my tickets";
+  const query = (args.query as string) || "";
   const employee = (args.employee as string) || undefined;
   const assignee = (args.assignee as string) || undefined;
-  const result = await queryJira(query, userId, { employee, assignee });
-  return { reply: formatJiraResult(result, query) };
+  const status = args.status as JiraQueryOptions["status"];
+  const priority = args.priority as JiraQueryOptions["priority"];
+  const result = await queryJira(query, userId, { employee, assignee, status, priority });
+  return { reply: formatJiraResult(result, query || "your request") };
 }
 
 async function teamworkHandler(args: Record<string, unknown>, userId: number): Promise<ToolResult> {
-  const query = (args.query as string) || "my tasks";
+  const query = (args.query as string) || "";
   const employee = (args.employee as string) || undefined;
-  const result = await queryTeamwork(query, userId, { employee });
-  return { reply: formatTeamworkResult(result, query) };
+  const rawCategory = args.category as string | undefined;
+  const category = rawCategory && TEAMWORK_CATEGORIES.has(rawCategory)
+    ? (rawCategory as TeamworkCategory)
+    : undefined;
+  const assigneeScope = args.assignee_scope as TeamworkQueryOptions["assigneeScope"];
+  const status = args.status as TeamworkQueryOptions["status"];
+  const priority = args.priority as TeamworkQueryOptions["priority"];
+  const dateFrom = (args.date_range_start as string) || undefined;
+  const dateTo = (args.date_range_end as string) || undefined;
+  const billableOnly = (args.billable_only as boolean) || undefined;
+  const result = await queryTeamwork(query, userId, {
+    employee, category, assigneeScope, status, priority, dateFrom, dateTo, billableOnly,
+  });
+  return { reply: formatTeamworkResult(result, query || "your request") };
 }
 
 async function outlookHandler(args: Record<string, unknown>, userId: number): Promise<ToolResult> {
-  const query = (args.query as string) || "recent emails";
-  const result = await queryOutlookDirect(query, userId);
+  const query = (args.query as string) || "";
+  const rawCategory = args.category as string | undefined;
+  const category = rawCategory === "calendar" || rawCategory === "contacts" || rawCategory === "mail"
+    ? rawCategory
+    : undefined;
+  const result = await queryOutlookDirect(query, userId, {
+    category,
+    dateFrom: (args.date_range_start as string) || undefined,
+    dateTo: (args.date_range_end as string) || undefined,
+    unreadOnly: (args.unread_only as boolean) || undefined,
+    fromSender: (args.from_sender as string) || undefined,
+    hasAttachments: (args.has_attachments as boolean) || undefined,
+    freeTime: (args.free_time as boolean) || undefined,
+  });
   return { reply: result.reply };
 }
 
 async function zohoPeopleHandler(args: Record<string, unknown>, userId: number): Promise<ToolResult> {
   const employee = (args.employee as string) || undefined;
   const query = (args.query as string) || (employee ? `info about ${employee}` : "employee list");
-  const result = await queryZohoPeopleDirect(query, userId, { employee });
+  const rawSubIntent = args.sub_intent as string | undefined;
+  const subIntent = rawSubIntent && PEOPLE_SUB_INTENTS.has(rawSubIntent)
+    ? (rawSubIntent as PeopleSubIntent)
+    : undefined;
+  const period = (args.period as string) || undefined;
+  const result = await queryZohoPeopleDirect(query, userId, { employee, subIntent, period });
   return { reply: result.reply };
 }
 
