@@ -60,7 +60,12 @@ function parseIssues(issues: any[]): JiraTicket[] {
 
 export interface JiraQueryOptions {
   employee?: string;
+  /** Assignee scope chosen by the LLM: "me" | "all" | "unassigned" | a person's name. */
   assignee?: string;
+  /** Status filter chosen by the LLM. */
+  status?: "open" | "in_progress" | "done" | "all";
+  /** Priority filter chosen by the LLM. */
+  priority?: "high" | "medium" | "low" | "all";
 }
 
 interface JiraUser {
@@ -218,7 +223,7 @@ async function queryJiraOAuth(query: string, cloudId: string, refreshToken: stri
     assigneeContext = resolved.displayName || employeeTerm;
   }
 
-  const jql = buildJql(query, { assigneeAccountId, assigneeMode: opts.assignee });
+  const jql = buildJql({ assigneeAccountId, assigneeMode: opts.assignee, status: opts.status, priority: opts.priority, searchText: query });
 
   const response = await axios.post(
     `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql`,
@@ -269,7 +274,7 @@ async function queryJiraBasicAuth(query: string, instanceUrl: string, email: str
     assigneeContext = resolved.displayName || employeeTerm;
   }
 
-  const jql = buildJql(query, { assigneeAccountId, assigneeMode: opts.assignee });
+  const jql = buildJql({ assigneeAccountId, assigneeMode: opts.assignee, status: opts.status, priority: opts.priority, searchText: query });
 
   const response = await axios.post(
     `${baseUrl}/rest/api/3/search/jql`,
@@ -295,32 +300,62 @@ async function queryJiraBasicAuth(query: string, instanceUrl: string, email: str
   return { tickets, total: tickets.length, source: "live", instanceUrl, employeeContext: assigneeContext };
 }
 
-function buildJql(query: string, opts?: { assigneeAccountId?: string; assigneeMode?: string }): string {
-  const lower = query.toLowerCase();
+/**
+ * Builds JQL purely from structured filters the LLM supplied — no keyword
+ * parsing of the user's message. `searchText` is optional free-text to match.
+ */
+function buildJql(opts: {
+  assigneeAccountId?: string;
+  assigneeMode?: string;
+  status?: string;
+  priority?: string;
+  searchText?: string;
+}): string {
   const clauses: string[] = [];
 
-  if (opts?.assigneeAccountId) {
+  if (opts.assigneeAccountId) {
     clauses.push(`assignee = "${opts.assigneeAccountId}"`);
-  } else if (opts?.assigneeMode === "me" || lower.includes("my") || lower.includes("assigned to me")) {
+  } else if (opts.assigneeMode === "me") {
     clauses.push("assignee = currentUser()");
-  } else if (opts?.assigneeMode === "unassigned") {
+  } else if (opts.assigneeMode === "unassigned") {
     clauses.push("assignee is EMPTY");
   }
 
-  if (lower.includes("done") || lower.includes("completed") || lower.includes("closed")) {
-    clauses.push("status = Done");
-  } else if (lower.includes("in progress")) {
-    clauses.push('status = "In Progress"');
-  } else if (lower.includes("open") || lower.includes("active")) {
-    clauses.push("status != Done");
+  switch (opts.status) {
+    case "done":
+      clauses.push("status = Done");
+      break;
+    case "in_progress":
+      clauses.push('status = "In Progress"');
+      break;
+    case "open":
+      clauses.push("status != Done");
+      break;
+    default:
+      break;
   }
 
-  if (lower.includes("high priority") || lower.includes("urgent")) {
-    clauses.push("priority in (High, Highest)");
+  switch (opts.priority) {
+    case "high":
+      clauses.push("priority in (High, Highest)");
+      break;
+    case "medium":
+      clauses.push("priority = Medium");
+      break;
+    case "low":
+      clauses.push("priority in (Low, Lowest)");
+      break;
+    default:
+      break;
+  }
+
+  const text = opts.searchText?.trim();
+  if (text) {
+    clauses.push(`text ~ "${text.replace(/"/g, '\\"')}"`);
   }
 
   if (clauses.length === 0) {
-    return `text ~ "${query.replace(/"/g, '\\"')}" ORDER BY updated DESC`;
+    return "ORDER BY updated DESC";
   }
   return `${clauses.join(" AND ")} ORDER BY updated DESC`;
 }

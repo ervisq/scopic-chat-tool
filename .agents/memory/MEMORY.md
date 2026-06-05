@@ -1,2 +1,3 @@
 - [Graph path-segment encoding](graph-path-encoding.md) — opaque Microsoft Graph IDs (message ids) must be encodeURIComponent'd before interpolation into `.api()` paths; the SDK does not encode them.
+- [queryZohoPeople routing contract](zoho-people-query-contract.md) — its `query` arg is ignored (`void query`); direct/non-chat callers must pass `subIntent`/`period` or it falls back to `"directory"`.
 - [Gitea auto-sync](gitea-sync.md) — post-merge script pushes merged HEAD to Gitea via GITEA_TOKEN; GitHub origin is divergent/stale so it is NOT the mirror source.

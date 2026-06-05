@@ -47,7 +47,7 @@ export const TOOL_DEFINITIONS: ChatCompletionTool[] = [
           query: {
             type: "string",
             description:
-              "The full natural language query about JIRA data to pass through for processing.",
+              "Optional free-text search keywords ONLY (words to match in ticket summary/description). Leave empty (\"\") when the user is only filtering by assignee/status/priority, e.g. 'my open tickets' or 'high priority bugs'.",
           },
           assignee: {
             type: "string",
@@ -87,7 +87,7 @@ export const TOOL_DEFINITIONS: ChatCompletionTool[] = [
           query: {
             type: "string",
             description:
-              "The full natural language query about Teamwork data.",
+              "Optional free-text search keywords ONLY (e.g. a specific task name, project name, or text to match). Leave empty (\"\") when the user is just listing/filtering, e.g. 'my open tasks' or 'time logged last week'.",
           },
           category: {
             type: "string",
@@ -100,16 +100,48 @@ export const TOOL_DEFINITIONS: ChatCompletionTool[] = [
               "teams",
               "people",
               "comments",
+              "messages",
               "tags",
               "activity",
             ],
             description:
-              "The type of Teamwork data to query. Default is 'tasks'.",
+              "Which kind of Teamwork data the user wants. tasks=to-do items; tasklists=lists that group tasks; projects=projects/workspaces; milestones=deadlines; time=time logs/hours; people=people directory; teams=teams; comments=comments on tasks; messages=project message-board posts; tags=labels; activity=recent activity feed. Default 'tasks'.",
+          },
+          assignee_scope: {
+            type: "string",
+            enum: ["me", "all", "unassigned"],
+            description:
+              "For tasks/time: whose items to return. 'me' = the caller's own, 'unassigned' = tasks with no assignee, 'all' = everyone. When the user names ANOTHER person, leave this 'all' and set 'employee' instead. Default 'all'.",
+          },
+          status: {
+            type: "string",
+            enum: ["active", "completed", "overdue", "all"],
+            description:
+              "For tasks: 'active' = open/incomplete, 'completed' = done, 'overdue' = past due. Default 'all'.",
+          },
+          priority: {
+            type: "string",
+            enum: ["high", "medium", "low", "all"],
+            description: "For tasks: filter by priority. Default 'all'.",
+          },
+          date_range_start: {
+            type: "string",
+            description:
+              "Start date in YYYY-MM-DD. For category 'time' this filters time logs by date; for 'tasks' it filters by due date. Resolve relative dates (this week = Monday of current week; last month = first day of previous month, etc.).",
+          },
+          date_range_end: {
+            type: "string",
+            description:
+              "End date in YYYY-MM-DD (see date_range_start). Resolve relative dates the same way.",
+          },
+          billable_only: {
+            type: "boolean",
+            description: "For category 'time': return only billable entries. Default false.",
           },
           employee: {
             type: "string",
             description:
-              "Optional employee name or email to scope the Teamwork query to (e.g. 'John Smith's tasks'). The name will be resolved against the Teamwork people directory. Permissions are enforced by Teamwork; if the caller doesn't have rights, no results will be returned.",
+              "Optional employee name or email to scope the Teamwork query to ANOTHER person (e.g. 'John Smith's tasks', 'hours logged by Maria'). Resolved against the Teamwork people directory. Leave empty for the caller themselves. Permissions are enforced by Teamwork.",
           },
         },
         required: ["query"],
@@ -128,13 +160,38 @@ export const TOOL_DEFINITIONS: ChatCompletionTool[] = [
           query: {
             type: "string",
             description:
-              "The full natural language query about Outlook data.",
+              "Free-text search keywords ONLY (e.g. a subject, sender name, or contact name to find). Leave empty (\"\") when just listing (e.g. 'my unread emails', 'meetings this week').",
           },
           category: {
             type: "string",
             enum: ["mail", "calendar", "contacts"],
             description:
               "The type of Outlook data to query. 'mail' for emails/inbox, 'calendar' for meetings/schedule/events, 'contacts' for people/phone numbers.",
+          },
+          date_range_start: {
+            type: "string",
+            description:
+              "Start date in YYYY-MM-DD. For mail filters by received date; for calendar sets the window start. Resolve relative dates (this week = Monday; last month = first day of previous month, etc.).",
+          },
+          date_range_end: {
+            type: "string",
+            description: "End date in YYYY-MM-DD (see date_range_start).",
+          },
+          unread_only: {
+            type: "boolean",
+            description: "Mail only: return just unread emails. Default false.",
+          },
+          from_sender: {
+            type: "string",
+            description: "Mail only: filter to emails from this sender's email address (e.g. 'jane@acme.com'). Only set when the user names a sender.",
+          },
+          has_attachments: {
+            type: "boolean",
+            description: "Mail only: return just emails that have attachments. Default false.",
+          },
+          free_time: {
+            type: "boolean",
+            description: "Calendar only: compute free/available time slots instead of listing events (for 'when am I free', 'availability', 'open slots'). Default false.",
           },
         },
         required: ["query", "category"],
@@ -153,12 +210,37 @@ export const TOOL_DEFINITIONS: ChatCompletionTool[] = [
           query: {
             type: "string",
             description:
-              "The full natural language query about Zoho People HR data.",
+              "Optional free-text search keywords ONLY. Leave empty (\"\") for listing/filtering intents.",
+          },
+          sub_intent: {
+            type: "string",
+            enum: [
+              "employee_detail",
+              "directory",
+              "birthdays",
+              "anniversaries",
+              "new_joiners",
+              "leave_today",
+              "leave",
+              "attendance",
+              "departments",
+              "timesheets",
+              "headcount",
+              "manager",
+            ],
+            description:
+              "Which HR data the user wants. employee_detail=one person's profile (set 'employee' too); directory=all employees; birthdays/anniversaries/new_joiners=date-based people lists (set 'period'); leave_today=who is off today; leave=leave requests; attendance=check-in/attendance records (set 'period'); departments=department list; timesheets=logged hours; headcount=active employee count; manager=reporting/org hierarchy. Defaults to employee_detail when an employee is named, else directory.",
+          },
+          period: {
+            type: "string",
+            enum: ["today", "this_week", "last_week", "this_month", "last_month", "this_year"],
+            description:
+              "Time period for date-based sub-intents (birthdays, anniversaries, new_joiners, attendance). Resolve the user's phrasing to one of these.",
           },
           employee: {
             type: "string",
             description:
-              "Optional employee name or email to look up a specific employee's profile (e.g. 'John Smith', 'Maria Garcia'). Use when the user asks about a particular employee by name. Permissions are enforced by Zoho People.",
+              "Optional employee name or email to look up or scope to (e.g. 'John Smith', 'Maria Garcia'). Use when the user asks about a particular employee. Permissions are enforced by Zoho People.",
           },
         },
         required: ["query"],
@@ -340,6 +422,25 @@ export const TOOL_DEFINITIONS: ChatCompletionTool[] = [
           },
         },
         required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "report_unsupported",
+      description:
+        "Call this when the user is asking about data from one of the integrated apps (JIRA, Teamwork, Outlook, STS, or any Zoho product) but you CANNOT confidently determine which tool to use or the parameters required, OR when the request is a write/modify/create/delete action (this assistant is READ-ONLY). Do NOT call this for general conversation, greetings, or questions unrelated to the integrated apps — for those, simply answer without calling any function.",
+      parameters: {
+        type: "object",
+        properties: {
+          reason: {
+            type: "string",
+            description:
+              "A brief, user-facing reason the request can't be fulfilled (e.g. 'write actions are not supported', 'couldn't tell which app this refers to').",
+          },
+        },
+        required: [],
       },
     },
   },

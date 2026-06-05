@@ -5,7 +5,6 @@ import { routeWithAI, formatToolResponse, getGeneralResponse } from "../services
 import type { ChatHistoryEntry } from "../services/aiService";
 import { trackUsage } from "../lib/usage-tracker";
 import { getAuthUser } from "../middlewares/auth";
-import { parseToolCommand } from "../lib/parse-tool-command";
 
 const router: IRouter = Router();
 
@@ -55,78 +54,23 @@ router.post("/chat", async (req, res) => {
       .slice(-20)
       .map((h) => ({ role: h.role as "user" | "assistant", content: h.content }));
 
-    const explicitTool = parseToolCommand(parsed.message);
-
-    let toolCall = await routeWithAI(parsed.message, history);
-
-    if (explicitTool && (!toolCall || toolCall.toolName.toLowerCase() !== explicitTool.tool.toLowerCase())) {
-      console.log(`[Chat] @-mention override: AI picked "${toolCall?.toolName || 'none'}" but user explicitly mentioned @${explicitTool.tool} — forcing correct tool`);
-      const query = parsed.message.replace(/@[a-zA-Z0-9_-]+/g, "").trim() || parsed.message;
-      const overrideArgs: Record<string, unknown> = { query, _atMentionOverride: true };
-
-      // If the cleaned query is clearly a pure temporal/filter phrase
-      // ("leads created today", "deals closed this week", "tasks due today"),
-      // suppress the search-entity fallback so the query doesn't degrade into
-      // a word-search on "closed" or "today". The CRM service will resolve
-      // the date intent via router-provided date args (carried over below) or
-      // fall back to module-wide fetch + date filter.
-      const temporalOnly = /^(my\s+)?(tasks?|deals?|leads?|contacts?|accounts?|events?|calls?|products?|quotes?|invoices?|campaigns?|vendors?)(\s+(created|closed|added|due|opened|modified|updated|open))?(\s+(today|yesterday|tomorrow|this\s+(week|month|year|quarter)|last\s+(week|month|year|quarter|\d+\s+days?|\d+\s+months?)|next\s+(week|month|year|quarter)|since\s+\w+|from\s+\w+|before\s+\w+))?$/i
-        .test(query.trim());
-      if (temporalOnly) {
-        overrideArgs._atMentionOverride = false;
-      }
-
-      // Carry over date / filter intent that the AI router already extracted
-      // from the user's natural-language query, so @-mention doesn't erase
-      // things like "today", "this week", "my", or a specific entity name.
-      // Only tool-agnostic fields are copied unconditionally; tool-specific
-      // fields like `module` are only copied when the AI originally routed to
-      // the same tool, to avoid cross-tool contamination (e.g. a Recruit
-      // module leaking into a CRM query).
-      if (toolCall?.args && typeof toolCall.args === "object") {
-        const prev = toolCall.args as Record<string, unknown>;
-        const sameTool = toolCall.toolName.toLowerCase() === explicitTool.tool.toLowerCase();
-        const crossToolKeys = [
-          "date_field",
-          "date_range_start",
-          "date_range_end",
-          "owner_filter",
-          "search_entity",
-        ];
-        const sameToolOnlyKeys = ["status_filter", "module"];
-        for (const key of crossToolKeys) {
-          if (prev[key] !== undefined && overrideArgs[key] === undefined) {
-            overrideArgs[key] = prev[key];
-          }
-        }
-        if (sameTool) {
-          for (const key of sameToolOnlyKeys) {
-            if (prev[key] !== undefined && overrideArgs[key] === undefined) {
-              overrideArgs[key] = prev[key];
-            }
-          }
-        }
-      }
-
-      if (explicitTool.tool === "ZohoCRM") {
-        const lowerQuery = query.toLowerCase();
-        const hasModuleIntent = /\b(tasks?|deals?|leads?|contacts?|accounts?|events?|calls?|products?|quotes?|invoices?|campaigns?|vendors?|my )\b/.test(lowerQuery);
-        if (!hasModuleIntent && overrideArgs.module === undefined) {
-          overrideArgs.module = "accounts";
-          overrideArgs.include_related = true;
-        }
-      }
-      toolCall = {
-        toolName: explicitTool.tool,
-        functionName: `query_${explicitTool.tool.toLowerCase()}`,
-        args: overrideArgs,
-      };
-    }
+    // Tool selection is delegated entirely to the LLM router (no keyword/regex
+    // matching). It either picks a query_* tool, calls report_unsupported, or
+    // returns null for genuine general conversation.
+    const toolCall = await routeWithAI(parsed.message, history);
 
     let reply: string;
     let toolCommand: { tool: string; query: string } | undefined;
 
-    if (toolCall) {
+    if (toolCall && toolCall.functionName === "report_unsupported") {
+      const reason = typeof toolCall.args.reason === "string" ? toolCall.args.reason : "";
+      console.log("[Chat] LLM reported unsupported request:", reason || "(no reason)");
+      trackUsage(authUser.email, null, parsed.message);
+      reply =
+        "I can only read data from the connected apps (JIRA, Teamwork, Outlook, STS, and Zoho) — and only read, never change anything. I couldn't map your request to a specific app and action" +
+        (reason ? ` (${reason})` : "") +
+        '. Try naming the app and what you want to see, e.g. "my open Teamwork tasks" or "JIRA bugs assigned to me".';
+    } else if (toolCall) {
       console.log("[Chat] AI selected tool:", toolCall.toolName, "with args:", JSON.stringify(toolCall.args));
       trackUsage(authUser.email, toolCall.toolName, parsed.message);
 

@@ -65,7 +65,7 @@ router.get("/dashboard", async (req, res) => {
       promises.push(
         (async () => {
           try {
-            const result = await queryJira("my tasks", userId);
+            const result = await queryJira("", userId, { assignee: "me" });
             if (result.source === "error") {
               services.push({
                 key: "jira",
@@ -148,9 +148,9 @@ router.get("/dashboard", async (req, res) => {
           (async () => {
             try {
               const [headcountRes, leaveRes, joinersRes] = await Promise.allSettled([
-                queryZohoPeople("headcount", zohoTokens.clientId, zohoTokens.clientSecret, zohoTokens.refreshToken, "https://accounts.zoho.com"),
-                queryZohoPeople("who is on leave today", zohoTokens.clientId, zohoTokens.clientSecret, zohoTokens.refreshToken, "https://accounts.zoho.com"),
-                queryZohoPeople("new joiners this month", zohoTokens.clientId, zohoTokens.clientSecret, zohoTokens.refreshToken, "https://accounts.zoho.com"),
+                queryZohoPeople("headcount", zohoTokens.clientId, zohoTokens.clientSecret, zohoTokens.refreshToken, "https://accounts.zoho.com", undefined, "headcount"),
+                queryZohoPeople("who is on leave today", zohoTokens.clientId, zohoTokens.clientSecret, zohoTokens.refreshToken, "https://accounts.zoho.com", undefined, "leave_today"),
+                queryZohoPeople("new joiners this month", zohoTokens.clientId, zohoTokens.clientSecret, zohoTokens.refreshToken, "https://accounts.zoho.com", undefined, "new_joiners", "this_month"),
               ]);
 
               if (headcountRes.status === "rejected" && leaveRes.status === "rejected" && joinersRes.status === "rejected") {
@@ -526,7 +526,7 @@ router.get("/dashboard", async (req, res) => {
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
             const dateFilter = thirtyDaysAgo.toISOString().split("T")[0];
-            const result = await queryTeamwork(`my latest tasks due after ${dateFilter}`, userId);
+            const result = await queryTeamwork("", userId, { category: "tasks", assigneeScope: "me", dateFrom: dateFilter });
             if (result.source === "error") {
               services.push({
                 key: "teamwork",
